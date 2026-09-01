@@ -39,8 +39,9 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
           draft.purpose != null;
     }
     return draft.extraPhotoCount >= 2 &&
-        bioController.text.trim().length >= 10 &&
-        draft.interests.length >= 3 &&
+        bioController.text.trim().length >= 3 &&
+        draft.interests.isNotEmpty &&
+        draft.prompt.trim().isNotEmpty &&
         promptAnswerController.text.trim().length >= 3;
   }
 
@@ -154,8 +155,13 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
           promptAnswerController: promptAnswerController,
           extraPhotoCount: draft.extraPhotoCount,
           interests: draft.interests,
+          selectedPrompt: draft.prompt,
           onBioChanged: () => setState(() {}),
           onPromptChanged: () => setState(() {}),
+          onPromptSelected: (value) => setState(() {
+            draft.prompt = value;
+            promptAnswerController.clear();
+          }),
           onExtraPhotoCountChanged: (value) =>
               setState(() => draft.extraPhotoCount = value),
           onInterestToggle: _toggleInterest,
