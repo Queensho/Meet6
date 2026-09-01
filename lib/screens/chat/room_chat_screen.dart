@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/chat_message.dart';
 import '../../theme/app_colors.dart';
+import 'room_selection_screen.dart';
 import 'widgets/chat_input_bar.dart';
 import 'widgets/chat_message_bubble.dart';
 import 'widgets/participant_strip.dart';
@@ -22,6 +23,9 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
   final scrollController = ScrollController();
   Timer? timer;
   int secondsLeft = 15 * 60;
+  bool extensionPromptShown = false;
+  bool extendedOnce = false;
+  bool navigatingToSelection = false;
 
   final messages = <ChatMessage>[
     const ChatMessage(
@@ -51,6 +55,8 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
   ];
 
   bool get canSend => messageController.text.trim().isNotEmpty && secondsLeft > 0;
+  bool get isLastTwoMinutes => secondsLeft > 0 && secondsLeft <= 120;
+  bool get isLastMinute => secondsLeft > 0 && secondsLeft <= 60;
 
   String get timerText {
     final minutes = secondsLeft ~/ 60;
@@ -61,15 +67,27 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
   @override
   void initState() {
     super.initState();
-    timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted) return;
-      if (secondsLeft <= 1) {
-        timer?.cancel();
-        setState(() => secondsLeft = 0);
-      } else {
-        setState(() => secondsLeft--);
-      }
-    });
+    timer = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
+  }
+
+  void _tick() {
+    if (!mounted || navigatingToSelection) return;
+
+    if (secondsLeft <= 1) {
+      timer?.cancel();
+      setState(() => secondsLeft = 0);
+      _openSelection();
+      return;
+    }
+
+    setState(() => secondsLeft--);
+
+    if (secondsLeft == 60 && !extensionPromptShown && !extendedOnce) {
+      extensionPromptShown = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showExtensionOffer();
+      });
+    }
   }
 
   @override
@@ -100,12 +118,153 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
       messageController.clear();
     });
 
+    _scrollToBottom();
+  }
+
+  void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!scrollController.hasClients) return;
       scrollController.animateTo(
         scrollController.position.maxScrollExtent,
         duration: const Duration(milliseconds: 260),
         curve: Curves.easeOut,
+      );
+    });
+  }
+
+  Future<void> _showExtensionOffer() async {
+    if (!mounted || secondsLeft == 0) return;
+
+    final extend = await showModalBottomSheet<bool>(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return SafeArea(
+          child: Container(
+            margin: const EdgeInsets.all(12),
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(26),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 58,
+                  height: 58,
+                  decoration: const BoxDecoration(
+                    color: AppColors.lime,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.add_alarm_rounded,
+                    color: AppColors.navy,
+                    size: 29,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Sohbeti +5 dk uzatalım mı?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppColors.navy,
+                    fontSize: 21,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Odadaki yeterli kişi kabul ederse sohbet 5 dakika daha devam edecek. Seçim yine sohbet bittikten sonra yapılacak.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppColors.muted,
+                    fontSize: 13,
+                    height: 1.4,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: SizedBox(
+                        height: 52,
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.navy,
+                            side: const BorderSide(color: AppColors.border),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(17),
+                            ),
+                          ),
+                          child: const Text(
+                            'Hayır',
+                            style: TextStyle(fontWeight: FontWeight.w900),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: SizedBox(
+                        height: 52,
+                        child: FilledButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.navy,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(17),
+                            ),
+                          ),
+                          child: const Text(
+                            '+5 dk iste',
+                            style: TextStyle(fontWeight: FontWeight.w900),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (!mounted || extend != true || secondsLeft == 0) return;
+
+    setState(() {
+      extendedOnce = true;
+      secondsLeft += 5 * 60;
+      messages.add(
+        const ChatMessage(
+          sender: 'Meet6',
+          text: '4 kişi devam etmek istedi. Sohbet +5 dakika uzatıldı ⚡',
+          time: '',
+          isSystem: true,
+        ),
+      );
+    });
+    _scrollToBottom();
+  }
+
+  void _openSelection() {
+    if (!mounted || navigatingToSelection) return;
+    navigatingToSelection = true;
+    FocusScope.of(context).unfocus();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => RoomSelectionScreen(profileName: widget.profileName),
+        ),
       );
     });
   }
@@ -137,7 +296,7 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Çıkarsan bu 15 dakikalık sohbete tekrar dönemeyebilirsin.',
+                  'Çıkarsan bu sohbete tekrar dönemeyebilirsin.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: AppColors.muted,
@@ -264,12 +423,12 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
                               vertical: 8,
                             ),
                             decoration: BoxDecoration(
-                              color: secondsLeft <= 60
+                              color: isLastMinute
                                   ? const Color(0xFFFFECEA)
                                   : AppColors.lime,
                               borderRadius: BorderRadius.circular(999),
                               border: Border.all(
-                                color: secondsLeft <= 60
+                                color: isLastMinute
                                     ? const Color(0xFFFF6B5F)
                                     : AppColors.navy,
                               ),
@@ -304,31 +463,42 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
                     ),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(18, 2, 18, 10),
-                      child: Container(
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 220),
                         width: double.infinity,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 13,
                           vertical: 10,
                         ),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF1F5FF),
+                          color: isLastTwoMinutes
+                              ? const Color(0xFFFFF5D9)
+                              : const Color(0xFFF1F5FF),
                           borderRadius: BorderRadius.circular(15),
                           border: Border.all(
-                            color: AppColors.blue.withOpacity(.12),
+                            color: isLastTwoMinutes
+                                ? const Color(0xFFFFC94A)
+                                : AppColors.blue.withOpacity(.12),
                           ),
                         ),
-                        child: const Row(
+                        child: Row(
                           children: [
                             Icon(
-                              Icons.bolt_rounded,
-                              color: AppColors.blue,
+                              isLastTwoMinutes
+                                  ? Icons.hourglass_bottom_rounded
+                                  : Icons.bolt_rounded,
+                              color: isLastTwoMinutes
+                                  ? const Color(0xFFD18B00)
+                                  : AppColors.blue,
                               size: 19,
                             ),
-                            SizedBox(width: 7),
+                            const SizedBox(width: 7),
                             Expanded(
                               child: Text(
-                                '15 dakika özgür sohbet. Sonunda herkes gizlice bir kişiyi seçer.',
-                                style: TextStyle(
+                                isLastTwoMinutes
+                                    ? 'Sohbet bitmek üzere. Süre dolunca mesajlaşma kapanacak ve gizli seçim başlayacak.'
+                                    : 'Sohbet özgürce devam eder. Kişi seçimi yalnızca süre bittikten sonra açılır.',
+                                style: const TextStyle(
                                   color: AppColors.navy,
                                   fontSize: 11.5,
                                   height: 1.3,
@@ -360,29 +530,7 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
                         onSend: _sendMessage,
                       )
                     else
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
-                        color: Colors.white,
-                        child: FilledButton(
-                          onPressed: () {},
-                          style: FilledButton.styleFrom(
-                            backgroundColor: AppColors.navy,
-                            foregroundColor: Colors.white,
-                            minimumSize: const Size.fromHeight(54),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(18),
-                            ),
-                          ),
-                          child: const Text(
-                            'Seçim ekranına geç',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ),
-                      ),
+                      const SizedBox(height: 18),
                   ],
                 ),
               ),
