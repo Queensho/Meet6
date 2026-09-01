@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/app_colors.dart';
-import '../../widgets/brand.dart';
 import '../../widgets/primary_button.dart';
+import '../chat/room_chat_screen.dart';
 import 'widgets/room_radar.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -166,10 +166,11 @@ class HomeScreen extends StatelessWidget {
                         dark: true,
                         height: 62,
                         onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Oda eşleşmesi başlatılıyor'),
-                              behavior: SnackBarBehavior.floating,
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => RoomChatScreen(
+                                profileName: profileName,
+                              ),
                             ),
                           );
                         },
