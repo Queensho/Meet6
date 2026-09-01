@@ -62,6 +62,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       body: LayoutBuilder(
         builder: (context, viewport) {
           final desktop = viewport.maxWidth > 520;
@@ -101,17 +102,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: LayoutBuilder(
                       builder: (context, phone) {
                         final w = phone.maxWidth;
-                        final h = phone.maxHeight;
-
-                        // Only the phone width controls compact sizing.
-                        // The keyboard changes height, so it can no longer
-                        // shrink the hero image or the rest of the UI.
                         final veryCompact = w < 340;
                         final compact = w < 375;
                         final horizontal = (w * .045).clamp(14.0, 19.0);
-                        final verticalTop = compact ? 7.0 : 10.0;
-                        final minContentHeight =
-                            (h - verticalTop - 2).clamp(0.0, double.infinity);
+                        final keyboard = MediaQuery.viewInsetsOf(context).bottom;
 
                         return SingleChildScrollView(
                           keyboardDismissBehavior:
@@ -119,57 +113,42 @@ class _LoginScreenState extends State<LoginScreen> {
                           physics: const BouncingScrollPhysics(),
                           padding: EdgeInsets.fromLTRB(
                             horizontal,
-                            verticalTop,
+                            compact ? 7 : 10,
                             horizontal,
-                            2,
+                            keyboard > 0 ? keyboard + 8 : 2,
                           ),
-                          child: ConstrainedBox(
-                            constraints: BoxConstraints(
-                              minHeight: minContentHeight,
-                            ),
-                            child: IntrinsicHeight(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  _Brand(width: w),
-                                  SizedBox(height: compact ? 7 : 10),
-                                  _Headline(width: w),
-                                  const SizedBox(height: 3),
-                                  Text(
-                                    '6 kişilik çevrende yeni insanlarla\nsohbet etmeye başla.',
-                                    style: TextStyle(
-                                      color: Meet6App.muted,
-                                      fontSize:
-                                          (w * .033).clamp(11.8, 13.5),
-                                      height: 1.28,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  SizedBox(height: compact ? 3 : 5),
-                                  _HeroPng(
-                                    width: w,
-                                    compact: compact,
-                                    veryCompact: veryCompact,
-                                  ),
-                                  const Spacer(),
-                                  _BottomLoginArea(
-                                    compact: compact,
-                                    veryCompact: veryCompact,
-                                    canContinue: canContinue,
-                                    phoneController: phoneController,
-                                    onChanged: () => setState(() {}),
-                                    onContinue: () => demo(
-                                      'Doğrulama kodu gönderilecek',
-                                    ),
-                                    onGoogle: () =>
-                                        demo('Google ile devam et'),
-                                    onApple: () =>
-                                        demo('Apple ile devam et'),
-                                    fieldBorder: _fieldBorder,
-                                  ),
-                                ],
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _Brand(width: w),
+                              SizedBox(height: compact ? 7 : 10),
+                              _Headline(width: w),
+                              const SizedBox(height: 3),
+                              Text(
+                                '6 kişilik çevrende yeni insanlarla\nsohbet etmeye başla.',
+                                style: TextStyle(
+                                  color: Meet6App.muted,
+                                  fontSize: (w * .033).clamp(11.8, 13.5),
+                                  height: 1.28,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
-                            ),
+                              SizedBox(height: compact ? 3 : 5),
+                              _HeroPng(width: w),
+                              SizedBox(height: compact ? 6 : 9),
+                              _BottomLoginArea(
+                                compact: compact,
+                                veryCompact: veryCompact,
+                                canContinue: canContinue,
+                                phoneController: phoneController,
+                                onChanged: () => setState(() {}),
+                                onContinue: () =>
+                                    demo('Doğrulama kodu gönderilecek'),
+                                onGoogle: () => demo('Google ile devam et'),
+                                onApple: () => demo('Apple ile devam et'),
+                                fieldBorder: _fieldBorder,
+                              ),
+                            ],
                           ),
                         );
                       },
@@ -242,12 +221,10 @@ class _BottomLoginArea extends StatelessWidget {
                     ),
                     filled: true,
                     fillColor: Colors.white.withOpacity(.84),
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 13),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 13),
                     border: fieldBorder(Meet6App.border),
                     enabledBorder: fieldBorder(Meet6App.border),
-                    focusedBorder:
-                        fieldBorder(Meet6App.blue, width: 1.5),
+                    focusedBorder: fieldBorder(Meet6App.blue, width: 1.5),
                   ),
                 ),
               ),
@@ -402,37 +379,24 @@ class _Headline extends StatelessWidget {
 }
 
 class _HeroPng extends StatelessWidget {
-  const _HeroPng({
-    required this.width,
-    required this.compact,
-    required this.veryCompact,
-  });
+  const _HeroPng({required this.width});
 
   final double width;
-  final bool compact;
-  final bool veryCompact;
 
   @override
   Widget build(BuildContext context) {
-    // Fixed by width, never by the keyboard-reduced viewport height.
-    final heroHeight = (width * .67).clamp(220.0, 276.0);
-    final scale = veryCompact ? 1.08 : (compact ? 1.14 : 1.20);
+    final imageWidth = (width * .84).clamp(245.0, 330.0);
 
     return SizedBox(
       width: double.infinity,
-      height: heroHeight,
-      child: ClipRect(
-        child: Center(
-          child: Transform.scale(
-            scale: scale,
-            child: Image.asset(
-              'assets/images/file_000000009c248210b0e425b8f2d3e68d.png',
-              width: width,
-              height: heroHeight,
-              fit: BoxFit.contain,
-              filterQuality: FilterQuality.high,
-            ),
-          ),
+      height: imageWidth,
+      child: Center(
+        child: Image.asset(
+          'assets/images/file_000000009c248210b0e425b8f2d3e68d.png',
+          width: imageWidth,
+          height: imageWidth,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
         ),
       ),
     );
