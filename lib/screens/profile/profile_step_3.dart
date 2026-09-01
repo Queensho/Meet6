@@ -76,7 +76,8 @@ class ProfileStepThree extends StatelessWidget {
                   final next = selected && index == extraPhotoCount - 1
                       ? extraPhotoCount - 1
                       : index + 1;
-                  onExtraPhotoCountChanged(next.clamp(0, 3));
+                  final bounded = next < 0 ? 0 : (next > 3 ? 3 : next);
+                  onExtraPhotoCountChanged(bounded);
                 },
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 160),
