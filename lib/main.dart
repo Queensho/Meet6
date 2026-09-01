@@ -87,12 +87,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   SafeArea(
                     child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(20, 10, 20, 14),
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 14),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const _StatusBar(),
-                          const SizedBox(height: 14),
                           const _Brand(),
                           const SizedBox(height: 14),
                           const _Headline(),
@@ -238,33 +236,6 @@ class _LoginScreenState extends State<LoginScreen> {
     return OutlineInputBorder(
       borderRadius: BorderRadius.circular(16),
       borderSide: BorderSide(color: color, width: width),
-    );
-  }
-}
-
-class _StatusBar extends StatelessWidget {
-  const _StatusBar();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Row(
-      children: [
-        Text('22:29',
-            style: TextStyle(
-                color: Meet6App.navy,
-                fontSize: 13,
-                fontWeight: FontWeight.w800)),
-        Spacer(),
-        Icon(Icons.signal_cellular_alt_rounded, size: 16, color: Meet6App.navy),
-        SizedBox(width: 5),
-        Icon(Icons.wifi_rounded, size: 16, color: Meet6App.navy),
-        SizedBox(width: 5),
-        Text('50',
-            style: TextStyle(
-                color: Meet6App.navy,
-                fontSize: 11,
-                fontWeight: FontWeight.w900)),
-      ],
     );
   }
 }
