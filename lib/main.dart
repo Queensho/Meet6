@@ -14,40 +14,22 @@ class Meet6App extends StatelessWidget {
         useMaterial3: true,
         scaffoldBackgroundColor: Colors.white,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF202020),
+          seedColor: const Color(0xFF8B63E6),
           brightness: Brightness.light,
         ),
       ),
-      home: const LoginScreen(),
+      home: const EntryScreen(),
     );
   }
 }
 
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+class EntryScreen extends StatelessWidget {
+  const EntryScreen({super.key});
 
-  @override
-  State<LoginScreen> createState() => _LoginScreenState();
-}
-
-class _LoginScreenState extends State<LoginScreen> {
-  final TextEditingController phoneController = TextEditingController();
-
-  bool get canContinue {
-    final digits = phoneController.text.replaceAll(RegExp(r'[^0-9]'), '');
-    return digits.length >= 10;
-  }
-
-  @override
-  void dispose() {
-    phoneController.dispose();
-    super.dispose();
-  }
-
-  void _prototypeAction(String message) {
+  void _showDemo(BuildContext context, String text) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
+        content: Text(text),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -56,176 +38,106 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 480),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 22, 24, 20),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: SafeArea(
+            child: SingleChildScrollView(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const _TopBrand(),
-                  const Spacer(),
-                  const _Meet6Concept(),
-                  const Spacer(),
-                  const Text(
-                    'Meet6’ya giriş yap',
-                    style: TextStyle(
-                      fontSize: 30,
-                      height: 1.05,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -1,
-                      color: Color(0xFF171717),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Telefon numaranla devam et.',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Color(0xFF767676),
-                    ),
-                  ),
-                  const SizedBox(height: 22),
-                  Row(
-                    children: [
-                      Container(
-                        height: 58,
-                        padding: const EdgeInsets.symmetric(horizontal: 15),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF7F7F7),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: const Color(0xFFE5E5E5)),
-                        ),
-                        alignment: Alignment.center,
-                        child: const Text(
-                          '🇹🇷  +90',
+                  const _HeroArea(),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 26),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Text(
+                          'Tanışmanın yeni yolu.',
+                          textAlign: TextAlign.center,
                           style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF202020),
+                            fontSize: 34,
+                            height: 1.05,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -1.2,
+                            color: Color(0xFF171717),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: TextField(
-                          controller: phoneController,
-                          keyboardType: TextInputType.phone,
-                          onChanged: (_) => setState(() {}),
-                          style: const TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w700,
+                        const SizedBox(height: 10),
+                        const Text(
+                          '6 kişi, 15 dakika, serbest sohbet.\nSohbetin sonunda gizli seçimini yap.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 15.5,
+                            height: 1.45,
+                            color: Color(0xFF777777),
                           ),
-                          decoration: InputDecoration(
-                            hintText: '5XX XXX XX XX',
-                            hintStyle: const TextStyle(
-                              color: Color(0xFFA7A7A7),
-                              fontWeight: FontWeight.w500,
-                            ),
-                            filled: true,
-                            fillColor: const Color(0xFFF7F7F7),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 18,
-                              vertical: 18,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: BorderSide.none,
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: const BorderSide(
-                                color: Color(0xFFE5E5E5),
+                        ),
+                        const SizedBox(height: 28),
+                        _PrimaryEntryButton(
+                          label: 'E-posta ile devam et',
+                          icon: Icons.mail_outline_rounded,
+                          dark: true,
+                          onTap: () => _showDemo(context, 'E-posta ile kayıt / giriş'),
+                        ),
+                        const SizedBox(height: 12),
+                        _PrimaryEntryButton(
+                          label: 'Telefon numarasıyla devam et',
+                          icon: Icons.phone_iphone_rounded,
+                          onTap: () => _showDemo(context, 'Telefon ile kayıt / giriş'),
+                        ),
+                        const SizedBox(height: 22),
+                        const _OrDivider(),
+                        const SizedBox(height: 20),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _SocialSquareButton(
+                                icon: Icons.apple_rounded,
+                                semantics: 'Apple',
+                                onTap: () => _showDemo(context, 'Apple ile devam et'),
                               ),
                             ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(16),
-                              borderSide: const BorderSide(
-                                color: Color(0xFF202020),
-                                width: 1.5,
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _SocialSquareButton(
+                                icon: Icons.g_mobiledata_rounded,
+                                semantics: 'Google',
+                                onTap: () => _showDemo(context, 'Google ile devam et'),
                               ),
                             ),
-                          ),
+                          ],
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  const Row(
-                    children: [
-                      Icon(
-                        Icons.lock_outline_rounded,
-                        size: 17,
-                        color: Color(0xFF8A8A8A),
-                      ),
-                      SizedBox(width: 7),
-                      Expanded(
-                        child: Text(
-                          'Numaran diğer kullanıcılara gösterilmez.',
+                        const SizedBox(height: 22),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Text(
+                              'Zaten hesabın var mı?',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Color(0xFF777777),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () => _showDemo(context, 'Giriş yap'),
+                              child: const Text(
+                                'Giriş yap',
+                                style: TextStyle(fontWeight: FontWeight.w800),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Devam ederek Kullanım Koşulları ve Gizlilik Politikası’nı kabul etmiş olursun.',
+                          textAlign: TextAlign.center,
                           style: TextStyle(
-                            fontSize: 13,
-                            color: Color(0xFF8A8A8A),
+                            fontSize: 11,
+                            height: 1.4,
+                            color: Color(0xFFA0A0A0),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  SizedBox(
-                    height: 58,
-                    child: FilledButton(
-                      onPressed: canContinue
-                          ? () => _prototypeAction('Doğrulama kodu gönderilecek')
-                          : null,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFF171717),
-                        disabledBackgroundColor: const Color(0xFFE6E6E6),
-                        disabledForegroundColor: const Color(0xFF999999),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      child: const Text(
-                        'Devam et',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  const _DividerLabel(),
-                  const SizedBox(height: 18),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _SocialButton(
-                          icon: Icons.g_mobiledata_rounded,
-                          label: 'Google',
-                          onTap: () => _prototypeAction('Google ile giriş'),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _SocialButton(
-                          icon: Icons.apple_rounded,
-                          label: 'Apple',
-                          onTap: () => _prototypeAction('Apple ile giriş'),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  const Text(
-                    'Devam ederek Kullanım Koşulları ve Gizlilik Politikası’nı kabul etmiş olursun.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 11.5,
-                      height: 1.4,
-                      color: Color(0xFF9A9A9A),
+                      ],
                     ),
                   ),
                 ],
@@ -238,72 +150,142 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-class _TopBrand extends StatelessWidget {
-  const _TopBrand();
+class _HeroArea extends StatelessWidget {
+  const _HeroArea();
 
   @override
   Widget build(BuildContext context) {
-    return const Row(
-      children: [
-        Text(
-          'meet6',
-          style: TextStyle(
-            fontSize: 30,
-            fontWeight: FontWeight.w900,
-            letterSpacing: -1.5,
-            color: Color(0xFF171717),
-          ),
+    return Container(
+      height: 370,
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(12, 10, 12, 14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(34),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFFCDEEFF),
+            Color(0xFFE9D4FF),
+            Color(0xFFFFD9E5),
+          ],
         ),
-        Spacer(),
-        Text(
-          '6 kişi • 15 dk',
-          style: TextStyle(
-            fontSize: 12.5,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF8A8A8A),
+      ),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            left: -48,
+            top: 40,
+            child: _BlurBubble(size: 150, color: Color(0x33FFFFFF)),
           ),
-        ),
-      ],
+          Positioned(
+            right: -20,
+            bottom: 42,
+            child: _BlurBubble(size: 120, color: Color(0x26FFFFFF)),
+          ),
+          Center(
+            child: SizedBox(
+              width: 310,
+              height: 300,
+              child: Stack(
+                alignment: Alignment.center,
+                children: const [
+                  _OrbitRing(size: 238),
+                  _OrbitRing(size: 168),
+                  _Meet6Mark(),
+                  Positioned(top: 4, left: 118, child: _FloatingIcon(icon: Icons.favorite_rounded, tint: Color(0xFFFF647C))),
+                  Positioned(top: 52, right: 17, child: _FloatingIcon(icon: Icons.location_on_rounded, tint: Color(0xFFFF6F7F))),
+                  Positioned(bottom: 58, right: 9, child: _FloatingIcon(icon: Icons.chat_bubble_rounded, tint: Color(0xFF59A6FF))),
+                  Positioned(bottom: 2, left: 120, child: _FloatingIcon(icon: Icons.timer_rounded, tint: Color(0xFF8B63E6))),
+                  Positioned(bottom: 62, left: 10, child: _FloatingIcon(icon: Icons.groups_2_rounded, tint: Color(0xFF42CDBE))),
+                  Positioned(top: 56, left: 14, child: _FloatingIcon(icon: Icons.auto_awesome_rounded, tint: Color(0xFFB66BFF))),
+                ],
+              ),
+            ),
+          ),
+          const Positioned(
+            top: 18,
+            left: 20,
+            child: Text(
+              'meet6',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -1.1,
+                color: Color(0xFF1B1730),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 16,
+            right: 18,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(.68),
+                borderRadius: BorderRadius.circular(99),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.groups_rounded, size: 15, color: Color(0xFF6F5AE8)),
+                  SizedBox(width: 5),
+                  Text(
+                    '6 kişi',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
-class _Meet6Concept extends StatelessWidget {
-  const _Meet6Concept();
+class _Meet6Mark extends StatelessWidget {
+  const _Meet6Mark();
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: SizedBox(
-        width: 250,
-        height: 180,
-        child: Stack(
-          alignment: Alignment.center,
+    return Container(
+      width: 108,
+      height: 108,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(31),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x24000000),
+            blurRadius: 24,
+            offset: Offset(0, 12),
+          ),
+        ],
+      ),
+      alignment: Alignment.center,
+      child: const Text.rich(
+        TextSpan(
           children: [
-            Container(
-              width: 118,
-              height: 118,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF5F5F5),
-                shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFFE6E6E6)),
-              ),
-              alignment: Alignment.center,
-              child: const Text(
-                '6',
-                style: TextStyle(
-                  fontSize: 58,
-                  fontWeight: FontWeight.w900,
-                  color: Color(0xFF202020),
-                ),
+            TextSpan(
+              text: 'M',
+              style: TextStyle(
+                color: Color(0xFF1D1930),
+                fontSize: 46,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -4,
               ),
             ),
-            const Positioned(top: 0, left: 101, child: _PersonCircle()),
-            const Positioned(top: 31, right: 18, child: _PersonCircle()),
-            const Positioned(bottom: 18, right: 33, child: _PersonCircle()),
-            const Positioned(bottom: 0, left: 101, child: _PersonCircle()),
-            const Positioned(bottom: 18, left: 33, child: _PersonCircle()),
-            const Positioned(top: 31, left: 18, child: _PersonCircle()),
+            TextSpan(
+              text: '6',
+              style: TextStyle(
+                color: Color(0xFF8B63E6),
+                fontSize: 46,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -2,
+              ),
+            ),
           ],
         ),
       ),
@@ -311,91 +293,160 @@ class _Meet6Concept extends StatelessWidget {
   }
 }
 
-class _PersonCircle extends StatelessWidget {
-  const _PersonCircle();
+class _FloatingIcon extends StatelessWidget {
+  const _FloatingIcon({required this.icon, required this.tint});
+
+  final IconData icon;
+  final Color tint;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 42,
-      height: 42,
+      width: 58,
+      height: 58,
       decoration: BoxDecoration(
-        color: Colors.white,
-        shape: BoxShape.circle,
-        border: Border.all(color: const Color(0xFFE2E2E2)),
+        color: Colors.white.withOpacity(.9),
+        borderRadius: BorderRadius.circular(19),
+        border: Border.all(color: Colors.white, width: 2),
         boxShadow: const [
           BoxShadow(
-            color: Color(0x12000000),
-            blurRadius: 8,
-            offset: Offset(0, 3),
+            color: Color(0x16000000),
+            blurRadius: 14,
+            offset: Offset(0, 6),
           ),
         ],
       ),
-      child: const Icon(
-        Icons.person_rounded,
-        size: 23,
-        color: Color(0xFF888888),
+      child: Icon(icon, color: tint, size: 28),
+    );
+  }
+}
+
+class _OrbitRing extends StatelessWidget {
+  const _OrbitRing({required this.size});
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          width: 1.4,
+          color: Colors.white.withOpacity(.58),
+        ),
       ),
     );
   }
 }
 
-class _DividerLabel extends StatelessWidget {
-  const _DividerLabel();
+class _BlurBubble extends StatelessWidget {
+  const _BlurBubble({required this.size, required this.color});
+  final double size;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+    );
+  }
+}
+
+class _PrimaryEntryButton extends StatelessWidget {
+  const _PrimaryEntryButton({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+    this.dark = false,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool dark;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 58,
+      child: FilledButton.icon(
+        onPressed: onTap,
+        icon: Icon(icon, size: 20),
+        label: Text(
+          label,
+          style: const TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800),
+        ),
+        style: FilledButton.styleFrom(
+          backgroundColor: dark ? const Color(0xFF202223) : const Color(0xFFF7F7F7),
+          foregroundColor: dark ? Colors.white : const Color(0xFF202020),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+            side: dark
+                ? BorderSide.none
+                : const BorderSide(color: Color(0xFFECECEC)),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SocialSquareButton extends StatelessWidget {
+  const _SocialSquareButton({
+    required this.icon,
+    required this.semantics,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String semantics;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: semantics,
+      button: true,
+      child: SizedBox(
+        height: 58,
+        child: OutlinedButton(
+          onPressed: onTap,
+          style: OutlinedButton.styleFrom(
+            backgroundColor: const Color(0xFFF8F8F8),
+            side: const BorderSide(color: Color(0xFFEEEEEE)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+          ),
+          child: Icon(icon, size: 30, color: const Color(0xFF171717)),
+        ),
+      ),
+    );
+  }
+}
+
+class _OrDivider extends StatelessWidget {
+  const _OrDivider();
 
   @override
   Widget build(BuildContext context) {
     return const Row(
       children: [
-        Expanded(child: Divider(color: Color(0xFFE5E5E5))),
+        Expanded(child: Divider(color: Color(0xFFE8E8E8))),
         Padding(
-          padding: EdgeInsets.symmetric(horizontal: 12),
+          padding: EdgeInsets.symmetric(horizontal: 14),
           child: Text(
             'veya',
-            style: TextStyle(
-              fontSize: 12,
-              color: Color(0xFF999999),
-            ),
+            style: TextStyle(fontSize: 12, color: Color(0xFF999999)),
           ),
         ),
-        Expanded(child: Divider(color: Color(0xFFE5E5E5))),
+        Expanded(child: Divider(color: Color(0xFFE8E8E8))),
       ],
-    );
-  }
-}
-
-class _SocialButton extends StatelessWidget {
-  const _SocialButton({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 52,
-      child: OutlinedButton.icon(
-        onPressed: onTap,
-        icon: Icon(icon, size: 23, color: const Color(0xFF202020)),
-        label: Text(
-          label,
-          style: const TextStyle(
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF202020),
-          ),
-        ),
-        style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: Color(0xFFE2E2E2)),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
-      ),
     );
   }
 }
