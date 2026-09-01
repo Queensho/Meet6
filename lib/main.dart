@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 void main() => runApp(const Meet6App());
@@ -71,7 +70,8 @@ class _LoginScreenState extends State<LoginScreen> {
               clipBehavior: Clip.antiAlias,
               decoration: BoxDecoration(
                 color: Meet6App.background,
-                borderRadius: desktop ? BorderRadius.circular(32) : BorderRadius.zero,
+                borderRadius:
+                    desktop ? BorderRadius.circular(32) : BorderRadius.zero,
                 boxShadow: desktop
                     ? const [
                         BoxShadow(
@@ -121,12 +121,15 @@ class _LoginScreenState extends State<LoginScreen> {
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
-                              SizedBox(height: compact ? 4 : 7),
-                              _PeopleOrbit(compact: compact),
-                              SizedBox(height: compact ? 6 : 10),
+                              SizedBox(height: compact ? 5 : 8),
+                              _HeroPng(compact: compact),
+                              SizedBox(height: compact ? 5 : 9),
                               Row(
                                 children: [
-                                  const _CountryCode(),
+                                  SizedBox(
+                                    height: compact ? 48 : 52,
+                                    child: const _CountryCode(),
+                                  ),
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: SizedBox(
@@ -148,10 +151,17 @@ class _LoginScreenState extends State<LoginScreen> {
                                           ),
                                           filled: true,
                                           fillColor: Colors.white.withOpacity(.8),
-                                          contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+                                          contentPadding:
+                                              const EdgeInsets.symmetric(
+                                            horizontal: 14,
+                                          ),
                                           border: _fieldBorder(Meet6App.border),
-                                          enabledBorder: _fieldBorder(Meet6App.border),
-                                          focusedBorder: _fieldBorder(Meet6App.blue, width: 1.5),
+                                          enabledBorder:
+                                              _fieldBorder(Meet6App.border),
+                                          focusedBorder: _fieldBorder(
+                                            Meet6App.blue,
+                                            width: 1.5,
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -161,8 +171,11 @@ class _LoginScreenState extends State<LoginScreen> {
                               const SizedBox(height: 7),
                               const Row(
                                 children: [
-                                  Icon(Icons.lock_outline_rounded,
-                                      color: Meet6App.blue, size: 16),
+                                  Icon(
+                                    Icons.lock_outline_rounded,
+                                    color: Meet6App.blue,
+                                    size: 16,
+                                  ),
                                   SizedBox(width: 6),
                                   Flexible(
                                     child: Text(
@@ -182,12 +195,16 @@ class _LoginScreenState extends State<LoginScreen> {
                                 height: compact ? 48 : 52,
                                 child: FilledButton(
                                   onPressed: canContinue
-                                      ? () => demo('Doğrulama kodu gönderilecek')
+                                      ? () => demo(
+                                            'Doğrulama kodu gönderilecek',
+                                          )
                                       : null,
                                   style: FilledButton.styleFrom(
                                     backgroundColor: Meet6App.lime,
-                                    disabledBackgroundColor: const Color(0xFFE8F3AE),
-                                    disabledForegroundColor: Meet6App.navy.withOpacity(.48),
+                                    disabledBackgroundColor:
+                                        const Color(0xFFE8F3AE),
+                                    disabledForegroundColor:
+                                        Meet6App.navy.withOpacity(.48),
                                     foregroundColor: Meet6App.navy,
                                     elevation: 0,
                                     shape: RoundedRectangleBorder(
@@ -205,7 +222,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                         ),
                                       ),
                                       SizedBox(width: 9),
-                                      Icon(Icons.arrow_forward_rounded, size: 22),
+                                      Icon(
+                                        Icons.arrow_forward_rounded,
+                                        size: 22,
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -222,7 +242,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                       border: Meet6App.border,
                                       icon: const _GoogleMark(),
                                       label: 'Google',
-                                      onTap: () => demo('Google ile devam et'),
+                                      onTap: () => demo(
+                                        'Google ile devam et',
+                                      ),
                                     ),
                                   ),
                                   const SizedBox(width: 10),
@@ -237,7 +259,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                         size: 23,
                                       ),
                                       label: 'Apple',
-                                      onTap: () => demo('Apple ile devam et'),
+                                      onTap: () => demo(
+                                        'Apple ile devam et',
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -282,8 +306,14 @@ class _Brand extends StatelessWidget {
           letterSpacing: -2,
         ),
         children: const [
-          TextSpan(text: 'meet', style: TextStyle(color: Meet6App.navy)),
-          TextSpan(text: '6', style: TextStyle(color: Meet6App.blue)),
+          TextSpan(
+            text: 'meet',
+            style: TextStyle(color: Meet6App.navy),
+          ),
+          TextSpan(
+            text: '6',
+            style: TextStyle(color: Meet6App.blue),
+          ),
         ],
       ),
     );
@@ -319,142 +349,32 @@ class _Headline extends StatelessWidget {
   }
 }
 
-class _PeopleOrbit extends StatelessWidget {
-  const _PeopleOrbit({required this.compact});
+class _HeroPng extends StatelessWidget {
+  const _HeroPng({required this.compact});
   final bool compact;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
-      builder: (context, c) {
-        final w = c.maxWidth;
-        final orbitHeight = math.min(
-          compact ? 190.0 : 215.0,
-          w * (compact ? .56 : .61),
-        );
-        final avatar = (w * .145).clamp(48.0, 60.0);
-        final center = (w * .19).clamp(64.0, 76.0);
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final imageWidth = (width * .88).clamp(260.0, 340.0);
+        final imageHeight = compact ? 178.0 : 205.0;
 
         return SizedBox(
-          height: orbitHeight,
           width: double.infinity,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Positioned.fill(
-                child: CustomPaint(painter: ConnectionPainter()),
-              ),
-              _CenterSix(size: center),
-              Positioned(
-                top: 1,
-                left: (w - avatar) / 2,
-                child: _AvatarTile(index: 0, size: avatar),
-              ),
-              Positioned(
-                top: orbitHeight * .23,
-                left: w * .05,
-                child: _AvatarTile(index: 1, size: avatar),
-              ),
-              Positioned(
-                top: orbitHeight * .21,
-                right: w * .05,
-                child: _AvatarTile(index: 2, size: avatar),
-              ),
-              Positioned(
-                bottom: orbitHeight * .14,
-                left: w * .07,
-                child: _AvatarTile(index: 3, size: avatar),
-              ),
-              Positioned(
-                bottom: orbitHeight * .14,
-                right: w * .07,
-                child: _AvatarTile(index: 4, size: avatar),
-              ),
-              Positioned(
-                bottom: 1,
-                left: (w - avatar) / 2,
-                child: _AvatarTile(index: 5, size: avatar),
-              ),
-            ],
+          height: imageHeight,
+          child: Center(
+            child: Image.asset(
+              'assets/images/file_000000009c248210b0e425b8f2d3e68d.png',
+              width: imageWidth,
+              height: imageHeight,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
+            ),
           ),
         );
       },
-    );
-  }
-}
-
-class _CenterSix extends StatelessWidget {
-  const _CenterSix({required this.size});
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: const BoxDecoration(
-        color: Meet6App.lime,
-        shape: BoxShape.circle,
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        '6',
-        style: TextStyle(
-          color: Meet6App.navy,
-          fontSize: size * .52,
-          fontWeight: FontWeight.w900,
-          letterSpacing: -2,
-        ),
-      ),
-    );
-  }
-}
-
-class _AvatarTile extends StatelessWidget {
-  const _AvatarTile({required this.index, required this.size});
-  final int index;
-  final double size;
-
-  static const colors = [
-    Meet6App.blue,
-    Meet6App.lime,
-    Color(0xFFF0F1F7),
-    Meet6App.blue,
-    Meet6App.lime,
-    Color(0xFFF0F1F7),
-  ];
-
-  static const icons = [
-    Icons.sentiment_very_satisfied_rounded,
-    Icons.waving_hand_rounded,
-    Icons.headphones_rounded,
-    Icons.thumb_up_alt_rounded,
-    Icons.auto_awesome_rounded,
-    Icons.favorite_rounded,
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final color = colors[index];
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(size * .28),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x12000000),
-            blurRadius: 8,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Icon(
-        icons[index],
-        size: size * .45,
-        color: color == Meet6App.blue ? Colors.white : Meet6App.navy,
-      ),
     );
   }
 }
@@ -465,7 +385,6 @@ class _CountryCode extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 52,
       padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(.8),
@@ -486,8 +405,11 @@ class _CountryCode extends StatelessWidget {
             ),
           ),
           SizedBox(width: 2),
-          Icon(Icons.keyboard_arrow_down_rounded,
-              size: 18, color: Meet6App.muted),
+          Icon(
+            Icons.keyboard_arrow_down_rounded,
+            size: 18,
+            color: Meet6App.muted,
+          ),
         ],
       ),
     );
@@ -626,38 +548,6 @@ class _LegalText extends StatelessWidget {
       textAlign: TextAlign.center,
     );
   }
-}
-
-class ConnectionPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Meet6App.blue.withOpacity(.72)
-      ..strokeWidth = 1.35
-      ..style = PaintingStyle.stroke;
-    final dot = Paint()..color = Meet6App.blue;
-    final center = Offset(size.width / 2, size.height / 2);
-    final points = [
-      Offset(size.width / 2, size.height * .13),
-      Offset(size.width * .16, size.height * .34),
-      Offset(size.width * .84, size.height * .33),
-      Offset(size.width * .18, size.height * .72),
-      Offset(size.width * .82, size.height * .72),
-      Offset(size.width / 2, size.height * .88),
-    ];
-
-    for (final p in points) {
-      canvas.drawLine(center, p, paint);
-      canvas.drawCircle(
-        Offset((center.dx + p.dx) / 2, (center.dy + p.dy) / 2),
-        2.8,
-        dot,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class WavePainter extends CustomPainter {
