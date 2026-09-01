@@ -52,6 +52,13 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  OutlineInputBorder _fieldBorder(Color color, {double width = 1}) {
+    return OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: BorderSide(color: color, width: width),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -95,53 +102,74 @@ class _LoginScreenState extends State<LoginScreen> {
                       builder: (context, phone) {
                         final w = phone.maxWidth;
                         final h = phone.maxHeight;
-                        final veryCompact = h < 690;
-                        final compact = h < 760;
-                        final horizontal = (w * .045).clamp(14.0, 19.0);
 
-                        return Padding(
+                        // Only the phone width controls compact sizing.
+                        // The keyboard changes height, so it can no longer
+                        // shrink the hero image or the rest of the UI.
+                        final veryCompact = w < 340;
+                        final compact = w < 375;
+                        final horizontal = (w * .045).clamp(14.0, 19.0);
+                        final verticalTop = compact ? 7.0 : 10.0;
+                        final minContentHeight =
+                            (h - verticalTop - 2).clamp(0.0, double.infinity);
+
+                        return SingleChildScrollView(
+                          keyboardDismissBehavior:
+                              ScrollViewKeyboardDismissBehavior.onDrag,
+                          physics: const BouncingScrollPhysics(),
                           padding: EdgeInsets.fromLTRB(
                             horizontal,
-                            compact ? 7 : 10,
+                            verticalTop,
                             horizontal,
                             2,
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _Brand(width: w),
-                              SizedBox(height: compact ? 7 : 10),
-                              _Headline(width: w),
-                              const SizedBox(height: 3),
-                              Text(
-                                '6 kişilik çevrende yeni insanlarla\nsohbet etmeye başla.',
-                                style: TextStyle(
-                                  color: Meet6App.muted,
-                                  fontSize: (w * .033).clamp(11.8, 13.5),
-                                  height: 1.28,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minHeight: minContentHeight,
+                            ),
+                            child: IntrinsicHeight(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _Brand(width: w),
+                                  SizedBox(height: compact ? 7 : 10),
+                                  _Headline(width: w),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    '6 kişilik çevrende yeni insanlarla\nsohbet etmeye başla.',
+                                    style: TextStyle(
+                                      color: Meet6App.muted,
+                                      fontSize:
+                                          (w * .033).clamp(11.8, 13.5),
+                                      height: 1.28,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  SizedBox(height: compact ? 3 : 5),
+                                  _HeroPng(
+                                    width: w,
+                                    compact: compact,
+                                    veryCompact: veryCompact,
+                                  ),
+                                  const Spacer(),
+                                  _BottomLoginArea(
+                                    compact: compact,
+                                    veryCompact: veryCompact,
+                                    canContinue: canContinue,
+                                    phoneController: phoneController,
+                                    onChanged: () => setState(() {}),
+                                    onContinue: () => demo(
+                                      'Doğrulama kodu gönderilecek',
+                                    ),
+                                    onGoogle: () =>
+                                        demo('Google ile devam et'),
+                                    onApple: () =>
+                                        demo('Apple ile devam et'),
+                                    fieldBorder: _fieldBorder,
+                                  ),
+                                ],
                               ),
-                              SizedBox(height: compact ? 2 : 5),
-                              Expanded(
-                                child: _HeroPng(
-                                  compact: compact,
-                                  veryCompact: veryCompact,
-                                ),
-                              ),
-                              _BottomLoginArea(
-                                compact: compact,
-                                veryCompact: veryCompact,
-                                canContinue: canContinue,
-                                phoneController: phoneController,
-                                onChanged: () => setState(() {}),
-                                onContinue: () =>
-                                    demo('Doğrulama kodu gönderilecek'),
-                                onGoogle: () => demo('Google ile devam et'),
-                                onApple: () => demo('Apple ile devam et'),
-                                fieldBorder: _fieldBorder,
-                              ),
-                            ],
+                            ),
                           ),
                         );
                       },
@@ -153,13 +181,6 @@ class _LoginScreenState extends State<LoginScreen> {
           );
         },
       ),
-    );
-  }
-
-  OutlineInputBorder _fieldBorder(Color color, {double width = 1}) {
-    return OutlineInputBorder(
-      borderRadius: BorderRadius.circular(16),
-      borderSide: BorderSide(color: color, width: width),
     );
   }
 }
@@ -206,6 +227,7 @@ class _BottomLoginArea extends StatelessWidget {
                 child: TextField(
                   controller: phoneController,
                   keyboardType: TextInputType.phone,
+                  textInputAction: TextInputAction.done,
                   onChanged: (_) => onChanged(),
                   style: const TextStyle(
                     color: Meet6App.navy,
@@ -220,10 +242,12 @@ class _BottomLoginArea extends StatelessWidget {
                     ),
                     filled: true,
                     fillColor: Colors.white.withOpacity(.84),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 13),
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 13),
                     border: fieldBorder(Meet6App.border),
                     enabledBorder: fieldBorder(Meet6App.border),
-                    focusedBorder: fieldBorder(Meet6App.blue, width: 1.5),
+                    focusedBorder:
+                        fieldBorder(Meet6App.blue, width: 1.5),
                   ),
                 ),
               ),
@@ -233,7 +257,11 @@ class _BottomLoginArea extends StatelessWidget {
         SizedBox(height: gap - 1),
         const Row(
           children: [
-            Icon(Icons.lock_outline_rounded, color: Meet6App.blue, size: 15),
+            Icon(
+              Icons.lock_outline_rounded,
+              color: Meet6App.blue,
+              size: 15,
+            ),
             SizedBox(width: 5),
             Flexible(
               child: Text(
@@ -374,34 +402,39 @@ class _Headline extends StatelessWidget {
 }
 
 class _HeroPng extends StatelessWidget {
-  const _HeroPng({required this.compact, required this.veryCompact});
+  const _HeroPng({
+    required this.width,
+    required this.compact,
+    required this.veryCompact,
+  });
 
+  final double width;
   final bool compact;
   final bool veryCompact;
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final maxW = constraints.maxWidth;
-        final maxH = constraints.maxHeight;
-        final scale = veryCompact ? 1.08 : (compact ? 1.16 : 1.25);
+    // Fixed by width, never by the keyboard-reduced viewport height.
+    final heroHeight = (width * .67).clamp(220.0, 276.0);
+    final scale = veryCompact ? 1.08 : (compact ? 1.14 : 1.20);
 
-        return ClipRect(
-          child: Center(
-            child: Transform.scale(
-              scale: scale,
-              child: Image.asset(
-                'assets/images/file_000000009c248210b0e425b8f2d3e68d.png',
-                width: maxW,
-                height: maxH,
-                fit: BoxFit.contain,
-                filterQuality: FilterQuality.high,
-              ),
+    return SizedBox(
+      width: double.infinity,
+      height: heroHeight,
+      child: ClipRect(
+        child: Center(
+          child: Transform.scale(
+            scale: scale,
+            child: Image.asset(
+              'assets/images/file_000000009c248210b0e425b8f2d3e68d.png',
+              width: width,
+              height: heroHeight,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }
