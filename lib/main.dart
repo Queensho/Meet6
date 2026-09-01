@@ -61,14 +61,20 @@ class _LoginScreenState extends State<LoginScreen> {
             final compact = w < 375;
             final veryCompact = w < 340;
             final horizontal = (w * .045).clamp(14.0, 19.0);
+            final keyboard = MediaQuery.viewInsetsOf(context).bottom;
 
             return SingleChildScrollView(
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               physics: const BouncingScrollPhysics(),
-              padding: EdgeInsets.fromLTRB(horizontal, 8, horizontal, 2),
+              padding: EdgeInsets.fromLTRB(
+                horizontal,
+                8,
+                horizontal,
+                keyboard + 4,
+              ),
               child: ConstrainedBox(
                 constraints: BoxConstraints(
-                  minHeight: (h - 10).clamp(0.0, double.infinity),
+                  minHeight: (h - 12).clamp(0.0, double.infinity),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -146,18 +152,19 @@ class _OtpScreenState extends State<OtpScreen> {
   @override
   void dispose() {
     timer?.cancel();
-    for (final c in controllers) {
-      c.dispose();
+    for (final controller in controllers) {
+      controller.dispose();
     }
-    for (final f in focusNodes) {
-      f.dispose();
+    for (final node in focusNodes) {
+      node.dispose();
     }
     super.dispose();
   }
 
   void _startTimer() {
     timer?.cancel();
-    setState(() => secondsLeft = 45);
+    secondsLeft = 45;
+    if (mounted) setState(() {});
     timer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) return;
       if (secondsLeft <= 1) {
@@ -204,14 +211,20 @@ class _OtpScreenState extends State<OtpScreen> {
             final h = phone.maxHeight;
             final compact = w < 375;
             final horizontal = (w * .055).clamp(18.0, 24.0);
+            final keyboard = MediaQuery.viewInsetsOf(context).bottom;
 
             return SingleChildScrollView(
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               physics: const BouncingScrollPhysics(),
-              padding: EdgeInsets.fromLTRB(horizontal, 12, horizontal, 8),
+              padding: EdgeInsets.fromLTRB(
+                horizontal,
+                12,
+                horizontal,
+                keyboard + 10,
+              ),
               child: ConstrainedBox(
                 constraints: BoxConstraints(
-                  minHeight: (h - 20).clamp(0.0, double.infinity),
+                  minHeight: (h - 22).clamp(0.0, double.infinity),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -313,8 +326,11 @@ class _OtpScreenState extends State<OtpScreen> {
                             keyboardType: TextInputType.number,
                             textAlign: TextAlign.center,
                             maxLength: 1,
-                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                            onChanged: (value) => _onDigitChanged(index, value),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                            onChanged: (value) =>
+                                _onDigitChanged(index, value),
                             style: TextStyle(
                               color: Meet6App.navy,
                               fontSize: compact ? 21 : 23,
@@ -423,18 +439,69 @@ class ProfileSetupScreen extends StatefulWidget {
 class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   final nameController = TextEditingController();
   final birthDateController = TextEditingController();
-  String? gender;
-  bool photoSelected = false;
+  final bioController = TextEditingController();
+  final promptController = TextEditingController();
 
-  bool get canContinue =>
+  int step = 1;
+  bool photoSelected = false;
+  String? gender;
+
+  String? lookingFor;
+  RangeValues ageRange = const RangeValues(22, 35);
+  String city = 'İstanbul';
+  double distance = 25;
+  String? intention;
+
+  final extraPhotos = List<bool>.filled(4, false);
+  final Set<String> interests = {};
+  String prompt = 'Benimle iyi anlaşmanın yolu...';
+
+  static const interestOptions = [
+    'Kahve',
+    'Müzik',
+    'Seyahat',
+    'Spor',
+    'Sinema',
+    'Yemek',
+    'Kitap',
+    'Oyun',
+    'Doğa',
+    'Fotoğraf',
+    'Dans',
+    'Teknoloji',
+  ];
+
+  static const promptOptions = [
+    'Benimle iyi anlaşmanın yolu...',
+    'İlk buluşmada beni etkileyen şey...',
+    'Beni güldürmenin en kolay yolu...',
+  ];
+
+  bool get step1Valid =>
+      photoSelected &&
       nameController.text.trim().length >= 2 &&
       birthDateController.text.isNotEmpty &&
       gender != null;
+
+  bool get step2Valid => lookingFor != null && intention != null;
+
+  bool get step3Valid =>
+      bioController.text.trim().length >= 10 &&
+      interests.length >= 3 &&
+      promptController.text.trim().length >= 3;
+
+  bool get currentStepValid {
+    if (step == 1) return step1Valid;
+    if (step == 2) return step2Valid;
+    return step3Valid;
+  }
 
   @override
   void dispose() {
     nameController.dispose();
     birthDateController.dispose();
+    bioController.dispose();
+    promptController.dispose();
     super.dispose();
   }
 
@@ -457,12 +524,25 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     setState(() {});
   }
 
-  void _finish() {
+  void _back() {
     FocusScope.of(context).unfocus();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Profil bilgileri hazır'),
-        behavior: SnackBarBehavior.floating,
+    if (step > 1) {
+      setState(() => step--);
+    } else {
+      Navigator.of(context).pop();
+    }
+  }
+
+  void _next() {
+    if (!currentStepValid) return;
+    FocusScope.of(context).unfocus();
+    if (step < 3) {
+      setState(() => step++);
+      return;
+    }
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => ProfileReadyScreen(name: nameController.text.trim()),
       ),
     );
   }
@@ -478,260 +558,69 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
             final h = phone.maxHeight;
             final compact = w < 375;
             final horizontal = (w * .055).clamp(18.0, 24.0);
+            final keyboard = MediaQuery.viewInsetsOf(context).bottom;
 
             return SingleChildScrollView(
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               physics: const BouncingScrollPhysics(),
-              padding: EdgeInsets.fromLTRB(horizontal, 12, horizontal, 10),
+              padding: EdgeInsets.fromLTRB(
+                horizontal,
+                12,
+                horizontal,
+                keyboard + 12,
+              ),
               child: ConstrainedBox(
                 constraints: BoxConstraints(
-                  minHeight: (h - 22).clamp(0.0, double.infinity),
+                  minHeight: (h - 24).clamp(0.0, double.infinity),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        _BackButton(onTap: () => Navigator.of(context).pop()),
+                        _BackButton(onTap: _back),
                         const Spacer(),
                         const _MiniBrand(),
                       ],
                     ),
-                    SizedBox(height: compact ? 22 : 30),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Container(
-                            height: 5,
-                            decoration: BoxDecoration(
-                              color: Meet6App.blue,
-                              borderRadius: BorderRadius.circular(100),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 7),
-                        Expanded(
-                          child: Container(
-                            height: 5,
-                            decoration: BoxDecoration(
-                              color: Meet6App.border,
-                              borderRadius: BorderRadius.circular(100),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 7),
-                        Expanded(
-                          child: Container(
-                            height: 5,
-                            decoration: BoxDecoration(
-                              color: Meet6App.border,
-                              borderRadius: BorderRadius.circular(100),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    const Text(
-                      'Profil oluştur · 1/3',
-                      style: TextStyle(
-                        color: Meet6App.muted,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    SizedBox(height: compact ? 18 : 24),
-                    Text(
-                      'Seni biraz\ntanıyalım',
-                      style: TextStyle(
-                        color: Meet6App.navy,
-                        fontSize: (w * .085).clamp(28.0, 34.0),
-                        height: 1.02,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -1,
-                      ),
-                    ),
-                    const SizedBox(height: 9),
-                    Text(
-                      'Diğer kişiler seni odada bu bilgilerle görecek.',
-                      style: TextStyle(
-                        color: Meet6App.muted,
-                        fontSize: (w * .035).clamp(12.5, 14.5),
-                        height: 1.35,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    SizedBox(height: compact ? 18 : 24),
-                    Center(
-                      child: GestureDetector(
-                        onTap: () => setState(() => photoSelected = !photoSelected),
-                        child: Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            AnimatedContainer(
-                              duration: const Duration(milliseconds: 180),
-                              width: compact ? 112 : 124,
-                              height: compact ? 112 : 124,
-                              decoration: BoxDecoration(
-                                color: photoSelected
-                                    ? Meet6App.lime
-                                    : const Color(0xFFF0F2F8),
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: photoSelected
-                                      ? Meet6App.navy
-                                      : Meet6App.border,
-                                  width: photoSelected ? 2 : 1,
-                                ),
-                              ),
-                              alignment: Alignment.center,
-                              child: Icon(
-                                photoSelected
-                                    ? Icons.person_rounded
-                                    : Icons.add_a_photo_rounded,
-                                color: photoSelected
-                                    ? Meet6App.navy
-                                    : Meet6App.muted,
-                                size: compact ? 42 : 47,
-                              ),
-                            ),
-                            Positioned(
-                              right: 2,
-                              bottom: 3,
-                              child: Container(
-                                width: 34,
-                                height: 34,
-                                decoration: BoxDecoration(
-                                  color: Meet6App.blue,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: Meet6App.background,
-                                    width: 3,
-                                  ),
-                                ),
-                                child: const Icon(
-                                  Icons.add_rounded,
-                                  color: Colors.white,
-                                  size: 22,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Center(
-                      child: Text(
-                        photoSelected ? 'Fotoğraf eklendi' : 'Profil fotoğrafı ekle',
-                        style: TextStyle(
-                          color: photoSelected
-                              ? Meet6App.blue
-                              : Meet6App.muted,
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
                     SizedBox(height: compact ? 20 : 26),
-                    const _FieldLabel('Adın'),
-                    const SizedBox(height: 7),
-                    TextField(
-                      controller: nameController,
-                      textCapitalization: TextCapitalization.words,
-                      textInputAction: TextInputAction.done,
-                      onChanged: (_) => setState(() {}),
-                      style: const TextStyle(
-                        color: Meet6App.navy,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                      ),
-                      decoration: _inputDecoration(
-                        hint: 'Sana nasıl hitap edelim?',
-                        icon: Icons.person_outline_rounded,
-                      ),
-                    ),
-                    SizedBox(height: compact ? 14 : 17),
-                    const _FieldLabel('Doğum tarihi'),
-                    const SizedBox(height: 7),
-                    TextField(
-                      controller: birthDateController,
-                      readOnly: true,
-                      onTap: _pickBirthDate,
-                      style: const TextStyle(
-                        color: Meet6App.navy,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                      ),
-                      decoration: _inputDecoration(
-                        hint: 'GG.AA.YYYY',
-                        icon: Icons.calendar_today_outlined,
-                        suffix: Icons.keyboard_arrow_down_rounded,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Meet6 yalnızca 18 yaş ve üzeri kullanıcılar içindir.',
-                      style: TextStyle(
-                        color: Meet6App.muted,
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    SizedBox(height: compact ? 14 : 18),
-                    const _FieldLabel('Cinsiyet'),
-                    const SizedBox(height: 9),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _GenderChip(
-                          label: 'Kadın',
-                          selected: gender == 'Kadın',
-                          onTap: () => setState(() => gender = 'Kadın'),
-                        ),
-                        _GenderChip(
-                          label: 'Erkek',
-                          selected: gender == 'Erkek',
-                          onTap: () => setState(() => gender = 'Erkek'),
-                        ),
-                        _GenderChip(
-                          label: 'Diğer',
-                          selected: gender == 'Diğer',
-                          onTap: () => setState(() => gender = 'Diğer'),
-                        ),
-                        _GenderChip(
-                          label: 'Belirtmek istemiyorum',
-                          selected: gender == 'Belirtmek istemiyorum',
-                          onTap: () =>
-                              setState(() => gender = 'Belirtmek istemiyorum'),
-                        ),
-                      ],
-                    ),
-                    SizedBox(height: compact ? 22 : 30),
+                    _StepProgress(step: step),
+                    SizedBox(height: compact ? 18 : 24),
+                    if (step == 1)
+                      _buildStepOne(w, compact)
+                    else if (step == 2)
+                      _buildStepTwo(w, compact)
+                    else
+                      _buildStepThree(w, compact),
+                    SizedBox(height: compact ? 24 : 30),
                     SizedBox(
                       width: double.infinity,
                       height: compact ? 52 : 56,
                       child: FilledButton(
-                        onPressed: canContinue ? _finish : null,
+                        onPressed: currentStepValid ? _next : null,
                         style: _primaryButtonStyle(radius: 18),
-                        child: const Row(
+                        child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
-                              'Devam et',
-                              style: TextStyle(
+                              step == 3 ? 'Profili tamamla' : 'Devam et',
+                              style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w900,
                               ),
                             ),
-                            SizedBox(width: 9),
-                            Icon(Icons.arrow_forward_rounded, size: 22),
+                            const SizedBox(width: 9),
+                            Icon(
+                              step == 3
+                                  ? Icons.check_rounded
+                                  : Icons.arrow_forward_rounded,
+                              size: 22,
+                            ),
                           ],
                         ),
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 6),
                   ],
                 ),
               ),
@@ -739,6 +628,626 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
           },
         ),
       ),
+    );
+  }
+
+  Widget _buildStepOne(double w, bool compact) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _ProfileHeading(
+          width: w,
+          title: 'Seni biraz\ntanıyalım',
+          subtitle: 'Diğer kişiler seni odada bu bilgilerle görecek.',
+        ),
+        SizedBox(height: compact ? 18 : 24),
+        Center(
+          child: GestureDetector(
+            onTap: () => setState(() => photoSelected = !photoSelected),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  width: compact ? 112 : 124,
+                  height: compact ? 112 : 124,
+                  decoration: BoxDecoration(
+                    color: photoSelected
+                        ? Meet6App.lime
+                        : const Color(0xFFF0F2F8),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: photoSelected ? Meet6App.navy : Meet6App.border,
+                      width: photoSelected ? 2 : 1,
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(
+                    photoSelected
+                        ? Icons.person_rounded
+                        : Icons.add_a_photo_rounded,
+                    color: photoSelected ? Meet6App.navy : Meet6App.muted,
+                    size: compact ? 42 : 47,
+                  ),
+                ),
+                Positioned(
+                  right: 2,
+                  bottom: 3,
+                  child: Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: Meet6App.blue,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Meet6App.background,
+                        width: 3,
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.add_rounded,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Center(
+          child: Text(
+            photoSelected ? 'Fotoğraf eklendi' : 'Profil fotoğrafı ekle',
+            style: TextStyle(
+              color: photoSelected ? Meet6App.blue : Meet6App.muted,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        SizedBox(height: compact ? 20 : 26),
+        const _FieldLabel('Adın'),
+        const SizedBox(height: 7),
+        TextField(
+          controller: nameController,
+          textCapitalization: TextCapitalization.words,
+          textInputAction: TextInputAction.next,
+          onChanged: (_) => setState(() {}),
+          style: _fieldTextStyle,
+          decoration: _inputDecoration(
+            hint: 'Sana nasıl hitap edelim?',
+            icon: Icons.person_outline_rounded,
+          ),
+        ),
+        SizedBox(height: compact ? 14 : 17),
+        const _FieldLabel('Doğum tarihi'),
+        const SizedBox(height: 7),
+        TextField(
+          controller: birthDateController,
+          readOnly: true,
+          onTap: _pickBirthDate,
+          style: _fieldTextStyle,
+          decoration: _inputDecoration(
+            hint: 'GG.AA.YYYY',
+            icon: Icons.calendar_today_outlined,
+            suffix: Icons.keyboard_arrow_down_rounded,
+          ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Meet6 yalnızca 18 yaş ve üzeri kullanıcılar içindir.',
+          style: TextStyle(
+            color: Meet6App.muted,
+            fontSize: 10.5,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        SizedBox(height: compact ? 14 : 18),
+        const _FieldLabel('Cinsiyet'),
+        const SizedBox(height: 9),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _ChoicePill(
+              label: 'Kadın',
+              selected: gender == 'Kadın',
+              onTap: () => setState(() => gender = 'Kadın'),
+            ),
+            _ChoicePill(
+              label: 'Erkek',
+              selected: gender == 'Erkek',
+              onTap: () => setState(() => gender = 'Erkek'),
+            ),
+            _ChoicePill(
+              label: 'Diğer',
+              selected: gender == 'Diğer',
+              onTap: () => setState(() => gender = 'Diğer'),
+            ),
+            _ChoicePill(
+              label: 'Belirtmek istemiyorum',
+              selected: gender == 'Belirtmek istemiyorum',
+              onTap: () =>
+                  setState(() => gender = 'Belirtmek istemiyorum'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStepTwo(double w, bool compact) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _ProfileHeading(
+          width: w,
+          title: 'Kimlerle tanışmak\nistiyorsun?',
+          subtitle:
+              'Meet6 odalarını temel tercihlerini dikkate alarak oluşturur.',
+        ),
+        SizedBox(height: compact ? 22 : 28),
+        const _FieldLabel('Kimi görmek istersin?'),
+        const SizedBox(height: 9),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: ['Kadınlar', 'Erkekler', 'Herkes'].map((item) {
+            return _ChoicePill(
+              label: item,
+              selected: lookingFor == item,
+              onTap: () => setState(() => lookingFor = item),
+            );
+          }).toList(),
+        ),
+        SizedBox(height: compact ? 20 : 24),
+        Row(
+          children: [
+            const Expanded(child: _FieldLabel('Yaş aralığı')),
+            Text(
+              '${ageRange.start.round()} - ${ageRange.end.round()}',
+              style: const TextStyle(
+                color: Meet6App.blue,
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+        RangeSlider(
+          values: ageRange,
+          min: 18,
+          max: 60,
+          divisions: 42,
+          labels: RangeLabels(
+            ageRange.start.round().toString(),
+            ageRange.end.round().toString(),
+          ),
+          activeColor: Meet6App.blue,
+          inactiveColor: Meet6App.border,
+          onChanged: (value) => setState(() => ageRange = value),
+        ),
+        SizedBox(height: compact ? 8 : 12),
+        const _FieldLabel('Şehir'),
+        const SizedBox(height: 7),
+        DropdownButtonFormField<String>(
+          value: city,
+          icon: const Icon(
+            Icons.keyboard_arrow_down_rounded,
+            color: Meet6App.muted,
+          ),
+          style: _fieldTextStyle,
+          decoration: _inputDecoration(
+            hint: 'Şehrini seç',
+            icon: Icons.location_on_outlined,
+          ),
+          items: const [
+            'İstanbul',
+            'Ankara',
+            'İzmir',
+            'Bursa',
+            'Antalya',
+            'Diğer',
+          ].map((item) {
+            return DropdownMenuItem(value: item, child: Text(item));
+          }).toList(),
+          onChanged: (value) {
+            if (value != null) setState(() => city = value);
+          },
+        ),
+        SizedBox(height: compact ? 18 : 22),
+        Row(
+          children: [
+            const Expanded(child: _FieldLabel('Maksimum mesafe')),
+            Text(
+              '${distance.round()} km',
+              style: const TextStyle(
+                color: Meet6App.blue,
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+        Slider(
+          value: distance,
+          min: 5,
+          max: 100,
+          divisions: 19,
+          label: '${distance.round()} km',
+          activeColor: Meet6App.blue,
+          inactiveColor: Meet6App.border,
+          onChanged: (value) => setState(() => distance = value),
+        ),
+        SizedBox(height: compact ? 10 : 14),
+        const _FieldLabel('Tanışma amacı'),
+        const SizedBox(height: 9),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            'Ciddi ilişki',
+            'Flört',
+            'Yeni insanlarla tanışma',
+            'Akışına bırakıyorum',
+          ].map((item) {
+            return _ChoicePill(
+              label: item,
+              selected: intention == item,
+              onTap: () => setState(() => intention = item),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStepThree(double w, bool compact) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _ProfileHeading(
+          width: w,
+          title: 'Profiline biraz\nkarakter kat',
+          subtitle:
+              'Odadaki insanların seni daha kolay tanımasına yardımcı ol.',
+        ),
+        SizedBox(height: compact ? 20 : 26),
+        const _FieldLabel('Ek fotoğraflar'),
+        const SizedBox(height: 8),
+        Row(
+          children: List.generate(extraPhotos.length, (index) {
+            return Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  right: index == extraPhotos.length - 1 ? 0 : 8,
+                ),
+                child: GestureDetector(
+                  onTap: () => setState(
+                    () => extraPhotos[index] = !extraPhotos[index],
+                  ),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 160),
+                    height: compact ? 76 : 86,
+                    decoration: BoxDecoration(
+                      color: extraPhotos[index]
+                          ? Meet6App.lime
+                          : Colors.white.withOpacity(.82),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: extraPhotos[index]
+                            ? Meet6App.navy
+                            : Meet6App.border,
+                        width: extraPhotos[index] ? 1.5 : 1,
+                      ),
+                    ),
+                    child: Icon(
+                      extraPhotos[index]
+                          ? Icons.person_rounded
+                          : Icons.add_photo_alternate_outlined,
+                      color: extraPhotos[index]
+                          ? Meet6App.navy
+                          : Meet6App.muted,
+                      size: 26,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+        ),
+        const SizedBox(height: 5),
+        const Text(
+          'İstersen şimdi ekleyebilir, daha sonra değiştirebilirsin.',
+          style: TextStyle(
+            color: Meet6App.muted,
+            fontSize: 10.5,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        SizedBox(height: compact ? 18 : 22),
+        const _FieldLabel('Kısaca sen'),
+        const SizedBox(height: 7),
+        TextField(
+          controller: bioController,
+          maxLength: 120,
+          minLines: 3,
+          maxLines: 4,
+          textCapitalization: TextCapitalization.sentences,
+          onChanged: (_) => setState(() {}),
+          style: _fieldTextStyle,
+          decoration: _inputDecoration(
+            hint: 'Kendinden birkaç cümleyle bahset...',
+            icon: Icons.edit_note_rounded,
+          ).copyWith(alignLabelWithHint: true),
+        ),
+        SizedBox(height: compact ? 12 : 16),
+        Row(
+          children: [
+            const Expanded(child: _FieldLabel('İlgi alanların')),
+            Text(
+              '${interests.length}/5',
+              style: const TextStyle(
+                color: Meet6App.muted,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 9),
+        Wrap(
+          spacing: 7,
+          runSpacing: 7,
+          children: interestOptions.map((item) {
+            final selected = interests.contains(item);
+            return _ChoicePill(
+              label: item,
+              selected: selected,
+              compact: true,
+              onTap: () {
+                setState(() {
+                  if (selected) {
+                    interests.remove(item);
+                  } else if (interests.length < 5) {
+                    interests.add(item);
+                  }
+                });
+              },
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'En az 3, en fazla 5 ilgi alanı seç.',
+          style: TextStyle(
+            color: Meet6App.muted,
+            fontSize: 10.5,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        SizedBox(height: compact ? 18 : 22),
+        const _FieldLabel('Profil sorusu'),
+        const SizedBox(height: 7),
+        DropdownButtonFormField<String>(
+          value: prompt,
+          isExpanded: true,
+          icon: const Icon(
+            Icons.keyboard_arrow_down_rounded,
+            color: Meet6App.muted,
+          ),
+          style: _fieldTextStyle,
+          decoration: _inputDecoration(
+            hint: 'Bir soru seç',
+            icon: Icons.chat_bubble_outline_rounded,
+          ),
+          items: promptOptions.map((item) {
+            return DropdownMenuItem(
+              value: item,
+              child: Text(item, overflow: TextOverflow.ellipsis),
+            );
+          }).toList(),
+          onChanged: (value) {
+            if (value != null) setState(() => prompt = value);
+          },
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: promptController,
+          textCapitalization: TextCapitalization.sentences,
+          onChanged: (_) => setState(() {}),
+          style: _fieldTextStyle,
+          decoration: _inputDecoration(
+            hint: 'Cevabını yaz...',
+            icon: Icons.auto_awesome_outlined,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class ProfileReadyScreen extends StatelessWidget {
+  const ProfileReadyScreen({super.key, required this.name});
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: _PhoneFrame(
+        child: LayoutBuilder(
+          builder: (context, phone) {
+            final w = phone.maxWidth;
+            final compact = w < 375;
+            final horizontal = (w * .07).clamp(22.0, 28.0);
+            return Padding(
+              padding: EdgeInsets.symmetric(horizontal: horizontal),
+              child: Column(
+                children: [
+                  const SizedBox(height: 18),
+                  const Align(
+                    alignment: Alignment.centerRight,
+                    child: _MiniBrand(),
+                  ),
+                  const Spacer(),
+                  Container(
+                    width: compact ? 126 : 144,
+                    height: compact ? 126 : 144,
+                    decoration: const BoxDecoration(
+                      color: Meet6App.lime,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.check_rounded,
+                      color: Meet6App.navy,
+                      size: 64,
+                    ),
+                  ),
+                  SizedBox(height: compact ? 28 : 34),
+                  Text(
+                    'Profilin hazır, $name!',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Meet6App.navy,
+                      fontSize: (w * .082).clamp(28.0, 34.0),
+                      height: 1.05,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -1,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Artık sana uygun 6 kişilik odaları keşfetmeye hazırsın.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Meet6App.muted,
+                      fontSize: 14,
+                      height: 1.4,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const Spacer(),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: FilledButton(
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Ana sayfa sıradaki ekran olacak'),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      },
+                      style: _primaryButtonStyle(radius: 18),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'Meet6’ya başla',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          SizedBox(width: 9),
+                          Icon(Icons.arrow_forward_rounded, size: 22),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _StepProgress extends StatelessWidget {
+  const _StepProgress({required this.step});
+
+  final int step;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: List.generate(3, (index) {
+            final active = index < step;
+            return Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(right: index == 2 ? 0 : 7),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 220),
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: active ? Meet6App.blue : Meet6App.border,
+                    borderRadius: BorderRadius.circular(100),
+                  ),
+                ),
+              ),
+            );
+          }),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'Profil oluştur · $step/3',
+          style: const TextStyle(
+            color: Meet6App.muted,
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ProfileHeading extends StatelessWidget {
+  const _ProfileHeading({
+    required this.width,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final double width;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            color: Meet6App.navy,
+            fontSize: (width * .085).clamp(28.0, 34.0),
+            height: 1.02,
+            fontWeight: FontWeight.w900,
+            letterSpacing: -1,
+          ),
+        ),
+        const SizedBox(height: 9),
+        Text(
+          subtitle,
+          style: TextStyle(
+            color: Meet6App.muted,
+            fontSize: (width * .035).clamp(12.5, 14.5),
+            height: 1.35,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1121,16 +1630,18 @@ class _FieldLabel extends StatelessWidget {
   }
 }
 
-class _GenderChip extends StatelessWidget {
-  const _GenderChip({
+class _ChoicePill extends StatelessWidget {
+  const _ChoicePill({
     required this.label,
     required this.selected,
     required this.onTap,
+    this.compact = false,
   });
 
   final String label;
   final bool selected;
   final VoidCallback onTap;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -1139,7 +1650,10 @@ class _GenderChip extends StatelessWidget {
       borderRadius: BorderRadius.circular(14),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
-        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+        padding: EdgeInsets.symmetric(
+          horizontal: compact ? 12 : 15,
+          vertical: compact ? 9 : 12,
+        ),
         decoration: BoxDecoration(
           color: selected ? Meet6App.lime : Colors.white.withOpacity(.82),
           borderRadius: BorderRadius.circular(14),
@@ -1163,7 +1677,7 @@ class _GenderChip extends StatelessWidget {
               label,
               style: TextStyle(
                 color: Meet6App.navy,
-                fontSize: 12.5,
+                fontSize: compact ? 11.5 : 12.5,
                 fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
               ),
             ),
@@ -1173,6 +1687,12 @@ class _GenderChip extends StatelessWidget {
     );
   }
 }
+
+const _fieldTextStyle = TextStyle(
+  color: Meet6App.navy,
+  fontSize: 15,
+  fontWeight: FontWeight.w800,
+);
 
 InputDecoration _inputDecoration({
   required String hint,
