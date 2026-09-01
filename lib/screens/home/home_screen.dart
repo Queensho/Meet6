@@ -1,0 +1,234 @@
+import 'package:flutter/material.dart';
+
+import '../../theme/app_colors.dart';
+import '../../widgets/brand.dart';
+import '../../widgets/primary_button.dart';
+import 'widgets/room_radar.dart';
+
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key, this.profileName = ''});
+
+  final String profileName;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.lime,
+      body: LayoutBuilder(
+        builder: (context, viewport) {
+          final desktop = viewport.maxWidth > 520;
+          final width = desktop ? 390.0 : viewport.maxWidth;
+          final height = desktop ? 844.0 : viewport.maxHeight;
+
+          return Container(
+            color: desktop ? const Color(0xFFEFF1F7) : AppColors.lime,
+            alignment: Alignment.center,
+            child: Container(
+              width: width,
+              height: height,
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                color: AppColors.lime,
+                borderRadius:
+                    desktop ? BorderRadius.circular(32) : BorderRadius.zero,
+                boxShadow: desktop
+                    ? const [
+                        BoxShadow(
+                          color: Color(0x22000000),
+                          blurRadius: 28,
+                          offset: Offset(0, 14),
+                        ),
+                      ]
+                    : null,
+              ),
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 16, 22, 18),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text.rich(
+                                TextSpan(
+                                  style: TextStyle(
+                                    fontSize: 34,
+                                    height: 1,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: -2,
+                                  ),
+                                  children: [
+                                    TextSpan(
+                                      text: 'meet',
+                                      style: TextStyle(color: AppColors.navy),
+                                    ),
+                                    TextSpan(
+                                      text: '6',
+                                      style: TextStyle(color: AppColors.blue),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          _TopIcon(
+                            icon: Icons.notifications_none_rounded,
+                            showDot: true,
+                            onTap: () {},
+                          ),
+                          const SizedBox(width: 10),
+                          _TopIcon(
+                            icon: Icons.person_rounded,
+                            onTap: () {},
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      const Expanded(
+                        flex: 5,
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 8),
+                          child: RoomRadar(),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        '6 kişi. 15 dk.\nGerçek sohbet.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: AppColors.navy,
+                          fontSize: 40,
+                          height: .98,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -1.8,
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        profileName.isEmpty
+                            ? 'Yakınındaki grupla tanış ve\nsohbete hemen başla.'
+                            : '$profileName, yakınındaki grupla tanış ve\nsohbete hemen başla.',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: AppColors.navy,
+                          fontSize: 16,
+                          height: 1.35,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 9,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(.42),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.schedule_rounded,
+                              color: AppColors.blue,
+                              size: 19,
+                            ),
+                            SizedBox(width: 7),
+                            Text.rich(
+                              TextSpan(
+                                style: TextStyle(
+                                  color: AppColors.navy,
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                                children: [
+                                  TextSpan(text: 'Yeni oda '),
+                                  TextSpan(
+                                    text: '2 dk',
+                                    style: TextStyle(
+                                      color: AppColors.blue,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                  TextSpan(text: ' içinde açılıyor'),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      PrimaryButton(
+                        label: 'Odaya gir',
+                        dark: true,
+                        height: 62,
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Oda eşleşmesi başlatılıyor'),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _TopIcon extends StatelessWidget {
+  const _TopIcon({
+    required this.icon,
+    required this.onTap,
+    this.showDot = false,
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool showDot;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(999),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(.38),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: AppColors.navy, size: 25),
+          ),
+          if (showDot)
+            Positioned(
+              top: 4,
+              right: 4,
+              child: Container(
+                width: 9,
+                height: 9,
+                decoration: const BoxDecoration(
+                  color: AppColors.blue,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
