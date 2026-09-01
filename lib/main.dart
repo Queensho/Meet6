@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 void main() => runApp(const Meet6App());
 
@@ -46,120 +49,426 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void demo(String text) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(text), behavior: SnackBarBehavior.floating),
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      resizeToAvoidBottomInset: false,
+      body: _PhoneFrame(
+        child: LayoutBuilder(
+          builder: (context, phone) {
+            final w = phone.maxWidth;
+            final h = phone.maxHeight;
+            final compact = w < 375;
+            final veryCompact = w < 340;
+            final horizontal = (w * .045).clamp(14.0, 19.0);
+            final minContentHeight = (h - 8).clamp(0.0, double.infinity);
+
+            return SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              physics: const BouncingScrollPhysics(),
+              padding: EdgeInsets.fromLTRB(horizontal, 8, horizontal, 2),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: minContentHeight),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _Brand(width: w),
+                    SizedBox(height: compact ? 8 : 10),
+                    _Headline(width: w),
+                    const SizedBox(height: 3),
+                    Text(
+                      '6 kişilik çevrende yeni insanlarla\nsohbet etmeye başla.',
+                      style: TextStyle(
+                        color: Meet6App.muted,
+                        fontSize: (w * .033).clamp(11.8, 13.5),
+                        height: 1.28,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    SizedBox(height: compact ? 3 : 5),
+                    _HeroPng(width: w),
+                    SizedBox(height: compact ? 5 : 8),
+                    _BottomLoginArea(
+                      compact: compact,
+                      veryCompact: veryCompact,
+                      canContinue: canContinue,
+                      phoneController: phoneController,
+                      onChanged: () => setState(() {}),
+                      onContinue: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => OtpScreen(
+                              phoneNumber: phoneController.text,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
+}
 
-  OutlineInputBorder _fieldBorder(Color color, {double width = 1}) {
-    return OutlineInputBorder(
-      borderRadius: BorderRadius.circular(16),
-      borderSide: BorderSide(color: color, width: width),
-    );
+class OtpScreen extends StatefulWidget {
+  const OtpScreen({super.key, required this.phoneNumber});
+
+  final String phoneNumber;
+
+  @override
+  State<OtpScreen> createState() => _OtpScreenState();
+}
+
+class _OtpScreenState extends State<OtpScreen> {
+  final controllers = List.generate(6, (_) => TextEditingController());
+  final focusNodes = List.generate(6, (_) => FocusNode());
+  Timer? timer;
+  int secondsLeft = 45;
+
+  bool get complete => controllers.every((c) => c.text.length == 1);
+
+  @override
+  void initState() {
+    super.initState();
+    _startTimer();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) focusNodes.first.requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    timer?.cancel();
+    for (final c in controllers) {
+      c.dispose();
+    }
+    for (final f in focusNodes) {
+      f.dispose();
+    }
+    super.dispose();
+  }
+
+  void _startTimer() {
+    timer?.cancel();
+    setState(() => secondsLeft = 45);
+    timer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) return;
+      if (secondsLeft <= 1) {
+        t.cancel();
+        setState(() => secondsLeft = 0);
+      } else {
+        setState(() => secondsLeft--);
+      }
+    });
+  }
+
+  void _onDigitChanged(int index, String value) {
+    if (value.isNotEmpty && index < 5) {
+      focusNodes[index + 1].requestFocus();
+    }
+    if (value.isEmpty && index > 0) {
+      focusNodes[index - 1].requestFocus();
+    }
+    setState(() {});
+    if (complete) FocusScope.of(context).unfocus();
+  }
+
+  String get formattedPhone {
+    final digits = widget.phoneNumber.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.length < 10) return '+90 ${widget.phoneNumber}';
+    final d = digits.substring(digits.length - 10);
+    return '+90 ${d.substring(0, 3)} ${d.substring(3, 6)} ${d.substring(6, 8)} ${d.substring(8, 10)}';
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       resizeToAvoidBottomInset: false,
-      body: LayoutBuilder(
-        builder: (context, viewport) {
-          final desktop = viewport.maxWidth > 520;
-          final phoneWidth = desktop ? 390.0 : viewport.maxWidth;
-          final phoneHeight = desktop ? 844.0 : viewport.maxHeight;
+      body: _PhoneFrame(
+        child: LayoutBuilder(
+          builder: (context, phone) {
+            final w = phone.maxWidth;
+            final h = phone.maxHeight;
+            final compact = w < 375;
+            final horizontal = (w * .055).clamp(18.0, 24.0);
 
-          return Container(
-            color: desktop ? const Color(0xFFEFF1F7) : Meet6App.background,
-            alignment: Alignment.center,
-            child: Container(
-              width: phoneWidth,
-              height: phoneHeight,
-              clipBehavior: Clip.antiAlias,
-              decoration: BoxDecoration(
-                color: Meet6App.background,
-                borderRadius:
-                    desktop ? BorderRadius.circular(32) : BorderRadius.zero,
-                boxShadow: desktop
-                    ? const [
-                        BoxShadow(
-                          color: Color(0x22000000),
-                          blurRadius: 28,
-                          offset: Offset(0, 14),
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Stack(
-                children: [
-                  const Positioned.fill(
-                    child: IgnorePointer(
-                      child: CustomPaint(painter: WavePainter()),
-                    ),
-                  ),
-                  SafeArea(
-                    bottom: false,
-                    child: LayoutBuilder(
-                      builder: (context, phone) {
-                        final w = phone.maxWidth;
-                        final veryCompact = w < 340;
-                        final compact = w < 375;
-                        final horizontal = (w * .045).clamp(14.0, 19.0);
-                        final keyboard = MediaQuery.viewInsetsOf(context).bottom;
-
-                        return SingleChildScrollView(
-                          keyboardDismissBehavior:
-                              ScrollViewKeyboardDismissBehavior.onDrag,
-                          physics: const BouncingScrollPhysics(),
-                          padding: EdgeInsets.fromLTRB(
-                            horizontal,
-                            compact ? 7 : 10,
-                            horizontal,
-                            keyboard > 0 ? keyboard + 8 : 2,
+            return SingleChildScrollView(
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              physics: const BouncingScrollPhysics(),
+              padding: EdgeInsets.fromLTRB(horizontal, 12, horizontal, 8),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: (h - 20).clamp(0.0, double.infinity)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        InkWell(
+                          onTap: () => Navigator.of(context).pop(),
+                          borderRadius: BorderRadius.circular(14),
+                          child: Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(.88),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: Meet6App.border),
+                            ),
+                            child: const Icon(
+                              Icons.arrow_back_rounded,
+                              color: Meet6App.navy,
+                            ),
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _Brand(width: w),
-                              SizedBox(height: compact ? 7 : 10),
-                              _Headline(width: w),
-                              const SizedBox(height: 3),
-                              Text(
-                                '6 kişilik çevrende yeni insanlarla\nsohbet etmeye başla.',
-                                style: TextStyle(
-                                  color: Meet6App.muted,
-                                  fontSize: (w * .033).clamp(11.8, 13.5),
-                                  height: 1.28,
-                                  fontWeight: FontWeight.w600,
+                        ),
+                        const Spacer(),
+                        const _MiniBrand(),
+                      ],
+                    ),
+                    SizedBox(height: compact ? 38 : 52),
+                    Center(
+                      child: Container(
+                        width: compact ? 102 : 116,
+                        height: compact ? 102 : 116,
+                        decoration: const BoxDecoration(
+                          color: Meet6App.lime,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Icon(
+                              Icons.lock_rounded,
+                              color: Meet6App.navy,
+                              size: compact ? 44 : 50,
+                            ),
+                            Positioned(
+                              right: compact ? 17 : 19,
+                              bottom: compact ? 18 : 20,
+                              child: Container(
+                                width: 20,
+                                height: 20,
+                                decoration: const BoxDecoration(
+                                  color: Meet6App.blue,
+                                  shape: BoxShape.circle,
+                                ),
+                                alignment: Alignment.center,
+                                child: const Icon(
+                                  Icons.check_rounded,
+                                  color: Colors.white,
+                                  size: 14,
                                 ),
                               ),
-                              SizedBox(height: compact ? 3 : 5),
-                              _HeroPng(width: w),
-                              SizedBox(height: compact ? 6 : 9),
-                              _BottomLoginArea(
-                                compact: compact,
-                                veryCompact: veryCompact,
-                                canContinue: canContinue,
-                                phoneController: phoneController,
-                                onChanged: () => setState(() {}),
-                                onContinue: () =>
-                                    demo('Doğrulama kodu gönderilecek'),
-                                onGoogle: () => demo('Google ile devam et'),
-                                onApple: () => demo('Apple ile devam et'),
-                                fieldBorder: _fieldBorder,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: compact ? 28 : 34),
+                    Text(
+                      'Telefonunu doğrula',
+                      style: TextStyle(
+                        color: Meet6App.navy,
+                        fontSize: (w * .075).clamp(25.0, 31.0),
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -.7,
+                      ),
+                    ),
+                    const SizedBox(height: 9),
+                    Text(
+                      '$formattedPhone numarasına gönderdiğimiz\n6 haneli kodu gir.',
+                      style: TextStyle(
+                        color: Meet6App.muted,
+                        fontSize: (w * .036).clamp(13.0, 15.0),
+                        height: 1.4,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size(0, 34),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text(
+                        'Numarayı değiştir',
+                        style: TextStyle(
+                          color: Meet6App.blue,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: compact ? 22 : 30),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: List.generate(6, (index) {
+                        final boxWidth = ((w - horizontal * 2 - 35) / 6).clamp(43.0, 52.0);
+                        return SizedBox(
+                          width: boxWidth,
+                          height: compact ? 54 : 60,
+                          child: TextField(
+                            controller: controllers[index],
+                            focusNode: focusNodes[index],
+                            keyboardType: TextInputType.number,
+                            textAlign: TextAlign.center,
+                            maxLength: 1,
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            onChanged: (value) => _onDigitChanged(index, value),
+                            style: TextStyle(
+                              color: Meet6App.navy,
+                              fontSize: compact ? 21 : 23,
+                              fontWeight: FontWeight.w900,
+                            ),
+                            decoration: InputDecoration(
+                              counterText: '',
+                              filled: true,
+                              fillColor: Colors.white.withOpacity(.9),
+                              contentPadding: EdgeInsets.zero,
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(15),
+                                borderSide: const BorderSide(color: Meet6App.border),
                               ),
-                            ],
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(15),
+                                borderSide: const BorderSide(color: Meet6App.blue, width: 2),
+                              ),
+                            ),
                           ),
                         );
-                      },
+                      }),
                     ),
-                  ),
-                ],
+                    SizedBox(height: compact ? 18 : 22),
+                    Center(
+                      child: secondsLeft > 0
+                          ? Text.rich(
+                              TextSpan(
+                                style: const TextStyle(
+                                  color: Meet6App.muted,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                children: [
+                                  const TextSpan(text: 'Kodu tekrar gönderebilirsin  '),
+                                  TextSpan(
+                                    text: '00:${secondsLeft.toString().padLeft(2, '0')}',
+                                    style: const TextStyle(
+                                      color: Meet6App.navy,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : TextButton(
+                              onPressed: _startTimer,
+                              child: const Text(
+                                'Kodu tekrar gönder',
+                                style: TextStyle(
+                                  color: Meet6App.blue,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                    ),
+                    SizedBox(height: compact ? 30 : 42),
+                    SizedBox(
+                      width: double.infinity,
+                      height: compact ? 54 : 58,
+                      child: FilledButton(
+                        onPressed: complete
+                            ? () {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Kod doğrulandı'),
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              }
+                            : null,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Meet6App.lime,
+                          disabledBackgroundColor: const Color(0xFFE8F3AE),
+                          disabledForegroundColor: Meet6App.navy.withOpacity(.4),
+                          foregroundColor: Meet6App.navy,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              'Doğrula',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            SizedBox(width: 9),
+                            Icon(Icons.arrow_forward_rounded, size: 22),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
+    );
+  }
+}
+
+class _PhoneFrame extends StatelessWidget {
+  const _PhoneFrame({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, viewport) {
+        final desktop = viewport.maxWidth > 520;
+        return Container(
+          color: desktop ? const Color(0xFFEFF1F7) : Meet6App.background,
+          alignment: Alignment.center,
+          child: Container(
+            width: desktop ? 390 : viewport.maxWidth,
+            height: desktop ? 844 : viewport.maxHeight,
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              color: Meet6App.background,
+              borderRadius: desktop ? BorderRadius.circular(32) : BorderRadius.zero,
+              boxShadow: desktop
+                  ? const [
+                      BoxShadow(
+                        color: Color(0x22000000),
+                        blurRadius: 28,
+                        offset: Offset(0, 14),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Stack(
+              children: [
+                const Positioned.fill(
+                  child: IgnorePointer(child: CustomPaint(painter: WavePainter())),
+                ),
+                SafeArea(bottom: false, child: child),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -172,9 +481,6 @@ class _BottomLoginArea extends StatelessWidget {
     required this.phoneController,
     required this.onChanged,
     required this.onContinue,
-    required this.onGoogle,
-    required this.onApple,
-    required this.fieldBorder,
   });
 
   final bool compact;
@@ -183,15 +489,19 @@ class _BottomLoginArea extends StatelessWidget {
   final TextEditingController phoneController;
   final VoidCallback onChanged;
   final VoidCallback onContinue;
-  final VoidCallback onGoogle;
-  final VoidCallback onApple;
-  final OutlineInputBorder Function(Color color, {double width}) fieldBorder;
 
   @override
   Widget build(BuildContext context) {
     final fieldHeight = veryCompact ? 44.0 : (compact ? 47.0 : 51.0);
     final providerHeight = veryCompact ? 42.0 : (compact ? 45.0 : 48.0);
     final gap = veryCompact ? 5.0 : (compact ? 7.0 : 9.0);
+
+    OutlineInputBorder fieldBorder(Color color, {double width = 1}) {
+      return OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: color, width: width),
+      );
+    }
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -234,11 +544,7 @@ class _BottomLoginArea extends StatelessWidget {
         SizedBox(height: gap - 1),
         const Row(
           children: [
-            Icon(
-              Icons.lock_outline_rounded,
-              color: Meet6App.blue,
-              size: 15,
-            ),
+            Icon(Icons.lock_outline_rounded, color: Meet6App.blue, size: 15),
             SizedBox(width: 5),
             Flexible(
               child: Text(
@@ -271,13 +577,7 @@ class _BottomLoginArea extends StatelessWidget {
             child: const Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
-                  'Devam et',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
+                Text('Devam et', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
                 SizedBox(width: 8),
                 Icon(Icons.arrow_forward_rounded, size: 21),
               ],
@@ -297,7 +597,7 @@ class _BottomLoginArea extends StatelessWidget {
                 border: Meet6App.border,
                 icon: const _GoogleMark(),
                 label: 'Google',
-                onTap: onGoogle,
+                onTap: () {},
               ),
             ),
             const SizedBox(width: 9),
@@ -307,13 +607,9 @@ class _BottomLoginArea extends StatelessWidget {
                 background: Meet6App.navy,
                 foreground: Colors.white,
                 border: Meet6App.navy,
-                icon: const Icon(
-                  Icons.apple_rounded,
-                  color: Colors.white,
-                  size: 22,
-                ),
+                icon: const Icon(Icons.apple_rounded, color: Colors.white, size: 22),
                 label: 'Apple',
-                onTap: onApple,
+                onTap: () {},
               ),
             ),
           ],
@@ -349,6 +645,23 @@ class _Brand extends StatelessWidget {
   }
 }
 
+class _MiniBrand extends StatelessWidget {
+  const _MiniBrand();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Text.rich(
+      TextSpan(
+        style: TextStyle(fontSize: 23, fontWeight: FontWeight.w900, letterSpacing: -1.2),
+        children: [
+          TextSpan(text: 'meet', style: TextStyle(color: Meet6App.navy)),
+          TextSpan(text: '6', style: TextStyle(color: Meet6App.blue)),
+        ],
+      ),
+    );
+  }
+}
+
 class _Headline extends StatelessWidget {
   const _Headline({required this.width});
   final double width;
@@ -364,14 +677,8 @@ class _Headline extends StatelessWidget {
           letterSpacing: -.5,
         ),
         children: const [
-          TextSpan(
-            text: 'Yeni insanlarla\n',
-            style: TextStyle(color: Meet6App.navy),
-          ),
-          TextSpan(
-            text: 'gerçek bağlantılar kur',
-            style: TextStyle(color: Meet6App.blue),
-          ),
+          TextSpan(text: 'Yeni insanlarla\n', style: TextStyle(color: Meet6App.navy)),
+          TextSpan(text: 'gerçek bağlantılar kur', style: TextStyle(color: Meet6App.blue)),
         ],
       ),
     );
@@ -380,21 +687,21 @@ class _Headline extends StatelessWidget {
 
 class _HeroPng extends StatelessWidget {
   const _HeroPng({required this.width});
-
   final double width;
 
   @override
   Widget build(BuildContext context) {
-    final imageWidth = (width * .84).clamp(245.0, 330.0);
+    final heroHeight = (width * .62).clamp(205.0, 255.0);
+    final imageWidth = (width * .86).clamp(265.0, 345.0);
 
     return SizedBox(
       width: double.infinity,
-      height: imageWidth,
+      height: heroHeight,
       child: Center(
         child: Image.asset(
           'assets/images/file_000000009c248210b0e425b8f2d3e68d.png',
           width: imageWidth,
-          height: imageWidth,
+          height: heroHeight,
           fit: BoxFit.contain,
           filterQuality: FilterQuality.high,
         ),
@@ -420,20 +727,9 @@ class _CountryCode extends StatelessWidget {
         children: [
           Text('🇹🇷', style: TextStyle(fontSize: 15)),
           SizedBox(width: 5),
-          Text(
-            '+90',
-            style: TextStyle(
-              color: Meet6App.navy,
-              fontSize: 14.5,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
+          Text('+90', style: TextStyle(color: Meet6App.navy, fontSize: 14.5, fontWeight: FontWeight.w900)),
           SizedBox(width: 1),
-          Icon(
-            Icons.keyboard_arrow_down_rounded,
-            size: 17,
-            color: Meet6App.muted,
-          ),
+          Icon(Icons.keyboard_arrow_down_rounded, size: 17, color: Meet6App.muted),
         ],
       ),
     );
@@ -450,14 +746,7 @@ class _OrDivider extends StatelessWidget {
         Expanded(child: Divider(color: Meet6App.border)),
         Padding(
           padding: EdgeInsets.symmetric(horizontal: 10),
-          child: Text(
-            'veya',
-            style: TextStyle(
-              color: Meet6App.muted,
-              fontSize: 11.5,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+          child: Text('veya', style: TextStyle(color: Meet6App.muted, fontSize: 11.5, fontWeight: FontWeight.w700)),
         ),
         Expanded(child: Divider(color: Meet6App.border)),
       ],
@@ -494,9 +783,7 @@ class _ProviderButton extends StatelessWidget {
           backgroundColor: background,
           foregroundColor: foreground,
           side: BorderSide(color: border),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(15),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
           padding: const EdgeInsets.symmetric(horizontal: 8),
         ),
         child: Row(
@@ -508,11 +795,7 @@ class _ProviderButton extends StatelessWidget {
               child: Text(
                 label,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: foreground,
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w800,
-                ),
+                style: TextStyle(color: foreground, fontSize: 12.5, fontWeight: FontWeight.w800),
               ),
             ),
           ],
@@ -529,11 +812,7 @@ class _GoogleMark extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Text(
       'G',
-      style: TextStyle(
-        color: Color(0xFF4285F4),
-        fontSize: 19,
-        fontWeight: FontWeight.w900,
-      ),
+      style: TextStyle(color: Color(0xFF4285F4), fontSize: 19, fontWeight: FontWeight.w900),
     );
   }
 }
@@ -547,29 +826,12 @@ class _LegalText extends StatelessWidget {
       width: double.infinity,
       child: Text.rich(
         TextSpan(
-          style: TextStyle(
-            color: Meet6App.muted,
-            fontSize: 9.7,
-            height: 1.25,
-            fontWeight: FontWeight.w500,
-          ),
+          style: TextStyle(color: Meet6App.muted, fontSize: 9.7, height: 1.25, fontWeight: FontWeight.w500),
           children: [
             TextSpan(text: 'Devam ederek '),
-            TextSpan(
-              text: 'Kullanım Koşulları',
-              style: TextStyle(
-                color: Meet6App.blue,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
+            TextSpan(text: 'Kullanım Koşulları', style: TextStyle(color: Meet6App.blue, fontWeight: FontWeight.w800)),
             TextSpan(text: ' ve '),
-            TextSpan(
-              text: 'Gizlilik Politikası',
-              style: TextStyle(
-                color: Meet6App.blue,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
+            TextSpan(text: 'Gizlilik Politikası', style: TextStyle(color: Meet6App.blue, fontWeight: FontWeight.w800)),
             TextSpan(text: '’nı kabul etmiş olursun.'),
           ],
         ),
@@ -597,55 +859,19 @@ class WavePainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
     final blob = Paint()..color = const Color(0xFFF0F1F8);
 
-    canvas.drawCircle(
-      Offset(size.width * .98, size.height * .28),
-      size.width * .20,
-      blob,
-    );
-    canvas.drawCircle(
-      Offset(size.width * .02, size.height * .53),
-      size.width * .16,
-      blob,
-    );
+    canvas.drawCircle(Offset(size.width * .98, size.height * .28), size.width * .20, blob);
+    canvas.drawCircle(Offset(size.width * .02, size.height * .53), size.width * .16, blob);
 
     final top = Path()
       ..moveTo(size.width * .64, -10)
-      ..cubicTo(
-        size.width * .72,
-        size.height * .02,
-        size.width * .68,
-        size.height * .06,
-        size.width * .79,
-        size.height * .09,
-      )
-      ..cubicTo(
-        size.width * .88,
-        size.height * .12,
-        size.width * .82,
-        size.height * .15,
-        size.width * 1.04,
-        size.height * .18,
-      );
+      ..cubicTo(size.width * .72, size.height * .02, size.width * .68, size.height * .06, size.width * .79, size.height * .09)
+      ..cubicTo(size.width * .88, size.height * .12, size.width * .82, size.height * .15, size.width * 1.04, size.height * .18);
     canvas.drawPath(top, lime);
 
     final bottom = Path()
       ..moveTo(-18, size.height - size.height * .055)
-      ..cubicTo(
-        size.width * .06,
-        size.height - size.height * .09,
-        size.width * .13,
-        size.height - size.height * .02,
-        size.width * .23,
-        size.height - size.height * .03,
-      )
-      ..cubicTo(
-        size.width * .33,
-        size.height - size.height * .04,
-        size.width * .38,
-        size.height + 12,
-        size.width * .49,
-        size.height + 2,
-      );
+      ..cubicTo(size.width * .06, size.height - size.height * .09, size.width * .13, size.height - size.height * .02, size.width * .23, size.height - size.height * .03)
+      ..cubicTo(size.width * .33, size.height - size.height * .04, size.width * .38, size.height + 12, size.width * .49, size.height + 2);
     canvas.drawPath(bottom, blue);
   }
 
