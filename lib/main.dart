@@ -5,11 +5,11 @@ void main() => runApp(const Meet6App());
 class Meet6App extends StatelessWidget {
   const Meet6App({super.key});
 
-  static const background = Color(0xFFF7F8FC);
+  static const background = Color(0xFFF8F9FD);
   static const navy = Color(0xFF111B4C);
   static const blue = Color(0xFF2F5BFF);
   static const lime = Color(0xFFD8FF32);
-  static const softText = Color(0xFF9197B0);
+  static const muted = Color(0xFF9298B0);
   static const border = Color(0xFFD9DDEA);
 
   @override
@@ -20,10 +20,7 @@ class Meet6App extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
         scaffoldBackgroundColor: background,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: blue,
-          brightness: Brightness.light,
-        ),
+        colorScheme: ColorScheme.fromSeed(seedColor: blue),
       ),
       home: const LoginScreen(),
     );
@@ -40,10 +37,8 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final phoneController = TextEditingController();
 
-  bool get canContinue {
-    final digits = phoneController.text.replaceAll(RegExp(r'[^0-9]'), '');
-    return digits.length >= 10;
-  }
+  bool get canContinue =>
+      phoneController.text.replaceAll(RegExp(r'[^0-9]'), '').length >= 10;
 
   @override
   void dispose() {
@@ -51,261 +46,225 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _demo(String text) {
+  void demo(String text) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(text),
-        behavior: SnackBarBehavior.floating,
-      ),
+      SnackBar(content: Text(text), behavior: SnackBarBehavior.floating),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Stack(
-        children: [
-          const Positioned.fill(
-            child: IgnorePointer(
-              child: CustomPaint(painter: _WaveBackgroundPainter()),
-            ),
-          ),
-          SafeArea(
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 460),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(26, 12, 26, 22),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const _FakeStatusBar(),
-                      const SizedBox(height: 28),
-                      const _Brand(),
-                      const SizedBox(height: 24),
-                      const _Headline(),
-                      const SizedBox(height: 8),
-                      const Text(
-                        '6 kişilik çevrende yeni insanlarla\nsohbet etmeye başla.',
-                        style: TextStyle(
-                          color: Meet6App.softText,
-                          fontSize: 16,
-                          height: 1.45,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      const _PeopleOrbit(),
-                      const SizedBox(height: 24),
-                      Row(
+      body: LayoutBuilder(
+        builder: (context, page) {
+          final desktop = page.maxWidth > 500;
+          return Container(
+            color: desktop ? const Color(0xFFEFF1F7) : Meet6App.background,
+            alignment: Alignment.center,
+            child: Container(
+              width: desktop ? 390 : double.infinity,
+              height: desktop ? 844 : double.infinity,
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                color: Meet6App.background,
+                borderRadius: desktop ? BorderRadius.circular(32) : BorderRadius.zero,
+                boxShadow: desktop
+                    ? const [
+                        BoxShadow(
+                          color: Color(0x22000000),
+                          blurRadius: 28,
+                          offset: Offset(0, 14),
+                        )
+                      ]
+                    : null,
+              ),
+              child: Stack(
+                children: [
+                  const Positioned.fill(
+                    child: IgnorePointer(
+                      child: CustomPaint(painter: WavePainter()),
+                    ),
+                  ),
+                  SafeArea(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(20, 10, 20, 14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const _CountryCode(),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: SizedBox(
-                              height: 62,
-                              child: TextField(
-                                controller: phoneController,
-                                keyboardType: TextInputType.phone,
-                                onChanged: (_) => setState(() {}),
-                                style: const TextStyle(
-                                  color: Meet6App.navy,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 17,
-                                ),
-                                decoration: InputDecoration(
-                                  hintText: '5XX XXX XX XX',
-                                  hintStyle: const TextStyle(
-                                    color: Color(0xFFADB1C3),
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                  filled: true,
-                                  fillColor: Colors.white.withOpacity(.72),
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 20,
-                                    vertical: 18,
-                                  ),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(19),
-                                    borderSide: BorderSide.none,
-                                  ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(19),
-                                    borderSide: const BorderSide(
-                                      color: Meet6App.border,
-                                      width: 1.2,
-                                    ),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(19),
-                                    borderSide: const BorderSide(
-                                      color: Meet6App.blue,
-                                      width: 1.6,
-                                    ),
-                                  ),
-                                ),
-                              ),
+                          const _StatusBar(),
+                          const SizedBox(height: 14),
+                          const _Brand(),
+                          const SizedBox(height: 14),
+                          const _Headline(),
+                          const SizedBox(height: 5),
+                          const Text(
+                            '6 kişilik çevrende yeni insanlarla\nsohbet etmeye başla.',
+                            style: TextStyle(
+                              color: Meet6App.muted,
+                              fontSize: 13.5,
+                              height: 1.35,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      const Row(
-                        children: [
-                          Icon(
-                            Icons.lock_outline_rounded,
-                            color: Meet6App.blue,
-                            size: 19,
-                          ),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Numaranı diğer kullanıcılara gösterilmez.',
-                              style: TextStyle(
-                                color: Meet6App.softText,
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 22),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 62,
-                        child: FilledButton(
-                          onPressed: canContinue
-                              ? () => _demo('Doğrulama kodu gönderilecek')
-                              : null,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: Meet6App.lime,
-                            disabledBackgroundColor: const Color(0xFFE6F3A7),
-                            disabledForegroundColor: Meet6App.navy.withOpacity(.45),
-                            foregroundColor: Meet6App.navy,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                          ),
-                          child: const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                          const SizedBox(height: 8),
+                          const _PeopleOrbit(),
+                          const SizedBox(height: 10),
+                          Row(
                             children: [
-                              Text(
-                                'Devam et',
-                                style: TextStyle(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w900,
+                              const _CountryCode(),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: SizedBox(
+                                  height: 52,
+                                  child: TextField(
+                                    controller: phoneController,
+                                    keyboardType: TextInputType.phone,
+                                    onChanged: (_) => setState(() {}),
+                                    style: const TextStyle(
+                                      color: Meet6App.navy,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 15.5,
+                                    ),
+                                    decoration: InputDecoration(
+                                      hintText: '5XX XXX XX XX',
+                                      hintStyle: const TextStyle(
+                                        color: Color(0xFFADB1C3),
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      filled: true,
+                                      fillColor: Colors.white.withOpacity(.78),
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+                                      border: _fieldBorder(Meet6App.border),
+                                      enabledBorder: _fieldBorder(Meet6App.border),
+                                      focusedBorder: _fieldBorder(Meet6App.blue, width: 1.5),
+                                    ),
+                                  ),
                                 ),
                               ),
-                              SizedBox(width: 12),
-                              Icon(Icons.arrow_forward_rounded, size: 26),
                             ],
                           ),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      const _OrDivider(),
-                      const SizedBox(height: 22),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _ProviderButton(
-                              label: 'Google ile devam et',
-                              background: const Color(0xFFF2F3FA),
-                              foreground: Meet6App.navy,
-                              borderColor: Meet6App.border,
-                              leading: const _GoogleMark(),
-                              onTap: () => _demo('Google ile devam et'),
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: _ProviderButton(
-                              label: 'Apple ile devam et',
-                              background: Meet6App.navy,
-                              foreground: Colors.white,
-                              borderColor: Meet6App.navy,
-                              leading: const Icon(
-                                Icons.apple_rounded,
-                                color: Colors.white,
-                                size: 28,
+                          const SizedBox(height: 8),
+                          const Row(
+                            children: [
+                              Icon(Icons.lock_outline_rounded,
+                                  color: Meet6App.blue, size: 16),
+                              SizedBox(width: 6),
+                              Text(
+                                'Numaran diğer kullanıcılara gösterilmez.',
+                                style: TextStyle(
+                                  color: Meet6App.muted,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
-                              onTap: () => _demo('Apple ile devam et'),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 52,
+                            child: FilledButton(
+                              onPressed: canContinue
+                                  ? () => demo('Doğrulama kodu gönderilecek')
+                                  : null,
+                              style: FilledButton.styleFrom(
+                                backgroundColor: Meet6App.lime,
+                                disabledBackgroundColor: const Color(0xFFE8F3AE),
+                                disabledForegroundColor: Meet6App.navy.withOpacity(.48),
+                                foregroundColor: Meet6App.navy,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                              child: const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text('Devam et',
+                                      style: TextStyle(
+                                          fontSize: 15.5,
+                                          fontWeight: FontWeight.w900)),
+                                  SizedBox(width: 9),
+                                  Icon(Icons.arrow_forward_rounded, size: 22),
+                                ],
+                              ),
                             ),
                           ),
+                          const SizedBox(height: 12),
+                          const _OrDivider(),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _ProviderButton(
+                                  background: const Color(0xFFF1F3FA),
+                                  foreground: Meet6App.navy,
+                                  border: Meet6App.border,
+                                  icon: const _GoogleMark(),
+                                  label: 'Google',
+                                  onTap: () => demo('Google ile devam et'),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _ProviderButton(
+                                  background: Meet6App.navy,
+                                  foreground: Colors.white,
+                                  border: Meet6App.navy,
+                                  icon: const Icon(Icons.apple_rounded,
+                                      color: Colors.white, size: 23),
+                                  label: 'Apple',
+                                  onTap: () => demo('Apple ile devam et'),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          const _LegalText(),
                         ],
                       ),
-                      const SizedBox(height: 24),
-                      const _LegalText(),
-                      const SizedBox(height: 22),
-                      Center(
-                        child: Container(
-                          width: 126,
-                          height: 5,
-                          decoration: BoxDecoration(
-                            color: Meet6App.navy,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
-          ),
-        ],
+          );
+        },
       ),
+    );
+  }
+
+  OutlineInputBorder _fieldBorder(Color color, {double width = 1}) {
+    return OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: BorderSide(color: color, width: width),
     );
   }
 }
 
-class _FakeStatusBar extends StatelessWidget {
-  const _FakeStatusBar();
+class _StatusBar extends StatelessWidget {
+  const _StatusBar();
 
   @override
   Widget build(BuildContext context) {
     return const Row(
       children: [
-        Text(
-          '22:29',
-          style: TextStyle(
-            color: Meet6App.navy,
-            fontSize: 15,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
+        Text('22:29',
+            style: TextStyle(
+                color: Meet6App.navy,
+                fontSize: 13,
+                fontWeight: FontWeight.w800)),
         Spacer(),
-        Icon(Icons.signal_cellular_alt_rounded, size: 18, color: Meet6App.navy),
-        SizedBox(width: 7),
-        Icon(Icons.wifi_rounded, size: 18, color: Meet6App.navy),
-        SizedBox(width: 7),
-        _Battery(),
+        Icon(Icons.signal_cellular_alt_rounded, size: 16, color: Meet6App.navy),
+        SizedBox(width: 5),
+        Icon(Icons.wifi_rounded, size: 16, color: Meet6App.navy),
+        SizedBox(width: 5),
+        Text('50',
+            style: TextStyle(
+                color: Meet6App.navy,
+                fontSize: 11,
+                fontWeight: FontWeight.w900)),
       ],
-    );
-  }
-}
-
-class _Battery extends StatelessWidget {
-  const _Battery();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: const Color(0xFFE8EAF3),
-        borderRadius: BorderRadius.circular(7),
-      ),
-      child: const Text(
-        '50',
-        style: TextStyle(
-          color: Meet6App.navy,
-          fontSize: 11,
-          fontWeight: FontWeight.w900,
-        ),
-      ),
     );
   }
 }
@@ -318,10 +277,10 @@ class _Brand extends StatelessWidget {
     return const Text.rich(
       TextSpan(
         style: TextStyle(
-          fontSize: 46,
+          fontSize: 38,
           height: 1,
           fontWeight: FontWeight.w900,
-          letterSpacing: -2.4,
+          letterSpacing: -2,
         ),
         children: [
           TextSpan(text: 'meet', style: TextStyle(color: Meet6App.navy)),
@@ -340,20 +299,14 @@ class _Headline extends StatelessWidget {
     return const Text.rich(
       TextSpan(
         style: TextStyle(
-          fontSize: 28,
-          height: 1.12,
+          fontSize: 23,
+          height: 1.08,
           fontWeight: FontWeight.w900,
-          letterSpacing: -.8,
+          letterSpacing: -.5,
         ),
         children: [
-          TextSpan(
-            text: 'Yeni insanlarla\n',
-            style: TextStyle(color: Meet6App.navy),
-          ),
-          TextSpan(
-            text: 'gerçek bağlantılar kur',
-            style: TextStyle(color: Meet6App.blue),
-          ),
+          TextSpan(text: 'Yeni insanlarla\n', style: TextStyle(color: Meet6App.navy)),
+          TextSpan(text: 'gerçek bağlantılar kur', style: TextStyle(color: Meet6App.blue)),
         ],
       ),
     );
@@ -366,24 +319,22 @@ class _PeopleOrbit extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 390,
+      height: 250,
       width: double.infinity,
       child: LayoutBuilder(
-        builder: (context, constraints) {
-          final w = constraints.maxWidth;
+        builder: (context, c) {
+          final w = c.maxWidth;
           return Stack(
             alignment: Alignment.center,
             children: [
-              Positioned.fill(
-                child: CustomPaint(painter: _ConnectionPainter()),
-              ),
+              Positioned.fill(child: CustomPaint(painter: ConnectionPainter())),
               const _CenterSix(),
-              Positioned(top: 12, left: w * .38, child: const _AvatarTile(index: 0)),
-              Positioned(top: 88, left: 4, child: const _AvatarTile(index: 1)),
-              Positioned(top: 78, right: 4, child: const _AvatarTile(index: 2)),
-              Positioned(bottom: 58, left: 14, child: const _AvatarTile(index: 3)),
-              Positioned(bottom: 62, right: 14, child: const _AvatarTile(index: 4)),
-              Positioned(bottom: 4, left: w * .38, child: const _AvatarTile(index: 5)),
+              Positioned(top: 3, left: w * .39, child: const _AvatarTile(index: 0)),
+              const Positioned(top: 50, left: 2, child: _AvatarTile(index: 1)),
+              const Positioned(top: 46, right: 2, child: _AvatarTile(index: 2)),
+              const Positioned(bottom: 35, left: 8, child: _AvatarTile(index: 3)),
+              const Positioned(bottom: 35, right: 8, child: _AvatarTile(index: 4)),
+              Positioned(bottom: 0, left: w * .39, child: const _AvatarTile(index: 5)),
             ],
           );
         },
@@ -398,29 +349,19 @@ class _CenterSix extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 132,
-      height: 132,
+      width: 88,
+      height: 88,
       decoration: const BoxDecoration(
         color: Meet6App.lime,
         shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: Color(0x16000000),
-            blurRadius: 18,
-            offset: Offset(0, 8),
-          ),
-        ],
       ),
       alignment: Alignment.center,
-      child: const Text(
-        '6',
-        style: TextStyle(
-          color: Meet6App.navy,
-          fontSize: 68,
-          fontWeight: FontWeight.w900,
-          letterSpacing: -3,
-        ),
-      ),
+      child: const Text('6',
+          style: TextStyle(
+              color: Meet6App.navy,
+              fontSize: 48,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -2)),
     );
   }
 }
@@ -433,10 +374,10 @@ class _AvatarTile extends StatelessWidget {
   static const colors = [
     Meet6App.blue,
     Meet6App.lime,
-    Color(0xFFF1F2F7),
+    Color(0xFFF0F1F7),
     Meet6App.blue,
     Meet6App.lime,
-    Color(0xFFF1F2F7),
+    Color(0xFFF0F1F7),
   ];
 
   static const icons = [
@@ -451,25 +392,20 @@ class _AvatarTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = colors[index];
-    final dark = color != Meet6App.blue;
     return Container(
-      width: 104,
-      height: 104,
+      width: 72,
+      height: 72,
       decoration: BoxDecoration(
         color: color,
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(21),
         boxShadow: const [
-          BoxShadow(
-            color: Color(0x14000000),
-            blurRadius: 18,
-            offset: Offset(0, 9),
-          ),
+          BoxShadow(color: Color(0x12000000), blurRadius: 10, offset: Offset(0, 5)),
         ],
       ),
       child: Icon(
         icons[index],
-        size: 48,
-        color: dark ? Meet6App.navy : Colors.white,
+        size: 33,
+        color: color == Meet6App.blue ? Colors.white : Meet6App.navy,
       ),
     );
   }
@@ -481,28 +417,25 @@ class _CountryCode extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 62,
-      padding: const EdgeInsets.symmetric(horizontal: 15),
+      height: 52,
+      padding: const EdgeInsets.symmetric(horizontal: 11),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(.72),
-        borderRadius: BorderRadius.circular(19),
-        border: Border.all(color: Meet6App.border, width: 1.2),
+        color: Colors.white.withOpacity(.78),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Meet6App.border),
       ),
       child: const Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('🇹🇷', style: TextStyle(fontSize: 20)),
-          SizedBox(width: 8),
-          Text(
-            '+90',
-            style: TextStyle(
-              color: Meet6App.navy,
-              fontWeight: FontWeight.w900,
-              fontSize: 18,
-            ),
-          ),
-          SizedBox(width: 5),
-          Icon(Icons.keyboard_arrow_down_rounded, color: Meet6App.softText),
+          Text('🇹🇷', style: TextStyle(fontSize: 17)),
+          SizedBox(width: 6),
+          Text('+90',
+              style: TextStyle(
+                  color: Meet6App.navy,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w900)),
+          SizedBox(width: 3),
+          Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: Meet6App.muted),
         ],
       ),
     );
@@ -518,15 +451,12 @@ class _OrDivider extends StatelessWidget {
       children: [
         Expanded(child: Divider(color: Meet6App.border)),
         Padding(
-          padding: EdgeInsets.symmetric(horizontal: 14),
-          child: Text(
-            'veya',
-            style: TextStyle(
-              color: Meet6App.softText,
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+          padding: EdgeInsets.symmetric(horizontal: 12),
+          child: Text('veya',
+              style: TextStyle(
+                  color: Meet6App.muted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700)),
         ),
         Expanded(child: Divider(color: Meet6App.border)),
       ],
@@ -536,52 +466,44 @@ class _OrDivider extends StatelessWidget {
 
 class _ProviderButton extends StatelessWidget {
   const _ProviderButton({
-    required this.label,
     required this.background,
     required this.foreground,
-    required this.borderColor,
-    required this.leading,
+    required this.border,
+    required this.icon,
+    required this.label,
     required this.onTap,
   });
 
-  final String label;
   final Color background;
   final Color foreground;
-  final Color borderColor;
-  final Widget leading;
+  final Color border;
+  final Widget icon;
+  final String label;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 60,
+      height: 48,
       child: OutlinedButton(
         onPressed: onTap,
         style: OutlinedButton.styleFrom(
           backgroundColor: background,
           foregroundColor: foreground,
-          side: BorderSide(color: borderColor),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-          ),
+          side: BorderSide(color: border),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
           padding: const EdgeInsets.symmetric(horizontal: 10),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            leading,
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                label,
-                overflow: TextOverflow.ellipsis,
+            icon,
+            const SizedBox(width: 7),
+            Text(label,
                 style: TextStyle(
-                  color: foreground,
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ),
+                    color: foreground,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800)),
           ],
         ),
       ),
@@ -594,40 +516,11 @@ class _GoogleMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 27,
-      height: 27,
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: SweepGradient(
-          colors: [
-            Color(0xFF4285F4),
-            Color(0xFF34A853),
-            Color(0xFFFBBC05),
-            Color(0xFFEA4335),
-            Color(0xFF4285F4),
-          ],
-        ),
-      ),
-      alignment: Alignment.center,
-      child: Container(
-        width: 15,
-        height: 15,
-        decoration: const BoxDecoration(
-          color: Color(0xFFF2F3FA),
-          shape: BoxShape.circle,
-        ),
-        alignment: Alignment.center,
-        child: const Text(
-          'G',
-          style: TextStyle(
-            color: Meet6App.navy,
-            fontSize: 10,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-      ),
-    );
+    return const Text('G',
+        style: TextStyle(
+            color: Color(0xFF4285F4),
+            fontSize: 20,
+            fontWeight: FontWeight.w900));
   }
 }
 
@@ -636,70 +529,51 @@ class _LegalText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Text.rich(
-        TextSpan(
-          style: const TextStyle(
-            color: Meet6App.softText,
-            fontSize: 12,
-            height: 1.5,
-          ),
-          children: const [
-            TextSpan(text: 'Devam ederek '),
-            TextSpan(
-              text: 'Kullanım Koşulları',
-              style: TextStyle(
-                color: Meet6App.blue,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            TextSpan(text: ' ve '),
-            TextSpan(
-              text: 'Gizlilik Politikası',
-              style: TextStyle(
-                color: Meet6App.blue,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            TextSpan(text: '’nı\nkabul etmiş olursun.'),
-          ],
+    return const Text.rich(
+      TextSpan(
+        style: TextStyle(
+          color: Meet6App.muted,
+          fontSize: 10.5,
+          height: 1.35,
+          fontWeight: FontWeight.w500,
         ),
-        textAlign: TextAlign.center,
+        children: [
+          TextSpan(text: 'Devam ederek '),
+          TextSpan(
+              text: 'Kullanım Koşulları',
+              style: TextStyle(color: Meet6App.blue, fontWeight: FontWeight.w800)),
+          TextSpan(text: ' ve '),
+          TextSpan(
+              text: 'Gizlilik Politikası',
+              style: TextStyle(color: Meet6App.blue, fontWeight: FontWeight.w800)),
+          TextSpan(text: '’nı kabul etmiş olursun.'),
+        ],
       ),
+      textAlign: TextAlign.center,
     );
   }
 }
 
-class _ConnectionPainter extends CustomPainter {
-  const _ConnectionPainter();
-
+class ConnectionPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2 + 2);
-    final line = Paint()
-      ..color = Meet6App.blue.withOpacity(.9)
-      ..strokeWidth = 2.2
+    final paint = Paint()
+      ..color = Meet6App.blue.withOpacity(.78)
+      ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke;
-    final dot = Paint()
-      ..color = Meet6App.blue
-      ..style = PaintingStyle.fill;
-
+    final center = Offset(size.width / 2, size.height / 2);
     final points = [
-      Offset(size.width * .50, 66),
-      Offset(69, 139),
-      Offset(size.width - 69, 132),
-      Offset(74, size.height - 105),
-      Offset(size.width - 74, size.height - 104),
-      Offset(size.width * .50, size.height - 56),
+      Offset(size.width / 2, 38),
+      const Offset(48, 83),
+      Offset(size.width - 48, 83),
+      Offset(50, size.height - 62),
+      Offset(size.width - 50, size.height - 62),
+      Offset(size.width / 2, size.height - 32),
     ];
-
-    for (final point in points) {
-      canvas.drawLine(center, point, line);
-      final mid = Offset(
-        center.dx + (point.dx - center.dx) * .57,
-        center.dy + (point.dy - center.dy) * .57,
-      );
-      canvas.drawCircle(mid, 5, dot);
+    for (final p in points) {
+      canvas.drawLine(center, p, paint);
+      canvas.drawCircle(Offset((center.dx + p.dx) / 2, (center.dy + p.dy) / 2),
+          3.2, Paint()..color = Meet6App.blue);
     }
   }
 
@@ -707,94 +581,37 @@ class _ConnectionPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-class _WaveBackgroundPainter extends CustomPainter {
-  const _WaveBackgroundPainter();
+class WavePainter extends CustomPainter {
+  const WavePainter();
 
   @override
   void paint(Canvas canvas, Size size) {
-    final soft = Paint()
-      ..color = const Color(0xFFEFF1F8)
-      ..style = PaintingStyle.fill;
-
-    canvas.drawCircle(Offset(size.width * .98, size.height * .22), 125, soft);
-    canvas.drawCircle(Offset(size.width * .02, size.height * .53), 95, soft);
-    canvas.drawCircle(
-      Offset(size.width * .93, size.height * .72),
-      72,
-      Paint()..color = const Color(0xFFF3F5DE),
-    );
-
-    final limePaint = Paint()
+    final lime = Paint()
       ..color = Meet6App.lime
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 38
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    final topWave = Path()
-      ..moveTo(size.width * .63, -24)
-      ..cubicTo(
-        size.width * .65,
-        28,
-        size.width * .64,
-        55,
-        size.width * .72,
-        77,
-      )
-      ..cubicTo(
-        size.width * .82,
-        103,
-        size.width * .78,
-        146,
-        size.width * .91,
-        163,
-      )
-      ..cubicTo(
-        size.width * 1.02,
-        178,
-        size.width * .95,
-        217,
-        size.width * 1.09,
-        230,
-      );
-
-    canvas.drawPath(topWave, limePaint);
-
-    final bluePaint = Paint()
+      ..strokeWidth = 24
+      ..strokeCap = StrokeCap.round;
+    final blue = Paint()
       ..color = Meet6App.blue
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 38
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
+      ..strokeWidth = 24
+      ..strokeCap = StrokeCap.round;
+    final blob = Paint()..color = const Color(0xFFF0F1F8);
 
-    final bottomWave = Path()
-      ..moveTo(-34, size.height - 88)
-      ..cubicTo(
-        20,
-        size.height - 116,
-        45,
-        size.height - 46,
-        89,
-        size.height - 54,
-      )
-      ..cubicTo(
-        137,
-        size.height - 62,
-        146,
-        size.height - 9,
-        196,
-        size.height - 24,
-      )
-      ..cubicTo(
-        235,
-        size.height - 35,
-        248,
-        size.height + 3,
-        285,
-        size.height + 7,
-      );
+    canvas.drawCircle(Offset(size.width * .96, size.height * .28), 82, blob);
+    canvas.drawCircle(Offset(size.width * .04, size.height * .53), 64, blob);
 
-    canvas.drawPath(bottomWave, bluePaint);
+    final top = Path()
+      ..moveTo(size.width * .64, -10)
+      ..cubicTo(size.width * .72, 18, size.width * .68, 48, size.width * .79, 72)
+      ..cubicTo(size.width * .88, 94, size.width * .82, 126, size.width * 1.03, 145);
+    canvas.drawPath(top, lime);
+
+    final bottom = Path()
+      ..moveTo(-18, size.height - 48)
+      ..cubicTo(22, size.height - 72, 48, size.height - 18, 86, size.height - 26)
+      ..cubicTo(122, size.height - 34, 142, size.height + 12, 185, size.height + 2);
+    canvas.drawPath(bottom, blue);
   }
 
   @override
