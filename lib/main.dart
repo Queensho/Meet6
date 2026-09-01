@@ -90,184 +90,57 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   SafeArea(
+                    bottom: false,
                     child: LayoutBuilder(
                       builder: (context, phone) {
                         final w = phone.maxWidth;
                         final h = phone.maxHeight;
-                        final compact = h < 720;
-                        final horizontal = (w * .05).clamp(16.0, 22.0);
+                        final veryCompact = h < 690;
+                        final compact = h < 760;
+                        final horizontal = (w * .045).clamp(14.0, 19.0);
 
-                        return SingleChildScrollView(
-                          physics: const BouncingScrollPhysics(),
+                        return Padding(
                           padding: EdgeInsets.fromLTRB(
                             horizontal,
-                            compact ? 8 : 12,
+                            compact ? 7 : 10,
                             horizontal,
-                            14,
+                            2,
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               _Brand(width: w),
-                              SizedBox(height: compact ? 9 : 13),
+                              SizedBox(height: compact ? 7 : 10),
                               _Headline(width: w),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 3),
                               Text(
                                 '6 kişilik çevrende yeni insanlarla\nsohbet etmeye başla.',
                                 style: TextStyle(
                                   color: Meet6App.muted,
-                                  fontSize: (w * .034).clamp(12.0, 14.0),
-                                  height: 1.32,
+                                  fontSize: (w * .033).clamp(11.8, 13.5),
+                                  height: 1.28,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
-                              SizedBox(height: compact ? 5 : 8),
-                              _HeroPng(compact: compact),
-                              SizedBox(height: compact ? 5 : 9),
-                              Row(
-                                children: [
-                                  SizedBox(
-                                    height: compact ? 48 : 52,
-                                    child: const _CountryCode(),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: SizedBox(
-                                      height: compact ? 48 : 52,
-                                      child: TextField(
-                                        controller: phoneController,
-                                        keyboardType: TextInputType.phone,
-                                        onChanged: (_) => setState(() {}),
-                                        style: const TextStyle(
-                                          color: Meet6App.navy,
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 15,
-                                        ),
-                                        decoration: InputDecoration(
-                                          hintText: '5XX XXX XX XX',
-                                          hintStyle: const TextStyle(
-                                            color: Color(0xFFADB1C3),
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                          filled: true,
-                                          fillColor: Colors.white.withOpacity(.8),
-                                          contentPadding:
-                                              const EdgeInsets.symmetric(
-                                            horizontal: 14,
-                                          ),
-                                          border: _fieldBorder(Meet6App.border),
-                                          enabledBorder:
-                                              _fieldBorder(Meet6App.border),
-                                          focusedBorder: _fieldBorder(
-                                            Meet6App.blue,
-                                            width: 1.5,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 7),
-                              const Row(
-                                children: [
-                                  Icon(
-                                    Icons.lock_outline_rounded,
-                                    color: Meet6App.blue,
-                                    size: 16,
-                                  ),
-                                  SizedBox(width: 6),
-                                  Flexible(
-                                    child: Text(
-                                      'Numaran diğer kullanıcılara gösterilmez.',
-                                      style: TextStyle(
-                                        color: Meet6App.muted,
-                                        fontSize: 11.3,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: compact ? 9 : 12),
-                              SizedBox(
-                                width: double.infinity,
-                                height: compact ? 48 : 52,
-                                child: FilledButton(
-                                  onPressed: canContinue
-                                      ? () => demo(
-                                            'Doğrulama kodu gönderilecek',
-                                          )
-                                      : null,
-                                  style: FilledButton.styleFrom(
-                                    backgroundColor: Meet6App.lime,
-                                    disabledBackgroundColor:
-                                        const Color(0xFFE8F3AE),
-                                    disabledForegroundColor:
-                                        Meet6App.navy.withOpacity(.48),
-                                    foregroundColor: Meet6App.navy,
-                                    elevation: 0,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                  ),
-                                  child: const Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text(
-                                        'Devam et',
-                                        style: TextStyle(
-                                          fontSize: 15.5,
-                                          fontWeight: FontWeight.w900,
-                                        ),
-                                      ),
-                                      SizedBox(width: 9),
-                                      Icon(
-                                        Icons.arrow_forward_rounded,
-                                        size: 22,
-                                      ),
-                                    ],
-                                  ),
+                              SizedBox(height: compact ? 2 : 5),
+                              Expanded(
+                                child: _HeroPng(
+                                  compact: compact,
+                                  veryCompact: veryCompact,
                                 ),
                               ),
-                              SizedBox(height: compact ? 9 : 12),
-                              const _OrDivider(),
-                              SizedBox(height: compact ? 9 : 12),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: _ProviderButton(
-                                      background: const Color(0xFFF1F3FA),
-                                      foreground: Meet6App.navy,
-                                      border: Meet6App.border,
-                                      icon: const _GoogleMark(),
-                                      label: 'Google',
-                                      onTap: () => demo(
-                                        'Google ile devam et',
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: _ProviderButton(
-                                      background: Meet6App.navy,
-                                      foreground: Colors.white,
-                                      border: Meet6App.navy,
-                                      icon: const Icon(
-                                        Icons.apple_rounded,
-                                        color: Colors.white,
-                                        size: 23,
-                                      ),
-                                      label: 'Apple',
-                                      onTap: () => demo(
-                                        'Apple ile devam et',
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                              _BottomLoginArea(
+                                compact: compact,
+                                veryCompact: veryCompact,
+                                canContinue: canContinue,
+                                phoneController: phoneController,
+                                onChanged: () => setState(() {}),
+                                onContinue: () =>
+                                    demo('Doğrulama kodu gönderilecek'),
+                                onGoogle: () => demo('Google ile devam et'),
+                                onApple: () => demo('Apple ile devam et'),
+                                fieldBorder: _fieldBorder,
                               ),
-                              SizedBox(height: compact ? 9 : 12),
-                              const _LegalText(),
                             ],
                           ),
                         );
@@ -291,6 +164,163 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
+class _BottomLoginArea extends StatelessWidget {
+  const _BottomLoginArea({
+    required this.compact,
+    required this.veryCompact,
+    required this.canContinue,
+    required this.phoneController,
+    required this.onChanged,
+    required this.onContinue,
+    required this.onGoogle,
+    required this.onApple,
+    required this.fieldBorder,
+  });
+
+  final bool compact;
+  final bool veryCompact;
+  final bool canContinue;
+  final TextEditingController phoneController;
+  final VoidCallback onChanged;
+  final VoidCallback onContinue;
+  final VoidCallback onGoogle;
+  final VoidCallback onApple;
+  final OutlineInputBorder Function(Color color, {double width}) fieldBorder;
+
+  @override
+  Widget build(BuildContext context) {
+    final fieldHeight = veryCompact ? 44.0 : (compact ? 47.0 : 51.0);
+    final providerHeight = veryCompact ? 42.0 : (compact ? 45.0 : 48.0);
+    final gap = veryCompact ? 5.0 : (compact ? 7.0 : 9.0);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            SizedBox(height: fieldHeight, child: const _CountryCode()),
+            const SizedBox(width: 7),
+            Expanded(
+              child: SizedBox(
+                height: fieldHeight,
+                child: TextField(
+                  controller: phoneController,
+                  keyboardType: TextInputType.phone,
+                  onChanged: (_) => onChanged(),
+                  style: const TextStyle(
+                    color: Meet6App.navy,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14.5,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: '5XX XXX XX XX',
+                    hintStyle: const TextStyle(
+                      color: Color(0xFFADB1C3),
+                      fontWeight: FontWeight.w600,
+                    ),
+                    filled: true,
+                    fillColor: Colors.white.withOpacity(.84),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 13),
+                    border: fieldBorder(Meet6App.border),
+                    enabledBorder: fieldBorder(Meet6App.border),
+                    focusedBorder: fieldBorder(Meet6App.blue, width: 1.5),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: gap - 1),
+        const Row(
+          children: [
+            Icon(Icons.lock_outline_rounded, color: Meet6App.blue, size: 15),
+            SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                'Numaran diğer kullanıcılara gösterilmez.',
+                style: TextStyle(
+                  color: Meet6App.muted,
+                  fontSize: 10.7,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: gap),
+        SizedBox(
+          width: double.infinity,
+          height: fieldHeight,
+          child: FilledButton(
+            onPressed: canContinue ? onContinue : null,
+            style: FilledButton.styleFrom(
+              backgroundColor: Meet6App.lime,
+              disabledBackgroundColor: const Color(0xFFE8F3AE),
+              disabledForegroundColor: Meet6App.navy.withOpacity(.48),
+              foregroundColor: Meet6App.navy,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'Devam et',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                SizedBox(width: 8),
+                Icon(Icons.arrow_forward_rounded, size: 21),
+              ],
+            ),
+          ),
+        ),
+        SizedBox(height: gap),
+        const _OrDivider(),
+        SizedBox(height: gap),
+        Row(
+          children: [
+            Expanded(
+              child: _ProviderButton(
+                height: providerHeight,
+                background: const Color(0xFFF1F3FA),
+                foreground: Meet6App.navy,
+                border: Meet6App.border,
+                icon: const _GoogleMark(),
+                label: 'Google',
+                onTap: onGoogle,
+              ),
+            ),
+            const SizedBox(width: 9),
+            Expanded(
+              child: _ProviderButton(
+                height: providerHeight,
+                background: Meet6App.navy,
+                foreground: Colors.white,
+                border: Meet6App.navy,
+                icon: const Icon(
+                  Icons.apple_rounded,
+                  color: Colors.white,
+                  size: 22,
+                ),
+                label: 'Apple',
+                onTap: onApple,
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: veryCompact ? 4 : 6),
+        const _LegalText(),
+        SizedBox(height: veryCompact ? 1 : 2),
+      ],
+    );
+  }
+}
+
 class _Brand extends StatelessWidget {
   const _Brand({required this.width});
   final double width;
@@ -300,20 +330,14 @@ class _Brand extends StatelessWidget {
     return Text.rich(
       TextSpan(
         style: TextStyle(
-          fontSize: (width * .098).clamp(32.0, 40.0),
+          fontSize: (width * .094).clamp(31.0, 38.0),
           height: 1,
           fontWeight: FontWeight.w900,
           letterSpacing: -2,
         ),
         children: const [
-          TextSpan(
-            text: 'meet',
-            style: TextStyle(color: Meet6App.navy),
-          ),
-          TextSpan(
-            text: '6',
-            style: TextStyle(color: Meet6App.blue),
-          ),
+          TextSpan(text: 'meet', style: TextStyle(color: Meet6App.navy)),
+          TextSpan(text: '6', style: TextStyle(color: Meet6App.blue)),
         ],
       ),
     );
@@ -329,8 +353,8 @@ class _Headline extends StatelessWidget {
     return Text.rich(
       TextSpan(
         style: TextStyle(
-          fontSize: (width * .059).clamp(20.0, 24.0),
-          height: 1.08,
+          fontSize: (width * .057).clamp(19.5, 23.5),
+          height: 1.07,
           fontWeight: FontWeight.w900,
           letterSpacing: -.5,
         ),
@@ -350,27 +374,30 @@ class _Headline extends StatelessWidget {
 }
 
 class _HeroPng extends StatelessWidget {
-  const _HeroPng({required this.compact});
+  const _HeroPng({required this.compact, required this.veryCompact});
+
   final bool compact;
+  final bool veryCompact;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final imageWidth = (width * .88).clamp(260.0, 340.0);
-        final imageHeight = compact ? 178.0 : 205.0;
+        final maxW = constraints.maxWidth;
+        final maxH = constraints.maxHeight;
+        final scale = veryCompact ? 1.08 : (compact ? 1.16 : 1.25);
 
-        return SizedBox(
-          width: double.infinity,
-          height: imageHeight,
+        return ClipRect(
           child: Center(
-            child: Image.asset(
-              'assets/images/file_000000009c248210b0e425b8f2d3e68d.png',
-              width: imageWidth,
-              height: imageHeight,
-              fit: BoxFit.contain,
-              filterQuality: FilterQuality.high,
+            child: Transform.scale(
+              scale: scale,
+              child: Image.asset(
+                'assets/images/file_000000009c248210b0e425b8f2d3e68d.png',
+                width: maxW,
+                height: maxH,
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.high,
+              ),
             ),
           ),
         );
@@ -385,29 +412,29 @@ class _CountryCode extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 9),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(.8),
+        color: Colors.white.withOpacity(.84),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Meet6App.border),
       ),
       child: const Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('🇹🇷', style: TextStyle(fontSize: 16)),
+          Text('🇹🇷', style: TextStyle(fontSize: 15)),
           SizedBox(width: 5),
           Text(
             '+90',
             style: TextStyle(
               color: Meet6App.navy,
-              fontSize: 15,
+              fontSize: 14.5,
               fontWeight: FontWeight.w900,
             ),
           ),
-          SizedBox(width: 2),
+          SizedBox(width: 1),
           Icon(
             Icons.keyboard_arrow_down_rounded,
-            size: 18,
+            size: 17,
             color: Meet6App.muted,
           ),
         ],
@@ -425,12 +452,12 @@ class _OrDivider extends StatelessWidget {
       children: [
         Expanded(child: Divider(color: Meet6App.border)),
         Padding(
-          padding: EdgeInsets.symmetric(horizontal: 12),
+          padding: EdgeInsets.symmetric(horizontal: 10),
           child: Text(
             'veya',
             style: TextStyle(
               color: Meet6App.muted,
-              fontSize: 12,
+              fontSize: 11.5,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -443,6 +470,7 @@ class _OrDivider extends StatelessWidget {
 
 class _ProviderButton extends StatelessWidget {
   const _ProviderButton({
+    required this.height,
     required this.background,
     required this.foreground,
     required this.border,
@@ -451,6 +479,7 @@ class _ProviderButton extends StatelessWidget {
     required this.onTap,
   });
 
+  final double height;
   final Color background;
   final Color foreground;
   final Color border;
@@ -461,7 +490,7 @@ class _ProviderButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 48,
+      height: height,
       child: OutlinedButton(
         onPressed: onTap,
         style: OutlinedButton.styleFrom(
@@ -484,7 +513,7 @@ class _ProviderButton extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: foreground,
-                  fontSize: 13,
+                  fontSize: 12.5,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -505,7 +534,7 @@ class _GoogleMark extends StatelessWidget {
       'G',
       style: TextStyle(
         color: Color(0xFF4285F4),
-        fontSize: 20,
+        fontSize: 19,
         fontWeight: FontWeight.w900,
       ),
     );
@@ -517,35 +546,38 @@ class _LegalText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Text.rich(
-      TextSpan(
-        style: TextStyle(
-          color: Meet6App.muted,
-          fontSize: 10.3,
-          height: 1.35,
-          fontWeight: FontWeight.w500,
+    return const SizedBox(
+      width: double.infinity,
+      child: Text.rich(
+        TextSpan(
+          style: TextStyle(
+            color: Meet6App.muted,
+            fontSize: 9.7,
+            height: 1.25,
+            fontWeight: FontWeight.w500,
+          ),
+          children: [
+            TextSpan(text: 'Devam ederek '),
+            TextSpan(
+              text: 'Kullanım Koşulları',
+              style: TextStyle(
+                color: Meet6App.blue,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            TextSpan(text: ' ve '),
+            TextSpan(
+              text: 'Gizlilik Politikası',
+              style: TextStyle(
+                color: Meet6App.blue,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            TextSpan(text: '’nı kabul etmiş olursun.'),
+          ],
         ),
-        children: [
-          TextSpan(text: 'Devam ederek '),
-          TextSpan(
-            text: 'Kullanım Koşulları',
-            style: TextStyle(
-              color: Meet6App.blue,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          TextSpan(text: ' ve '),
-          TextSpan(
-            text: 'Gizlilik Politikası',
-            style: TextStyle(
-              color: Meet6App.blue,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          TextSpan(text: '’nı kabul etmiş olursun.'),
-        ],
+        textAlign: TextAlign.center,
       ),
-      textAlign: TextAlign.center,
     );
   }
 }
