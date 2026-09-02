@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/matching_preferences.dart';
+import '../../services/api_service.dart';
 import '../../services/location_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/form_components.dart';
@@ -33,6 +34,7 @@ class _MatchingPreferencesScreenState extends State<MatchingPreferencesScreen> {
   late double? longitude;
 
   bool locationLoading = false;
+  bool saving = false;
   String? locationError;
 
   bool get hasLocation => latitude != null && longitude != null;
@@ -60,7 +62,7 @@ class _MatchingPreferencesScreenState extends State<MatchingPreferencesScreen> {
   }
 
   Future<void> _refreshLocation() async {
-    if (locationLoading) return;
+    if (locationLoading || saving) return;
     setState(() {
       locationLoading = true;
       locationError = null;
@@ -91,21 +93,51 @@ class _MatchingPreferencesScreenState extends State<MatchingPreferencesScreen> {
     }
   }
 
-  void _save() {
-    if (!hasLocation) return;
-    Navigator.of(context).pop(
-      MatchingPreferences(
+  Future<void> _save() async {
+    if (!hasLocation || saving) return;
+    setState(() => saving = true);
+    try {
+      await ApiService.updateProfileLocation(
+        city: city,
+        country: country,
+        latitude: latitude!,
+        longitude: longitude!,
+      );
+      await ApiService.updatePreferences(
         lookingFor: lookingFor,
         minAge: minAge,
         maxAge: maxAge,
         distanceKm: distanceKm,
         purpose: purpose,
-        city: city,
-        country: country,
-        latitude: latitude,
-        longitude: longitude,
-      ),
-    );
+      );
+
+      if (!mounted) return;
+      Navigator.of(context).pop(
+        MatchingPreferences(
+          lookingFor: lookingFor,
+          minAge: minAge,
+          maxAge: maxAge,
+          distanceKm: distanceKm,
+          purpose: purpose,
+          city: city,
+          country: country,
+          latitude: latitude,
+          longitude: longitude,
+        ),
+      );
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tercihler sunucuya kaydedilemedi.')),
+      );
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
   }
 
   @override
@@ -124,7 +156,7 @@ class _MatchingPreferencesScreenState extends State<MatchingPreferencesScreen> {
               child: Row(
                 children: [
                   IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
+                    onPressed: saving ? null : () => Navigator.of(context).pop(),
                     style: IconButton.styleFrom(backgroundColor: scheme.surface),
                     icon: Icon(
                       Icons.arrow_back_rounded,
@@ -252,7 +284,9 @@ class _MatchingPreferencesScreenState extends State<MatchingPreferencesScreen> {
                             ),
                           ),
                           TextButton(
-                            onPressed: locationLoading ? null : _refreshLocation,
+                            onPressed: locationLoading || saving
+                                ? null
+                                : _refreshLocation,
                             child: Text(
                               'Güncelle',
                               style: TextStyle(
@@ -308,10 +342,12 @@ class _MatchingPreferencesScreenState extends State<MatchingPreferencesScreen> {
                         '${minAge.round()}',
                         '${maxAge.round()}',
                       ),
-                      onChanged: (values) => setState(() {
-                        minAge = values.start;
-                        maxAge = values.end;
-                      }),
+                      onChanged: saving
+                          ? null
+                          : (values) => setState(() {
+                                minAge = values.start;
+                                maxAge = values.end;
+                              }),
                     ),
                     const SizedBox(height: 10),
                     Row(
@@ -365,7 +401,7 @@ class _MatchingPreferencesScreenState extends State<MatchingPreferencesScreen> {
                       width: double.infinity,
                       height: 56,
                       child: FilledButton.icon(
-                        onPressed: hasLocation ? _save : null,
+                        onPressed: hasLocation && !saving ? _save : null,
                         style: FilledButton.styleFrom(
                           backgroundColor: dark ? AppColors.lime : AppColors.navy,
                           foregroundColor: dark ? AppColors.navy : Colors.white,
@@ -375,10 +411,19 @@ class _MatchingPreferencesScreenState extends State<MatchingPreferencesScreen> {
                             borderRadius: BorderRadius.circular(18),
                           ),
                         ),
-                        icon: const Icon(Icons.check_rounded, size: 20),
-                        label: const Text(
-                          'Tercihleri kaydet',
-                          style: TextStyle(
+                        icon: saving
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.2,
+                                  color: AppColors.navy,
+                                ),
+                              )
+                            : const Icon(Icons.check_rounded, size: 20),
+                        label: Text(
+                          saving ? 'Sunucuya kaydediliyor...' : 'Tercihleri kaydet',
+                          style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w900,
                           ),
