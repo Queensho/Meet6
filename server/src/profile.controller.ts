@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Headers,
   Post,
@@ -64,5 +65,13 @@ export class ProfileController {
   ) {
     const { userId } = await this.auth.userIdFromAuthorization(authorization);
     return this.profiles.updatePreferences(userId, body);
+  }
+
+  @Delete()
+  async deleteAccount(@Headers('authorization') authorization?: string) {
+    const { userId } = await this.auth.userIdFromAuthorization(authorization);
+    await this.profiles.deleteAccount(userId);
+    await this.auth.revokeAllSessions(userId);
+    return { ok: true };
   }
 }
