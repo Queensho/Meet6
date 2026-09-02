@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../theme/app_colors.dart';
 import '../../widgets/phone_frame.dart';
+import '../login_screen.dart';
+import 'settings/blocked_accounts_screen.dart';
+import 'settings/help_support_screen.dart';
+import 'settings/legal_screen.dart';
+import 'settings/privacy_security_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -31,7 +36,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(),
                     style: IconButton.styleFrom(backgroundColor: Colors.white),
-                    icon: const Icon(Icons.arrow_back_rounded, color: AppColors.navy),
+                    icon: const Icon(
+                      Icons.arrow_back_rounded,
+                      color: AppColors.navy,
+                    ),
                   ),
                   const SizedBox(width: 8),
                   const Expanded(
@@ -108,22 +116,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       _LinkTile(
                         icon: Icons.shield_outlined,
                         title: 'Gizlilik ve güvenlik',
-                        onTap: () => _showInfo(context, 'Gizlilik ve güvenlik ayarları backend aşamasında bağlanacak.'),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const PrivacySecurityScreen(),
+                          ),
+                        ),
                       ),
                       _LinkTile(
                         icon: Icons.block_rounded,
                         title: 'Engellenen hesaplar',
-                        onTap: () => _showInfo(context, 'Henüz engellenen hesap yok.'),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const BlockedAccountsScreen(),
+                          ),
+                        ),
                       ),
                       _LinkTile(
                         icon: Icons.help_outline_rounded,
                         title: 'Yardım ve destek',
-                        onTap: () => _showInfo(context, 'Destek merkezi hazırlanıyor.'),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const HelpSupportScreen(),
+                          ),
+                        ),
                       ),
                       _LinkTile(
                         icon: Icons.description_outlined,
                         title: 'Koşullar ve gizlilik',
-                        onTap: () => _showInfo(context, 'Yasal metinler yayın öncesi eklenecek.'),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const LegalScreen(),
+                          ),
+                        ),
                         last: true,
                       ),
                     ],
@@ -135,13 +159,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         icon: Icons.logout_rounded,
                         title: 'Çıkış yap',
                         danger: true,
-                        onTap: () => _showInfo(context, 'Çıkış işlemi gerçek oturum sistemi bağlandığında aktif olacak.'),
+                        onTap: _showLogoutConfirm,
                       ),
                       _LinkTile(
                         icon: Icons.delete_outline_rounded,
                         title: 'Hesabımı sil',
                         danger: true,
-                        onTap: () => _showDeleteConfirm(context),
+                        onTap: _showDeleteConfirm,
                         last: true,
                       ),
                     ],
@@ -166,14 +190,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _showInfo(BuildContext context, String text) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(text), behavior: SnackBarBehavior.floating),
-    );
-  }
-
-  Future<void> _showDeleteConfirm(BuildContext context) async {
-    await showModalBottomSheet<void>(
+  Future<void> _showLogoutConfirm() async {
+    final approved = await showModalBottomSheet<bool>(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) => SafeArea(
@@ -187,30 +205,138 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.warning_amber_rounded, color: Color(0xFFE24A4A), size: 36),
+              const Icon(
+                Icons.logout_rounded,
+                color: Color(0xFFE24A4A),
+                size: 34,
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Çıkış yapmak istiyor musun?',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.navy,
+                  fontSize: 19,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 7),
+              const Text(
+                'Bu prototipte çıkış yaptığında giriş ekranına dönersin.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.muted,
+                  fontSize: 12.5,
+                  height: 1.4,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Vazgeç'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFE24A4A),
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text(
+                        'Çıkış yap',
+                        style: TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (approved == true && mounted) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
+    }
+  }
+
+  Future<void> _showDeleteConfirm() async {
+    final approved = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.warning_amber_rounded,
+                color: Color(0xFFE24A4A),
+                size: 38,
+              ),
               const SizedBox(height: 10),
               const Text(
                 'Hesabını silmek istiyor musun?',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.navy, fontSize: 19, fontWeight: FontWeight.w900),
+                style: TextStyle(
+                  color: AppColors.navy,
+                  fontSize: 19,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
               const SizedBox(height: 7),
               const Text(
-                'Bu işlem gerçek hesap sistemi bağlanana kadar yalnızca demo olarak gösteriliyor.',
+                'Gerçek hesap backend’i henüz bağlı olmadığı için bu işlem şu an yalnızca prototip akışını test eder. Sunucuda veri silmez.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.muted, fontSize: 12.5, height: 1.4, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  color: AppColors.muted,
+                  fontSize: 12.5,
+                  height: 1.4,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
                 height: 50,
                 child: FilledButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () => Navigator.pop(context, false),
                   style: FilledButton.styleFrom(
                     backgroundColor: AppColors.navy,
                     foregroundColor: Colors.white,
                   ),
-                  child: const Text('Vazgeç', style: TextStyle(fontWeight: FontWeight.w900)),
+                  child: const Text(
+                    'Vazgeç',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text(
+                  'Prototip hesabı sil ve çık',
+                  style: TextStyle(
+                    color: Color(0xFFE24A4A),
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ),
             ],
@@ -218,6 +344,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
     );
+
+    if (approved == true && mounted) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
+    }
   }
 }
 
@@ -285,8 +418,23 @@ class _SwitchTile extends StatelessWidget {
           onChanged: onChanged,
           activeColor: AppColors.blue,
           secondary: _IconBox(icon),
-          title: Text(title, style: const TextStyle(color: AppColors.navy, fontSize: 13.5, fontWeight: FontWeight.w900)),
-          subtitle: Text(subtitle, style: const TextStyle(color: AppColors.muted, fontSize: 11.5, height: 1.3, fontWeight: FontWeight.w600)),
+          title: Text(
+            title,
+            style: const TextStyle(
+              color: AppColors.navy,
+              fontSize: 13.5,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          subtitle: Text(
+            subtitle,
+            style: const TextStyle(
+              color: AppColors.muted,
+              fontSize: 11.5,
+              height: 1.3,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
         ),
         if (!last) const Divider(height: 1, indent: 62, color: AppColors.border),
@@ -319,8 +467,18 @@ class _LinkTile extends StatelessWidget {
           onTap: onTap,
           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
           leading: _IconBox(icon, danger: danger),
-          title: Text(title, style: TextStyle(color: color, fontSize: 13.5, fontWeight: FontWeight.w900)),
-          trailing: Icon(Icons.chevron_right_rounded, color: danger ? const Color(0xFFE24A4A) : AppColors.muted),
+          title: Text(
+            title,
+            style: TextStyle(
+              color: color,
+              fontSize: 13.5,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          trailing: Icon(
+            Icons.chevron_right_rounded,
+            color: danger ? const Color(0xFFE24A4A) : AppColors.muted,
+          ),
         ),
         if (!last) const Divider(height: 1, indent: 62, color: AppColors.border),
       ],
@@ -342,7 +500,11 @@ class _IconBox extends StatelessWidget {
         color: danger ? const Color(0xFFFFEEEE) : AppColors.softSurface,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Icon(icon, color: danger ? const Color(0xFFE24A4A) : AppColors.blue, size: 20),
+      child: Icon(
+        icon,
+        color: danger ? const Color(0xFFE24A4A) : AppColors.blue,
+        size: 20,
+      ),
     );
   }
 }
