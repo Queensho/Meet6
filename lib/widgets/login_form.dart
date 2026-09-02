@@ -60,12 +60,6 @@ class LoginForm extends StatelessWidget {
                       fontWeight: FontWeight.w900,
                     ),
                   ),
-                  const SizedBox(width: 2),
-                  Icon(
-                    Icons.keyboard_arrow_down_rounded,
-                    color: scheme.onSurfaceVariant,
-                    size: 18,
-                  ),
                 ],
               ),
             ),
@@ -78,6 +72,9 @@ class LoginForm extends StatelessWidget {
                   keyboardType: TextInputType.phone,
                   textInputAction: TextInputAction.done,
                   onChanged: (_) => onChanged(),
+                  onSubmitted: (_) {
+                    if (enabled) onContinue();
+                  },
                   style: TextStyle(
                     color: scheme.onSurface,
                     fontSize: 15,
@@ -106,12 +103,14 @@ class LoginForm extends StatelessWidget {
           children: [
             Icon(Icons.lock_outline_rounded, color: accent, size: 16),
             const SizedBox(width: 6),
-            Text(
-              'Numaran diğer kullanıcılara gösterilmez.',
-              style: TextStyle(
-                color: scheme.onSurfaceVariant,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
+            Expanded(
+              child: Text(
+                'Numaran diğer kullanıcılara gösterilmez.',
+                style: TextStyle(
+                  color: scheme.onSurfaceVariant,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],
@@ -123,44 +122,6 @@ class LoginForm extends StatelessWidget {
           onPressed: enabled ? onContinue : null,
         ),
         const SizedBox(height: 10),
-        const _OrDivider(),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: _ProviderButton(
-                label: 'Google',
-                background: dark
-                    ? scheme.surfaceContainerHigh
-                    : AppColors.softSurface,
-                foreground: scheme.onSurface,
-                border: borderColor,
-                icon: const Text(
-                  'G',
-                  style: TextStyle(
-                    color: Color(0xFF4285F4),
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _ProviderButton(
-                label: 'Apple',
-                background: dark ? AppColors.lime : AppColors.navy,
-                foreground: dark ? AppColors.navy : Colors.white,
-                border: dark ? AppColors.lime : AppColors.navy,
-                icon: Icon(
-                  Icons.apple_rounded,
-                  color: dark ? AppColors.navy : Colors.white,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 7),
         Text.rich(
           TextSpan(
             style: TextStyle(
@@ -172,18 +133,12 @@ class LoginForm extends StatelessWidget {
               const TextSpan(text: 'Devam ederek '),
               TextSpan(
                 text: 'Kullanım Koşulları',
-                style: TextStyle(
-                  color: accent,
-                  fontWeight: FontWeight.w800,
-                ),
+                style: TextStyle(color: accent, fontWeight: FontWeight.w800),
               ),
               const TextSpan(text: ' ve '),
               TextSpan(
                 text: 'Gizlilik Politikası',
-                style: TextStyle(
-                  color: accent,
-                  fontWeight: FontWeight.w800,
-                ),
+                style: TextStyle(color: accent, fontWeight: FontWeight.w800),
               ),
               const TextSpan(text: '’nı kabul etmiş olursun.'),
             ],
@@ -191,84 +146,6 @@ class LoginForm extends StatelessWidget {
           textAlign: TextAlign.center,
         ),
       ],
-    );
-  }
-}
-
-class _OrDivider extends StatelessWidget {
-  const _OrDivider();
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Row(
-      children: [
-        Expanded(child: Divider(color: scheme.outlineVariant)),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          child: Text(
-            'veya',
-            style: TextStyle(
-              color: scheme.onSurfaceVariant,
-              fontSize: 11.5,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-        Expanded(child: Divider(color: scheme.outlineVariant)),
-      ],
-    );
-  }
-}
-
-class _ProviderButton extends StatelessWidget {
-  const _ProviderButton({
-    required this.label,
-    required this.background,
-    required this.foreground,
-    required this.border,
-    required this.icon,
-  });
-
-  final String label;
-  final Color background;
-  final Color foreground;
-  final Color border;
-  final Widget icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 48,
-      child: OutlinedButton(
-        onPressed: () {},
-        style: OutlinedButton.styleFrom(
-          backgroundColor: background,
-          foregroundColor: foreground,
-          side: BorderSide(color: border),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            icon,
-            const SizedBox(width: 7),
-            Flexible(
-              child: Text(
-                label,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: foreground,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
