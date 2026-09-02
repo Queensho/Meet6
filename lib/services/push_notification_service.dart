@@ -3,7 +3,10 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 
+import '../screens/push/push_target_screen.dart';
+import 'app_navigator.dart';
 import 'push_api_service.dart';
 import 'session_service.dart';
 
@@ -16,8 +19,11 @@ class PushNotificationService {
   const PushNotificationService._();
 
   static StreamSubscription<String>? _tokenRefreshSubscription;
+  static StreamSubscription<RemoteMessage>? _openedAppSubscription;
   static bool _initialized = false;
   static bool _initializing = false;
+  static bool _tapHandlingInitialized = false;
+  static String? _lastOpenedNotificationId;
 
   static bool get supportedPlatform =>
       !kIsWeb &&
@@ -49,6 +55,59 @@ class PushNotificationService {
     throw lastError ?? StateError('FCM token kaydı başarısız.');
   }
 
+  static Future<void> _setupTapHandling() async {
+    if (_tapHandlingInitialized) return;
+    _tapHandlingInitialized = true;
+
+    await _openedAppSubscription?.cancel();
+    _openedAppSubscription = FirebaseMessaging.onMessageOpenedApp.listen(
+      (message) => unawaited(_openNotification(message)),
+    );
+
+    final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+    if (initialMessage != null) {
+      unawaited(_openNotification(initialMessage));
+    }
+  }
+
+  static Future<void> _openNotification(RemoteMessage message) async {
+    final data = Map<String, dynamic>.from(message.data);
+    if (data.isEmpty) return;
+
+    final notificationId = data['notificationId']?.toString();
+    if (notificationId != null &&
+        notificationId.isNotEmpty &&
+        notificationId == _lastOpenedNotificationId) {
+      return;
+    }
+    if (notificationId != null && notificationId.isNotEmpty) {
+      _lastOpenedNotificationId = notificationId;
+    }
+
+    final type = data['type']?.toString() ?? '';
+    final screen = data['screen']?.toString() ?? '';
+
+    for (var attempt = 0; attempt < 40; attempt++) {
+      final navigator = AppNavigator.key.currentState;
+      if (navigator != null) {
+        if (type == 'push_test' || screen == 'home') {
+          navigator.popUntil((route) => route.isFirst);
+          return;
+        }
+        navigator.push(
+          MaterialPageRoute(
+            settings: RouteSettings(
+              name: 'push:$type:${notificationId ?? ''}',
+            ),
+            builder: (_) => PushTargetScreen(data: data),
+          ),
+        );
+        return;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+    }
+  }
+
   static Future<void> initializeForAuthenticatedUser() async {
     if (!supportedPlatform || _initialized || _initializing) return;
     _initializing = true;
@@ -62,6 +121,7 @@ class PushNotificationService {
 
       await Firebase.initializeApp();
       FirebaseMessaging.onBackgroundMessage(meet6FirebaseBackgroundHandler);
+      await _setupTapHandling();
 
       final messaging = FirebaseMessaging.instance;
       final permission = await messaging.requestPermission(
@@ -126,6 +186,7 @@ class PushNotificationService {
 
     try {
       await Firebase.initializeApp();
+      await _setupTapHandling();
       lines.add('✅ Firebase başlatıldı');
     } catch (error) {
       lines.add('❌ Firebase başlatılamadı');
@@ -197,8 +258,12 @@ class PushNotificationService {
 
   static Future<void> resetRuntimeState() async {
     await _tokenRefreshSubscription?.cancel();
+    await _openedAppSubscription?.cancel();
     _tokenRefreshSubscription = null;
+    _openedAppSubscription = null;
     _initialized = false;
     _initializing = false;
+    _tapHandlingInitialized = false;
+    _lastOpenedNotificationId = null;
   }
 }
