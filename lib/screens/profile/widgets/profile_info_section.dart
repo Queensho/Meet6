@@ -16,13 +16,14 @@ class ProfileSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(17),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: scheme.outlineVariant),
         boxShadow: const [
           BoxShadow(
             color: Color(0x0B111B4C),
@@ -39,8 +40,8 @@ class ProfileSection extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(
-                    color: AppColors.navy,
+                  style: TextStyle(
+                    color: scheme.onSurface,
                     fontSize: 14,
                     fontWeight: FontWeight.w900,
                   ),
@@ -64,17 +65,18 @@ class ProfileInterestChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.softSurface,
+        color: scheme.surfaceContainerHigh,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: scheme.outlineVariant),
       ),
       child: Text(
         label,
-        style: const TextStyle(
-          color: AppColors.navy,
+        style: TextStyle(
+          color: scheme.onSurface,
           fontSize: 11.5,
           fontWeight: FontWeight.w800,
         ),
@@ -95,15 +97,16 @@ class ProfileMiniInfo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, color: AppColors.blue, size: 17),
+        Icon(icon, color: scheme.primary, size: 17),
         const SizedBox(width: 6),
         Text(
           text,
-          style: const TextStyle(
-            color: AppColors.navy,
+          style: TextStyle(
+            color: scheme.onSurface,
             fontSize: 12,
             fontWeight: FontWeight.w800,
           ),
