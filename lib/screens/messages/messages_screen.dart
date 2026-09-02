@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../models/matching_preferences.dart';
 import '../../services/api_service.dart';
 import '../../services/live_service.dart';
+import '../../services/realtime_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/main_bottom_nav.dart';
 import '../../widgets/phone_frame.dart';
@@ -31,12 +34,31 @@ class _MessagesScreenState extends State<MessagesScreen> {
   int unreadTotal = 0;
   bool loading = true;
   String? error;
+  StreamSubscription<RealtimeEvent>? realtimeSub;
+  Timer? refreshDebounce;
 
   @override
   void initState() {
     super.initState();
     preferences = widget.preferences;
+    _startRealtime();
     _load();
+  }
+
+  Future<void> _startRealtime() async {
+    realtimeSub = RealtimeService.events.listen((event) {
+      if (!mounted) return;
+      if (event.type == 'user:message' ||
+          event.type == 'match:created' ||
+          event.type == 'match:read' ||
+          event.type == 'connection:connected') {
+        refreshDebounce?.cancel();
+        refreshDebounce = Timer(const Duration(milliseconds: 120), _load);
+      }
+    });
+    try {
+      await RealtimeService.connect();
+    } catch (_) {}
   }
 
   Future<void> _load() async {
@@ -133,6 +155,13 @@ class _MessagesScreenState extends State<MessagesScreen> {
       return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
     }
     return '${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  void dispose() {
+    realtimeSub?.cancel();
+    refreshDebounce?.cancel();
+    super.dispose();
   }
 
   @override
