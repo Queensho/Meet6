@@ -106,8 +106,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final dark = theme.brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: theme.scaffoldBackgroundColor,
       resizeToAvoidBottomInset: true,
       body: PhoneFrame(
         child: Column(
@@ -118,18 +122,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 children: [
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    style: IconButton.styleFrom(backgroundColor: Colors.white),
-                    icon: const Icon(
+                    style: IconButton.styleFrom(backgroundColor: scheme.surface),
+                    icon: Icon(
                       Icons.arrow_back_rounded,
-                      color: AppColors.navy,
+                      color: scheme.onSurface,
                     ),
                   ),
                   const SizedBox(width: 8),
-                  const Expanded(
+                  Expanded(
                     child: Text(
                       'Profili düzenle',
                       style: TextStyle(
-                        color: AppColors.navy,
+                        color: scheme.onSurface,
                         fontSize: 20,
                         fontWeight: FontWeight.w900,
                       ),
@@ -137,15 +141,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   ),
                   TextButton(
                     onPressed: canSave ? _save : null,
-                    child: const Text(
+                    child: Text(
                       'Kaydet',
-                      style: TextStyle(fontWeight: FontWeight.w900),
+                      style: TextStyle(
+                        color: canSave ? scheme.primary : scheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-            const Divider(height: 1, color: AppColors.border),
+            Divider(height: 1, color: scheme.outlineVariant),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(18, 20, 18, 30),
@@ -193,7 +200,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                 decoration: BoxDecoration(
                                   color: AppColors.lime,
                                   shape: BoxShape.circle,
-                                  border: Border.all(color: Colors.white, width: 3),
+                                  border: Border.all(color: scheme.surface, width: 3),
                                 ),
                                 child: const Icon(
                                   Icons.camera_alt_rounded,
@@ -211,6 +218,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     const SizedBox(height: 7),
                     TextField(
                       controller: nameController,
+                      style: TextStyle(color: scheme.onSurface),
                       onChanged: (_) => setState(() {}),
                       decoration: meet6InputDecoration(
                         hint: 'Adın',
@@ -222,6 +230,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     const SizedBox(height: 7),
                     TextField(
                       controller: ageController,
+                      style: TextStyle(color: scheme.onSurface),
                       keyboardType: TextInputType.number,
                       onChanged: (_) => setState(() {}),
                       decoration: meet6InputDecoration(
@@ -234,6 +243,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     const SizedBox(height: 7),
                     TextField(
                       controller: bioController,
+                      style: TextStyle(color: scheme.onSurface),
                       maxLength: 120,
                       minLines: 3,
                       maxLines: 4,
@@ -270,6 +280,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     DropdownButtonFormField<String>(
                       value: prompt,
                       isExpanded: true,
+                      dropdownColor: scheme.surface,
+                      style: TextStyle(
+                        color: scheme.onSurface,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
                       decoration: meet6InputDecoration(
                         hint: 'Soru seç',
                         icon: Icons.chat_bubble_outline_rounded,
@@ -288,6 +304,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     const SizedBox(height: 8),
                     TextField(
                       controller: answerController,
+                      style: TextStyle(color: scheme.onSurface),
                       maxLength: 80,
                       onChanged: (_) => setState(() {}),
                       decoration: meet6InputDecoration(
@@ -300,24 +317,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       width: double.infinity,
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF1F5FF),
+                        color: scheme.surfaceContainerHigh,
                         borderRadius: BorderRadius.circular(18),
-                        border: Border.all(
-                          color: AppColors.blue.withOpacity(.1),
-                        ),
+                        border: Border.all(color: scheme.outlineVariant),
                       ),
-                      child: const Row(
+                      child: Row(
                         children: [
                           Icon(
                             Icons.tune_rounded,
-                            color: AppColors.blue,
+                            color: scheme.primary,
                           ),
-                          SizedBox(width: 10),
+                          const SizedBox(width: 10),
                           Expanded(
                             child: Text(
                               'Kimlerle tanışacağın, yaş aralığı ve mesafe artık Eşleşme tercihleri bölümünden yönetilir.',
                               style: TextStyle(
-                                color: AppColors.navy,
+                                color: scheme.onSurface,
                                 fontSize: 11.5,
                                 height: 1.35,
                                 fontWeight: FontWeight.w700,
@@ -334,9 +349,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       child: FilledButton(
                         onPressed: canSave ? _save : null,
                         style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.navy,
-                          foregroundColor: Colors.white,
-                          disabledBackgroundColor: AppColors.border,
+                          backgroundColor: dark ? AppColors.lime : AppColors.navy,
+                          foregroundColor: dark ? AppColors.navy : Colors.white,
+                          disabledBackgroundColor: scheme.surfaceContainerHigh,
+                          disabledForegroundColor: scheme.onSurfaceVariant,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(18),
                           ),
