@@ -40,4 +40,9 @@ export class PushController {
   ) {
     return this.push.unregisterDevice(await this.userId(authorization), body.token);
   }
+
+  @Post('test')
+  async test(@Headers('authorization') authorization?: string) {
+    return this.push.queueTest(await this.userId(authorization));
+  }
 }
