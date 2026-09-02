@@ -164,6 +164,29 @@ class ApiService {
             'profileCompleted': profileCompleted,
           }),
         )
+        .timeout(const Duration(seconds: 20));
+    _decode(response);
+  }
+
+  static Future<void> updateProfileLocation({
+    required String city,
+    required String country,
+    required double latitude,
+    required double longitude,
+  }) async {
+    final token = await SessionService.loadAuthSessionId();
+    if (token == null) throw const ApiException('Oturum bulunamadı.');
+    final response = await http
+        .put(
+          _uri('/api/me/profile'),
+          headers: _headers(sessionId: token),
+          body: jsonEncode({
+            'city': city,
+            'country': country,
+            'latitude': latitude,
+            'longitude': longitude,
+          }),
+        )
         .timeout(const Duration(seconds: 15));
     _decode(response);
   }
