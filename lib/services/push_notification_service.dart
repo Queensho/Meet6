@@ -16,6 +16,7 @@ class PushNotificationService {
 
   static StreamSubscription<String>? _tokenRefreshSubscription;
   static bool _initialized = false;
+  static bool _initializing = false;
 
   static bool get supportedPlatform =>
       !kIsWeb &&
@@ -25,56 +26,76 @@ class PushNotificationService {
   static String get _platform =>
       defaultTargetPlatform == TargetPlatform.iOS ? 'ios' : 'android';
 
-  static Future<void> initializeForAuthenticatedUser() async {
-    if (!supportedPlatform || _initialized) return;
+  static Future<void> _registerToken(String token) async {
+    final clean = token.trim();
+    if (clean.isEmpty) return;
 
-    await Firebase.initializeApp();
-    FirebaseMessaging.onBackgroundMessage(meet6FirebaseBackgroundHandler);
-
-    final messaging = FirebaseMessaging.instance;
-    final permission = await messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-      provisional: false,
-    );
-
-    if (permission.authorizationStatus == AuthorizationStatus.denied) {
-      return;
+    Object? lastError;
+    for (var attempt = 0; attempt < 3; attempt++) {
+      try {
+        await PushApiService.registerDevice(
+          token: clean,
+          platform: _platform,
+        );
+        return;
+      } catch (error) {
+        lastError = error;
+        if (attempt < 2) {
+          await Future<void>.delayed(Duration(seconds: 2 + (attempt * 2)));
+        }
+      }
     }
+    throw lastError ?? StateError('FCM token kaydı başarısız.');
+  }
 
-    if (defaultTargetPlatform == TargetPlatform.iOS) {
-      await messaging.setForegroundNotificationPresentationOptions(
+  static Future<void> initializeForAuthenticatedUser() async {
+    if (!supportedPlatform || _initialized || _initializing) return;
+    _initializing = true;
+
+    try {
+      await Firebase.initializeApp();
+      FirebaseMessaging.onBackgroundMessage(meet6FirebaseBackgroundHandler);
+
+      final messaging = FirebaseMessaging.instance;
+      final permission = await messaging.requestPermission(
         alert: true,
         badge: true,
         sound: true,
+        provisional: false,
       );
+
+      if (permission.authorizationStatus == AuthorizationStatus.denied) {
+        return;
+      }
+
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        await messaging.setForegroundNotificationPresentationOptions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+      }
+
+      await _tokenRefreshSubscription?.cancel();
+      _tokenRefreshSubscription = messaging.onTokenRefresh.listen((newToken) {
+        unawaited(_registerToken(newToken).catchError((_) {}));
+      });
+
+      final token = await messaging.getToken();
+      if (token != null && token.trim().isNotEmpty) {
+        await _registerToken(token);
+      }
+
+      _initialized = true;
+    } finally {
+      _initializing = false;
     }
-
-    final token = await messaging.getToken();
-    if (token != null && token.trim().isNotEmpty) {
-      await PushApiService.registerDevice(
-        token: token,
-        platform: _platform,
-      );
-    }
-
-    await _tokenRefreshSubscription?.cancel();
-    _tokenRefreshSubscription = messaging.onTokenRefresh.listen((newToken) {
-      unawaited(
-        PushApiService.registerDevice(
-          token: newToken,
-          platform: _platform,
-        ).catchError((_) => <String, dynamic>{}),
-      );
-    });
-
-    _initialized = true;
   }
 
   static Future<void> resetRuntimeState() async {
     await _tokenRefreshSubscription?.cancel();
     _tokenRefreshSubscription = null;
     _initialized = false;
+    _initializing = false;
   }
 }
