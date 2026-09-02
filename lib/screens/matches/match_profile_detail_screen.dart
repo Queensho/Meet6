@@ -31,89 +31,93 @@ class MatchProfileDetailScreen extends StatelessWidget {
     final approved = await showModalBottomSheet<bool>(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (sheetContext) => SafeArea(
-        child: Container(
-          margin: const EdgeInsets.all(12),
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 64,
-                height: 64,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFFFEEEE),
-                  shape: BoxShape.circle,
+      builder: (sheetContext) {
+        final scheme = Theme.of(sheetContext).colorScheme;
+        return SafeArea(
+          child: Container(
+            margin: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: scheme.surface,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: scheme.outlineVariant),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: const BoxDecoration(
+                    color: Color(0x33E24A4A),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.block_rounded,
+                    color: Color(0xFFE24A4A),
+                    size: 31,
+                  ),
                 ),
-                child: const Icon(
-                  Icons.block_rounded,
-                  color: Color(0xFFE24A4A),
-                  size: 31,
+                const SizedBox(height: 14),
+                Text(
+                  '${profile.name} engellensin mi?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: scheme.onSurface,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                '${profile.name} engellensin mi?',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: AppColors.navy,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
+                const SizedBox(height: 8),
+                Text(
+                  'Bu kişi eşleşmelerinden kaldırılır, sana mesaj gönderemez ve aynı odalarda sana gösterilmez.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: scheme.onSurfaceVariant,
+                    fontSize: 12.5,
+                    height: 1.4,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Bu kişi eşleşmelerinden kaldırılır, sana mesaj gönderemez ve aynı odalarda sana gösterilmez.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppColors.muted,
-                  fontSize: 12.5,
-                  height: 1.4,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 18),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(sheetContext, false),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.navy,
-                        side: const BorderSide(color: AppColors.border),
-                        minimumSize: const Size.fromHeight(48),
-                      ),
-                      child: const Text(
-                        'Vazgeç',
-                        style: TextStyle(fontWeight: FontWeight.w900),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(sheetContext, false),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: scheme.onSurface,
+                          side: BorderSide(color: scheme.outlineVariant),
+                          minimumSize: const Size.fromHeight(48),
+                        ),
+                        child: const Text(
+                          'Vazgeç',
+                          style: TextStyle(fontWeight: FontWeight.w900),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: () => Navigator.pop(sheetContext, true),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFFE24A4A),
-                        foregroundColor: Colors.white,
-                        minimumSize: const Size.fromHeight(48),
-                      ),
-                      child: const Text(
-                        'Engelle',
-                        style: TextStyle(fontWeight: FontWeight.w900),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () => Navigator.pop(sheetContext, true),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFFE24A4A),
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size.fromHeight(48),
+                        ),
+                        child: const Text(
+                          'Engelle',
+                          style: TextStyle(fontWeight: FontWeight.w900),
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
 
     if (approved != true || !context.mounted) return;
@@ -137,49 +141,58 @@ class MatchProfileDetailScreen extends StatelessWidget {
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (sheetContext) => SafeArea(
-        child: Container(
-          margin: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 8),
-              ListTile(
-                leading: const Icon(
-                  Icons.block_rounded,
-                  color: Color(0xFFE24A4A),
-                ),
-                title: Text(
-                  '${profile.name} kişisini engelle',
-                  style: const TextStyle(
+      builder: (sheetContext) {
+        final scheme = Theme.of(sheetContext).colorScheme;
+        return SafeArea(
+          child: Container(
+            margin: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: scheme.surface,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: scheme.outlineVariant),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 8),
+                ListTile(
+                  leading: const Icon(
+                    Icons.block_rounded,
                     color: Color(0xFFE24A4A),
-                    fontWeight: FontWeight.w900,
                   ),
+                  title: Text(
+                    '${profile.name} kişisini engelle',
+                    style: const TextStyle(
+                      color: Color(0xFFE24A4A),
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  subtitle: Text(
+                    'Eşleşmelerden ve mesajlardan kaldır',
+                    style: TextStyle(color: scheme.onSurfaceVariant),
+                  ),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    _blockUser(context);
+                  },
                 ),
-                subtitle: const Text(
-                  'Eşleşmelerden ve mesajlardan kaldır',
-                ),
-                onTap: () {
-                  Navigator.pop(sheetContext);
-                  _blockUser(context);
-                },
-              ),
-              const SizedBox(height: 8),
-            ],
+                const SizedBox(height: 8),
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final dark = theme.brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: PhoneFrame(
         child: Stack(
           children: [
@@ -222,7 +235,7 @@ class MatchProfileDetailScreen extends StatelessWidget {
                                 decoration: BoxDecoration(
                                   color: const Color(0xFF36C76C),
                                   shape: BoxShape.circle,
-                                  border: Border.all(color: Colors.white, width: 3),
+                                  border: Border.all(color: scheme.surface, width: 3),
                                 ),
                               ),
                             ),
@@ -234,8 +247,8 @@ class MatchProfileDetailScreen extends StatelessWidget {
                       child: Text(
                         '${profile.name}, ${profile.age}',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: AppColors.navy,
+                        style: TextStyle(
+                          color: scheme.onSurface,
                           fontSize: 30,
                           height: 1,
                           fontWeight: FontWeight.w900,
@@ -248,29 +261,29 @@ class MatchProfileDetailScreen extends StatelessWidget {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.location_on_outlined,
-                            color: AppColors.blue,
+                            color: scheme.primary,
                             size: 17,
                           ),
                           const SizedBox(width: 4),
                           Text(
                             profile.city,
-                            style: const TextStyle(
-                              color: AppColors.muted,
+                            style: TextStyle(
+                              color: scheme.onSurfaceVariant,
                               fontSize: 12.5,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
                           const SizedBox(width: 7),
-                          const Text('•', style: TextStyle(color: AppColors.border)),
+                          Text('•', style: TextStyle(color: scheme.outlineVariant)),
                           const SizedBox(width: 7),
                           Text(
                             profile.isOnline ? 'Şimdi aktif' : profile.matchedAt,
                             style: TextStyle(
                               color: profile.isOnline
-                                  ? const Color(0xFF28A745)
-                                  : AppColors.muted,
+                                  ? const Color(0xFF36C76C)
+                                  : scheme.onSurfaceVariant,
                               fontSize: 12.5,
                               fontWeight: FontWeight.w800,
                             ),
@@ -285,8 +298,8 @@ class MatchProfileDetailScreen extends StatelessWidget {
                       child: FilledButton.icon(
                         onPressed: () => _openChat(context),
                         style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.navy,
-                          foregroundColor: Colors.white,
+                          backgroundColor: dark ? AppColors.lime : AppColors.navy,
+                          foregroundColor: dark ? AppColors.navy : Colors.white,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(18),
                           ),
@@ -303,8 +316,8 @@ class MatchProfileDetailScreen extends StatelessWidget {
                       title: 'Hakkında',
                       child: Text(
                         profile.bio,
-                        style: const TextStyle(
-                          color: AppColors.navy,
+                        style: TextStyle(
+                          color: scheme.onSurface,
                           fontSize: 13.5,
                           height: 1.45,
                           fontWeight: FontWeight.w600,
@@ -325,7 +338,7 @@ class MatchProfileDetailScreen extends StatelessWidget {
                                 vertical: 8,
                               ),
                               decoration: BoxDecoration(
-                                color: AppColors.lime.withOpacity(.5),
+                                color: AppColors.lime.withOpacity(dark ? .92 : .5),
                                 borderRadius: BorderRadius.circular(999),
                               ),
                               child: Text(
@@ -348,8 +361,8 @@ class MatchProfileDetailScreen extends StatelessWidget {
                         children: [
                           Text(
                             profile.prompt,
-                            style: const TextStyle(
-                              color: AppColors.blue,
+                            style: TextStyle(
+                              color: scheme.primary,
                               fontSize: 12,
                               fontWeight: FontWeight.w900,
                             ),
@@ -357,8 +370,8 @@ class MatchProfileDetailScreen extends StatelessWidget {
                           const SizedBox(height: 7),
                           Text(
                             profile.promptAnswer,
-                            style: const TextStyle(
-                              color: AppColors.navy,
+                            style: TextStyle(
+                              color: scheme.onSurface,
                               fontSize: 14,
                               height: 1.4,
                               fontWeight: FontWeight.w800,
@@ -372,23 +385,23 @@ class MatchProfileDetailScreen extends StatelessWidget {
                       width: double.infinity,
                       padding: const EdgeInsets.all(15),
                       decoration: BoxDecoration(
-                        color: AppColors.blue.withOpacity(.07),
+                        color: scheme.surfaceContainerHigh,
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: AppColors.blue.withOpacity(.12)),
+                        border: Border.all(color: scheme.outlineVariant),
                       ),
                       child: Row(
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.favorite_rounded,
-                            color: AppColors.blue,
+                            color: scheme.primary,
                             size: 20,
                           ),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
                               '${profile.matchedAt} karşılıklı seçim yaptınız.',
-                              style: const TextStyle(
-                                color: AppColors.navy,
+                              style: TextStyle(
+                                color: scheme.onSurface,
                                 fontSize: 12,
                                 height: 1.35,
                                 fontWeight: FontWeight.w700,
@@ -405,35 +418,17 @@ class MatchProfileDetailScreen extends StatelessWidget {
             Positioned(
               top: 12,
               left: 12,
-              child: Material(
-                color: Colors.white.withOpacity(.92),
-                shape: const CircleBorder(),
-                child: InkWell(
-                  onTap: () => Navigator.of(context).pop(),
-                  customBorder: const CircleBorder(),
-                  child: const SizedBox(
-                    width: 44,
-                    height: 44,
-                    child: Icon(Icons.arrow_back_rounded, color: AppColors.navy),
-                  ),
-                ),
+              child: _CircleAction(
+                icon: Icons.arrow_back_rounded,
+                onTap: () => Navigator.of(context).pop(),
               ),
             ),
             Positioned(
               top: 12,
               right: 12,
-              child: Material(
-                color: Colors.white.withOpacity(.92),
-                shape: const CircleBorder(),
-                child: InkWell(
-                  onTap: () => _openMenu(context),
-                  customBorder: const CircleBorder(),
-                  child: const SizedBox(
-                    width: 44,
-                    height: 44,
-                    child: Icon(Icons.more_horiz_rounded, color: AppColors.navy),
-                  ),
-                ),
+              child: _CircleAction(
+                icon: Icons.more_horiz_rounded,
+                onTap: () => _openMenu(context),
               ),
             ),
           ],
@@ -454,21 +449,22 @@ class _DetailCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(.92),
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: scheme.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
-            style: const TextStyle(
-              color: AppColors.navy,
+            style: TextStyle(
+              color: scheme.onSurface,
               fontSize: 13,
               fontWeight: FontWeight.w900,
             ),
@@ -476,6 +472,34 @@ class _DetailCard extends StatelessWidget {
           const SizedBox(height: 9),
           child,
         ],
+      ),
+    );
+  }
+}
+
+class _CircleAction extends StatelessWidget {
+  const _CircleAction({
+    required this.icon,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surface.withOpacity(.95),
+      shape: const CircleBorder(),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Icon(icon, color: scheme.onSurface),
+        ),
       ),
     );
   }
