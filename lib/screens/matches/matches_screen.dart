@@ -161,262 +161,272 @@ class _MatchesScreenState extends State<MatchesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: PhoneFrame(
-        child: Column(
-          children: [
-            Expanded(
-              child: CustomScrollView(
-                physics: const BouncingScrollPhysics(),
-                slivers: [
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
-                      child: Row(
-                        children: [
-                          const Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Eşleşmeler',
-                                  style: TextStyle(
-                                    color: AppColors.navy,
-                                    fontSize: 30,
-                                    height: 1,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: -1.1,
-                                  ),
-                                ),
-                                SizedBox(height: 5),
-                                Text(
-                                  'Karşılıklı seçim yaptığın kişiler',
-                                  style: TextStyle(
-                                    color: AppColors.muted,
-                                    fontSize: 12.5,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Container(
-                            width: 43,
-                            height: 43,
-                            decoration: const BoxDecoration(
-                              color: AppColors.lime,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.favorite_rounded,
-                              color: AppColors.navy,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-                      child: Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: AppColors.lime.withOpacity(.38),
-                          borderRadius: BorderRadius.circular(18),
-                        ),
+        child: ColoredBox(
+          color: theme.scaffoldBackgroundColor,
+          child: Column(
+            children: [
+              Expanded(
+                child: CustomScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
                         child: Row(
                           children: [
-                            const Icon(
-                              Icons.lock_outline_rounded,
-                              color: AppColors.blue,
-                              size: 19,
-                            ),
-                            const SizedBox(width: 9),
                             Expanded(
-                              child: Text(
-                                '${matches.length} eşleşmen var. Bir kişiye dokunarak profilini açabilirsin.',
-                                style: const TextStyle(
-                                  color: AppColors.navy,
-                                  fontSize: 11.8,
-                                  height: 1.35,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Eşleşmeler',
+                                    style: TextStyle(
+                                      color: scheme.onSurface,
+                                      fontSize: 30,
+                                      height: 1,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: -1.1,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 5),
+                                  Text(
+                                    'Karşılıklı seçim yaptığın kişiler',
+                                    style: TextStyle(
+                                      color: scheme.onSurfaceVariant,
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              width: 43,
+                              height: 43,
+                              decoration: const BoxDecoration(
+                                color: AppColors.lime,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.favorite_rounded,
+                                color: AppColors.navy,
                               ),
                             ),
                           ],
                         ),
                       ),
                     ),
-                  ),
-                  if (matches.isEmpty)
-                    const SliverFillRemaining(
-                      hasScrollBody: false,
-                      child: _EmptyMatches(),
-                    )
-                  else
-                    SliverList.separated(
-                      itemCount: matches.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
-                      itemBuilder: (context, index) {
-                        final profile = matches[index];
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          child: InkWell(
-                            onTap: () => _openProfile(profile),
-                            borderRadius: BorderRadius.circular(22),
-                            child: Container(
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(.94),
-                                borderRadius: BorderRadius.circular(22),
-                                border: Border.all(color: AppColors.border),
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                        child: Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: AppColors.lime.withOpacity(.32),
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: scheme.outlineVariant),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.lock_outline_rounded,
+                                color: AppColors.blue,
+                                size: 19,
                               ),
-                              child: Row(
-                                children: [
-                                  Stack(
-                                    clipBehavior: Clip.none,
-                                    children: [
-                                      Container(
-                                        width: 66,
-                                        height: 66,
-                                        decoration: const BoxDecoration(
-                                          color: AppColors.navy,
-                                          shape: BoxShape.circle,
-                                        ),
-                                        alignment: Alignment.center,
-                                        child: Text(
-                                          profile.initial,
-                                          style: const TextStyle(
-                                            color: AppColors.lime,
-                                            fontSize: 25,
-                                            fontWeight: FontWeight.w900,
+                              const SizedBox(width: 9),
+                              Expanded(
+                                child: Text(
+                                  '${matches.length} eşleşmen var. Bir kişiye dokunarak profilini açabilirsin.',
+                                  style: TextStyle(
+                                    color: scheme.onSurface,
+                                    fontSize: 11.8,
+                                    height: 1.35,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (matches.isEmpty)
+                      const SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: _EmptyMatches(),
+                      )
+                    else
+                      SliverList.separated(
+                        itemCount: matches.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 10),
+                        itemBuilder: (context, index) {
+                          final profile = matches[index];
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            child: InkWell(
+                              onTap: () => _openProfile(profile),
+                              borderRadius: BorderRadius.circular(22),
+                              child: Container(
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: scheme.surface,
+                                  borderRadius: BorderRadius.circular(22),
+                                  border: Border.all(color: scheme.outlineVariant),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Stack(
+                                      clipBehavior: Clip.none,
+                                      children: [
+                                        Container(
+                                          width: 66,
+                                          height: 66,
+                                          decoration: const BoxDecoration(
+                                            color: AppColors.navy,
+                                            shape: BoxShape.circle,
                                           ),
-                                        ),
-                                      ),
-                                      if (profile.isOnline)
-                                        Positioned(
-                                          right: 1,
-                                          bottom: 1,
-                                          child: Container(
-                                            width: 15,
-                                            height: 15,
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFF36C76C),
-                                              shape: BoxShape.circle,
-                                              border: Border.all(color: Colors.white, width: 2),
+                                          alignment: Alignment.center,
+                                          child: Text(
+                                            profile.initial,
+                                            style: const TextStyle(
+                                              color: AppColors.lime,
+                                              fontSize: 25,
+                                              fontWeight: FontWeight.w900,
                                             ),
                                           ),
                                         ),
-                                    ],
-                                  ),
-                                  const SizedBox(width: 13),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                '${profile.name}, ${profile.age}',
-                                                style: const TextStyle(
-                                                  color: AppColors.navy,
-                                                  fontSize: 15,
-                                                  fontWeight: FontWeight.w900,
+                                        if (profile.isOnline)
+                                          Positioned(
+                                            right: 1,
+                                            bottom: 1,
+                                            child: Container(
+                                              width: 15,
+                                              height: 15,
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFF36C76C),
+                                                shape: BoxShape.circle,
+                                                border: Border.all(
+                                                  color: scheme.surface,
+                                                  width: 2,
                                                 ),
                                               ),
                                             ),
-                                            Text(
-                                              profile.matchedAt,
-                                              style: const TextStyle(
-                                                color: AppColors.muted,
-                                                fontSize: 10.5,
-                                                fontWeight: FontWeight.w700,
+                                          ),
+                                      ],
+                                    ),
+                                    const SizedBox(width: 13),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  '${profile.name}, ${profile.age}',
+                                                  style: TextStyle(
+                                                    color: scheme.onSurface,
+                                                    fontSize: 15,
+                                                    fontWeight: FontWeight.w900,
+                                                  ),
+                                                ),
                                               ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 5),
-                                        Row(
-                                          children: [
-                                            const Icon(
-                                              Icons.location_on_outlined,
-                                              color: AppColors.blue,
-                                              size: 14,
-                                            ),
-                                            const SizedBox(width: 3),
-                                            Expanded(
-                                              child: Text(
-                                                profile.city,
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: const TextStyle(
-                                                  color: AppColors.muted,
-                                                  fontSize: 11.5,
+                                              Text(
+                                                profile.matchedAt,
+                                                style: TextStyle(
+                                                  color: scheme.onSurfaceVariant,
+                                                  fontSize: 10.5,
                                                   fontWeight: FontWeight.w700,
                                                 ),
                                               ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 7),
-                                        Text(
-                                          profile.bio,
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            color: AppColors.navy,
-                                            fontSize: 11.5,
-                                            height: 1.3,
-                                            fontWeight: FontWeight.w600,
+                                            ],
                                           ),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        const Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text(
-                                              'Profili gör',
-                                              style: TextStyle(
-                                                color: AppColors.blue,
-                                                fontSize: 11.5,
-                                                fontWeight: FontWeight.w900,
+                                          const SizedBox(height: 5),
+                                          Row(
+                                            children: [
+                                              Icon(
+                                                Icons.location_on_outlined,
+                                                color: scheme.primary,
+                                                size: 14,
                                               ),
+                                              const SizedBox(width: 3),
+                                              Expanded(
+                                                child: Text(
+                                                  profile.city,
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: TextStyle(
+                                                    color: scheme.onSurfaceVariant,
+                                                    fontSize: 11.5,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 7),
+                                          Text(
+                                            profile.bio,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              color: scheme.onSurface,
+                                              fontSize: 11.5,
+                                              height: 1.3,
+                                              fontWeight: FontWeight.w600,
                                             ),
-                                            SizedBox(width: 2),
-                                            Icon(
-                                              Icons.chevron_right_rounded,
-                                              color: AppColors.blue,
-                                              size: 17,
-                                            ),
-                                          ],
-                                        ),
-                                      ],
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Text(
+                                                'Profili gör',
+                                                style: TextStyle(
+                                                  color: scheme.primary,
+                                                  fontSize: 11.5,
+                                                  fontWeight: FontWeight.w900,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 2),
+                                              Icon(
+                                                Icons.chevron_right_rounded,
+                                                color: scheme.primary,
+                                                size: 17,
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
-                        );
-                      },
-                    ),
-                  const SliverToBoxAdapter(child: SizedBox(height: 20)),
-                ],
+                          );
+                        },
+                      ),
+                    const SliverToBoxAdapter(child: SizedBox(height: 20)),
+                  ],
+                ),
               ),
-            ),
-            MainBottomNav(
-              selectedIndex: 1,
-              unreadMessages: 2,
-              onTap: (index) {
-                if (index == 0) _goHome();
-                if (index == 2) _goMessages();
-                if (index == 3) _goProfile();
-              },
-            ),
-          ],
+              MainBottomNav(
+                selectedIndex: 1,
+                unreadMessages: 2,
+                onTap: (index) {
+                  if (index == 0) _goHome();
+                  if (index == 2) _goMessages();
+                  if (index == 3) _goProfile();
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -428,6 +438,7 @@ class _EmptyMatches extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -448,21 +459,21 @@ class _EmptyMatches extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 14),
-            const Text(
+            Text(
               'Görüntülenecek eşleşme yok',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: AppColors.navy,
+                color: scheme.onSurface,
                 fontSize: 18,
                 fontWeight: FontWeight.w900,
               ),
             ),
             const SizedBox(height: 6),
-            const Text(
+            Text(
               'Yeni bir odada karşılıklı seçim yaptığında eşleşmen burada görünür.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: AppColors.muted,
+                color: scheme.onSurfaceVariant,
                 fontSize: 12,
                 height: 1.4,
                 fontWeight: FontWeight.w600,
