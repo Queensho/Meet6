@@ -7,9 +7,30 @@ import '../profile/profile_screen.dart';
 import 'widgets/room_radar.dart';
 
 class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key, this.profileName = ''});
+  const HomeScreen({
+    super.key,
+    this.profileName = '',
+    this.city = '',
+    this.country = '',
+    this.latitude,
+    this.longitude,
+    this.distanceKm = 25,
+  });
 
   final String profileName;
+  final String city;
+  final String country;
+  final double? latitude;
+  final double? longitude;
+  final int distanceKm;
+
+  String get locationLabel {
+    if (city.isNotEmpty && country.isNotEmpty) return '$city, $country';
+    if (city.isNotEmpty) return city;
+    if (country.isNotEmpty) return country;
+    if (latitude != null && longitude != null) return 'Konumun';
+    return 'Yakının';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -87,6 +108,11 @@ class HomeScreen extends StatelessWidget {
                                 MaterialPageRoute(
                                   builder: (_) => ProfileScreen(
                                     profileName: profileName,
+                                    initialCity: city,
+                                    initialCountry: country,
+                                    initialLatitude: latitude,
+                                    initialLongitude: longitude,
+                                    initialDistanceKm: distanceKm,
                                   ),
                                 ),
                               );
@@ -117,8 +143,8 @@ class HomeScreen extends StatelessWidget {
                       const SizedBox(height: 14),
                       Text(
                         profileName.isEmpty
-                            ? 'Yakınındaki grupla tanış ve\nsohbete hemen başla.'
-                            : '$profileName, yakınındaki grupla tanış ve\nsohbete hemen başla.',
+                            ? '$locationLabel çevresindeki kişilerle\nsohbete hemen başla.'
+                            : '$profileName, $locationLabel çevresindeki kişilerle\nsohbete hemen başla.',
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           color: AppColors.navy,
@@ -137,33 +163,24 @@ class HomeScreen extends StatelessWidget {
                           color: Colors.white.withOpacity(.42),
                           borderRadius: BorderRadius.circular(999),
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(
-                              Icons.schedule_rounded,
+                            const Icon(
+                              Icons.my_location_rounded,
                               color: AppColors.blue,
-                              size: 19,
+                              size: 18,
                             ),
-                            SizedBox(width: 7),
-                            Text.rich(
-                              TextSpan(
-                                style: TextStyle(
+                            const SizedBox(width: 7),
+                            Flexible(
+                              child: Text(
+                                '$locationLabel · ${distanceKm == 100 ? 'mesafe fark etmez' : '$distanceKm km içinde'}',
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
                                   color: AppColors.navy,
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w800,
                                 ),
-                                children: [
-                                  TextSpan(text: 'Yeni oda '),
-                                  TextSpan(
-                                    text: '2 dk',
-                                    style: TextStyle(
-                                      color: AppColors.blue,
-                                      fontWeight: FontWeight.w900,
-                                    ),
-                                  ),
-                                  TextSpan(text: ' içinde açılıyor'),
-                                ],
                               ),
                             ),
                           ],
