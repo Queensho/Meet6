@@ -42,8 +42,8 @@ class ChatMessageBubble extends StatelessWidget {
     }
 
     final incomingColor = dark ? scheme.surface : Colors.white;
-    final incomingText = scheme.onSurface;
-    final mineColor = dark ? const Color(0xFF24366F) : AppColors.navy;
+    final mineColor = dark ? AppColors.lime : AppColors.navy;
+    final mineTextColor = dark ? AppColors.navy : Colors.white;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 13),
@@ -93,7 +93,8 @@ class ChatMessageBubble extends StatelessWidget {
                   ),
                 Container(
                   constraints: const BoxConstraints(maxWidth: 270),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
                   decoration: BoxDecoration(
                     color: message.isMine ? mineColor : incomingColor,
                     borderRadius: BorderRadius.only(
@@ -103,16 +104,20 @@ class ChatMessageBubble extends StatelessWidget {
                       bottomRight: Radius.circular(message.isMine ? 5 : 18),
                     ),
                     border: message.isMine
-                        ? null
+                        ? (dark
+                            ? Border.all(
+                                color: AppColors.navy.withOpacity(.28),
+                              )
+                            : null)
                         : Border.all(color: scheme.outlineVariant),
                   ),
                   child: Text(
                     message.text,
                     style: TextStyle(
-                      color: message.isMine ? Colors.white : incomingText,
+                      color: message.isMine ? mineTextColor : scheme.onSurface,
                       fontSize: 14,
                       height: 1.35,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
