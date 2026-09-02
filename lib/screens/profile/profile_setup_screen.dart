@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/profile_draft.dart';
+import '../../services/location_service.dart';
 import '../../widgets/phone_frame.dart';
 import '../../widgets/primary_button.dart';
 import '../home/home_screen.dart';
@@ -18,13 +19,15 @@ class ProfileSetupScreen extends StatefulWidget {
 
 class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   final draft = ProfileDraft();
+  final locationService = const LocationService();
   final nameController = TextEditingController();
   final birthDateController = TextEditingController();
-  final cityController = TextEditingController();
   final bioController = TextEditingController();
   final promptAnswerController = TextEditingController();
 
   int step = 1;
+  bool locationLoading = false;
+  String? locationError;
 
   bool get canAdvance {
     if (step == 1) {
@@ -35,7 +38,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     }
     if (step == 2) {
       return draft.lookingFor != null &&
-          cityController.text.trim().length >= 2 &&
+          draft.hasLocation &&
           draft.purpose != null;
     }
     return draft.extraPhotoCount >= 2 &&
@@ -49,10 +52,41 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   void dispose() {
     nameController.dispose();
     birthDateController.dispose();
-    cityController.dispose();
     bioController.dispose();
     promptAnswerController.dispose();
     super.dispose();
+  }
+
+  Future<void> _requestLocation() async {
+    if (locationLoading) return;
+    setState(() {
+      locationLoading = true;
+      locationError = null;
+    });
+
+    try {
+      final location = await locationService.getCurrentLocation();
+      if (!mounted) return;
+      setState(() {
+        draft.latitude = location.latitude;
+        draft.longitude = location.longitude;
+        draft.city = location.city;
+        draft.country = location.country;
+        locationLoading = false;
+      });
+    } on LocationServiceException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        locationLoading = false;
+        locationError = error.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        locationLoading = false;
+        locationError = 'Konum alınamadı. İzinlerini kontrol edip tekrar dene.';
+      });
+    }
   }
 
   Future<void> _pickBirthDate() async {
@@ -88,18 +122,32 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   void _continue() {
     FocusScope.of(context).unfocus();
     draft.name = nameController.text.trim();
-    draft.city = cityController.text.trim();
     draft.bio = bioController.text.trim();
     draft.promptAnswer = promptAnswerController.text.trim();
 
-    if (step < 3) {
-      setState(() => step++);
+    if (step == 1) {
+      setState(() => step = 2);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !draft.hasLocation) _requestLocation();
+      });
+      return;
+    }
+
+    if (step == 2) {
+      setState(() => step = 3);
       return;
     }
 
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(
-        builder: (_) => HomeScreen(profileName: draft.name),
+        builder: (_) => HomeScreen(
+          profileName: draft.name,
+          city: draft.city,
+          country: draft.country,
+          latitude: draft.latitude,
+          longitude: draft.longitude,
+          distanceKm: draft.distanceKm,
+        ),
       ),
       (route) => false,
     );
@@ -135,7 +183,9 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
           lookingFor: draft.lookingFor,
           minAge: draft.minAge,
           maxAge: draft.maxAge,
-          cityController: cityController,
+          locationLabel: draft.locationLabel,
+          locationLoading: locationLoading,
+          locationError: locationError,
           distanceKm: draft.distanceKm,
           purpose: draft.purpose,
           onLookingForChanged: (value) =>
@@ -144,10 +194,10 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
             draft.minAge = values.start;
             draft.maxAge = values.end;
           }),
+          onRequestLocation: _requestLocation,
           onDistanceChanged: (value) =>
               setState(() => draft.distanceKm = value),
           onPurposeChanged: (value) => setState(() => draft.purpose = value),
-          onChanged: () => setState(() {}),
         );
       default:
         return ProfileStepThree(
