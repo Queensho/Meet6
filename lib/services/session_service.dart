@@ -40,6 +40,29 @@ class SessionService {
   static const _minAgeKey = 'meet6_min_age';
   static const _maxAgeKey = 'meet6_max_age';
   static const _purposeKey = 'meet6_purpose';
+  static const _authSessionKey = 'meet6_auth_session_id';
+  static const _authUserKey = 'meet6_auth_user_id';
+
+  static Future<void> saveAuth({
+    required String sessionId,
+    required String userId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_authSessionKey, sessionId);
+    await prefs.setString(_authUserKey, userId);
+  }
+
+  static Future<String?> loadAuthSessionId() async {
+    final prefs = await SharedPreferences.getInstance();
+    final value = prefs.getString(_authSessionKey)?.trim();
+    return value == null || value.isEmpty ? null : value;
+  }
+
+  static Future<String?> loadAuthUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    final value = prefs.getString(_authUserKey)?.trim();
+    return value == null || value.isEmpty ? null : value;
+  }
 
   static Future<void> saveProfile({
     required String profileName,
@@ -100,7 +123,7 @@ class SessionService {
     );
   }
 
-  static Future<void> clear() async {
+  static Future<void> clearProfile() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_completedKey);
     await prefs.remove(_nameKey);
@@ -113,5 +136,16 @@ class SessionService {
     await prefs.remove(_minAgeKey);
     await prefs.remove(_maxAgeKey);
     await prefs.remove(_purposeKey);
+  }
+
+  static Future<void> clearAuth() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_authSessionKey);
+    await prefs.remove(_authUserKey);
+  }
+
+  static Future<void> clear() async {
+    await clearProfile();
+    await clearAuth();
   }
 }
