@@ -5,6 +5,7 @@ import '../../theme/app_colors.dart';
 import '../../widgets/main_bottom_nav.dart';
 import '../../widgets/phone_frame.dart';
 import '../home/home_screen.dart';
+import '../matches/matches_screen.dart';
 import '../messages/messages_screen.dart';
 import '../preferences/matching_preferences_screen.dart';
 import 'edit_profile_screen.dart';
@@ -121,6 +122,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
           minAge: preferences.minAge,
           maxAge: preferences.maxAge,
           purpose: preferences.purpose,
+        ),
+      ),
+    );
+  }
+
+  void _goMatches() {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => MatchesScreen(
+          profileName: name,
+          preferences: preferences,
         ),
       ),
     );
@@ -431,11 +443,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   Expanded(child: _profileContent()),
                   MainBottomNav(
-                    selectedIndex: 2,
+                    selectedIndex: 3,
                     unreadMessages: 2,
                     onTap: (index) {
                       if (index == 0) _goHome();
-                      if (index == 1) _goMessages();
+                      if (index == 1) _goMatches();
+                      if (index == 2) _goMessages();
                     },
                   ),
                 ],
