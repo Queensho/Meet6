@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/chat_message.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/phone_frame.dart';
 import 'room_selection_screen.dart';
 import 'widgets/chat_input_bar.dart';
 import 'widgets/chat_message_bubble.dart';
@@ -58,7 +59,6 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
 
   bool get canSend =>
       messageController.text.trim().isNotEmpty && secondsLeft > 0;
-
   bool get isLastTwoMinutes => secondsLeft > 0 && secondsLeft <= 120;
   bool get isLastMinute => secondsLeft > 0 && secondsLeft <= 60;
 
@@ -84,7 +84,6 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
 
   void _tick() {
     if (!mounted || navigatingToSelection) return;
-
     if (secondsLeft <= 1) {
       timer?.cancel();
       setState(() => secondsLeft = 0);
@@ -121,7 +120,6 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
       );
       messageController.clear();
     });
-
     _scrollToBottom();
   }
 
@@ -137,86 +135,85 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
   }
 
   Future<void> _showTestMenu() async {
+    final scheme = Theme.of(context).colorScheme;
     final action = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) {
-        return SafeArea(
-          child: Container(
-            margin: const EdgeInsets.all(12),
-            padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text(
-                  'Test menüsü',
-                  style: TextStyle(
-                    color: AppColors.navy,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                const Text(
-                  '15 dakika beklemeden oda sonu akışını test et.',
-                  style: TextStyle(
-                    color: AppColors.muted,
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  height: 52,
-                  child: FilledButton.icon(
-                    onPressed: () => Navigator.pop(context, 'minute'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.lime,
-                      foregroundColor: AppColors.navy,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(17),
-                      ),
-                    ),
-                    icon: const Icon(Icons.timer_outlined),
-                    label: const Text(
-                      'Son 1 dakikaya git',
-                      style: TextStyle(fontWeight: FontWeight.w900),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 9),
-                SizedBox(
-                  height: 52,
-                  child: FilledButton.icon(
-                    onPressed: () => Navigator.pop(context, 'selection'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.navy,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(17),
-                      ),
-                    ),
-                    icon: const Icon(Icons.favorite_outline_rounded),
-                    label: const Text(
-                      'Seçim ekranını aç',
-                      style: TextStyle(fontWeight: FontWeight.w900),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+      builder: (sheetContext) => SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+          decoration: BoxDecoration(
+            color: scheme.surface,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: scheme.outlineVariant),
           ),
-        );
-      },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Test menüsü',
+                style: TextStyle(
+                  color: scheme.onSurface,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '15 dakika beklemeden oda sonu akışını test et.',
+                style: TextStyle(
+                  color: scheme.onSurfaceVariant,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                height: 52,
+                child: FilledButton.icon(
+                  onPressed: () => Navigator.pop(sheetContext, 'minute'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.lime,
+                    foregroundColor: AppColors.navy,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(17),
+                    ),
+                  ),
+                  icon: const Icon(Icons.timer_outlined),
+                  label: const Text(
+                    'Son 1 dakikaya git',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 9),
+              SizedBox(
+                height: 52,
+                child: FilledButton.icon(
+                  onPressed: () => Navigator.pop(sheetContext, 'selection'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: scheme.surfaceContainerHigh,
+                    foregroundColor: scheme.onSurface,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(17),
+                    ),
+                  ),
+                  icon: const Icon(Icons.favorite_outline_rounded),
+                  label: const Text(
+                    'Seçim ekranını aç',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
 
     if (!mounted || action == null) return;
-
     if (action == 'selection') {
       timer?.cancel();
       setState(() => secondsLeft = 0);
@@ -245,120 +242,115 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
 
   Future<void> _showExtensionOffer() async {
     if (!mounted || secondsLeft == 0) return;
+    final scheme = Theme.of(context).colorScheme;
 
     final extend = await showModalBottomSheet<bool>(
       context: context,
       isDismissible: false,
       enableDrag: false,
       backgroundColor: Colors.transparent,
-      builder: (context) {
-        return SafeArea(
-          child: Container(
-            margin: const EdgeInsets.all(12),
-            padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(26),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 58,
-                  height: 58,
-                  decoration: const BoxDecoration(
-                    color: AppColors.lime,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.add_alarm_rounded,
-                    color: AppColors.navy,
-                    size: 29,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Sohbeti +5 dk uzatalım mı?',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: AppColors.navy,
-                    fontSize: 21,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  fastTestMode
-                      ? 'TEST modunda kabul edersen 5 dakika yerine 10 saniye eklenir.'
-                      : 'Odadaki yeterli kişi kabul ederse sohbet 5 dakika daha devam edecek. Seçim yine sohbet bittikten sonra yapılacak.',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: AppColors.muted,
-                    fontSize: 13,
-                    height: 1.4,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Expanded(
-                      child: SizedBox(
-                        height: 52,
-                        child: OutlinedButton(
-                          onPressed: () => Navigator.pop(context, false),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.navy,
-                            side: const BorderSide(color: AppColors.border),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(17),
-                            ),
-                          ),
-                          child: const Text(
-                            'Hayır',
-                            style: TextStyle(fontWeight: FontWeight.w900),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: SizedBox(
-                        height: 52,
-                        child: FilledButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: AppColors.navy,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(17),
-                            ),
-                          ),
-                          child: const Text(
-                            '+5 dk iste',
-                            style: TextStyle(fontWeight: FontWeight.w900),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+      builder: (sheetContext) => SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
+          decoration: BoxDecoration(
+            color: scheme.surface,
+            borderRadius: BorderRadius.circular(26),
+            border: Border.all(color: scheme.outlineVariant),
           ),
-        );
-      },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 58,
+                height: 58,
+                decoration: const BoxDecoration(
+                  color: AppColors.lime,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.add_alarm_rounded,
+                  color: AppColors.navy,
+                  size: 29,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Sohbeti +5 dk uzatalım mı?',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: scheme.onSurface,
+                  fontSize: 21,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                fastTestMode
+                    ? 'TEST modunda kabul edersen 5 dakika yerine 10 saniye eklenir.'
+                    : 'Odadaki yeterli kişi kabul ederse sohbet 5 dakika daha devam edecek. Seçim yine sohbet bittikten sonra yapılacak.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: scheme.onSurfaceVariant,
+                  fontSize: 13,
+                  height: 1.4,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 52,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(sheetContext, false),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: scheme.onSurface,
+                          side: BorderSide(color: scheme.outlineVariant),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(17),
+                          ),
+                        ),
+                        child: const Text(
+                          'Hayır',
+                          style: TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: SizedBox(
+                      height: 52,
+                      child: FilledButton(
+                        onPressed: () => Navigator.pop(sheetContext, true),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.lime,
+                          foregroundColor: AppColors.navy,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(17),
+                          ),
+                        ),
+                        child: const Text(
+                          '+5 dk iste',
+                          style: TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
 
     if (!mounted || extend != true || secondsLeft == 0) return;
-
     setState(() {
       extendedOnce = true;
-      if (fastTestMode) {
-        secondsLeft = 10;
-      } else {
-        secondsLeft += 5 * 60;
-      }
+      secondsLeft = fastTestMode ? 10 : secondsLeft + 5 * 60;
       messages.add(
         ChatMessage(
           sender: 'Meet6',
@@ -377,7 +369,6 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
     if (!mounted || navigatingToSelection) return;
     navigatingToSelection = true;
     FocusScope.of(context).unfocus();
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
@@ -389,72 +380,72 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
   }
 
   Future<void> _leaveRoom() async {
+    final scheme = Theme.of(context).colorScheme;
     final leave = await showModalBottomSheet<bool>(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) {
-        return SafeArea(
-          child: Container(
-            margin: const EdgeInsets.all(12),
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Odadan çıkmak istiyor musun?',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: AppColors.navy,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Çıkarsan bu sohbete tekrar dönemeyebilirsin.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: AppColors.muted,
-                    fontSize: 13,
-                    height: 1.35,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: FilledButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.lime,
-                      foregroundColor: AppColors.navy,
-                    ),
-                    child: const Text(
-                      'Sohbette kal',
-                      style: TextStyle(fontWeight: FontWeight.w900),
-                    ),
-                  ),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  child: const Text(
-                    'Odadan çık',
-                    style: TextStyle(
-                      color: AppColors.muted,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+      builder: (sheetContext) => SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+          decoration: BoxDecoration(
+            color: scheme.surface,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: scheme.outlineVariant),
           ),
-        );
-      },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Odadan çıkmak istiyor musun?',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: scheme.onSurface,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Çıkarsan bu sohbete tekrar dönemeyebilirsin.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: scheme.onSurfaceVariant,
+                  fontSize: 13,
+                  height: 1.35,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: FilledButton(
+                  onPressed: () => Navigator.pop(sheetContext, false),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.lime,
+                    foregroundColor: AppColors.navy,
+                  ),
+                  child: const Text(
+                    'Sohbette kal',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(sheetContext, true),
+                child: Text(
+                  'Odadan çık',
+                  style: TextStyle(
+                    color: scheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
 
     if (leave == true && mounted) Navigator.of(context).pop();
@@ -462,224 +453,169 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      resizeToAvoidBottomInset: true,
-      body: LayoutBuilder(
-        builder: (context, viewport) {
-          final desktop = viewport.maxWidth > 520;
-          final width = desktop ? 390.0 : viewport.maxWidth;
-          final height = desktop ? 844.0 : viewport.maxHeight;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final dark = theme.brightness == Brightness.dark;
 
-          return Container(
-            color: desktop ? const Color(0xFFEFF1F7) : AppColors.background,
-            alignment: Alignment.center,
-            child: Container(
-              width: width,
-              height: height,
-              clipBehavior: Clip.antiAlias,
-              decoration: BoxDecoration(
-                color: AppColors.background,
-                borderRadius:
-                    desktop ? BorderRadius.circular(32) : BorderRadius.zero,
-                boxShadow: desktop
-                    ? const [
-                        BoxShadow(
-                          color: Color(0x22000000),
-                          blurRadius: 28,
-                          offset: Offset(0, 14),
+    return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
+      resizeToAvoidBottomInset: true,
+      body: PhoneFrame(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
+              child: Row(
+                children: [
+                  IconButton(
+                    onPressed: _leaveRoom,
+                    style: IconButton.styleFrom(
+                      backgroundColor: scheme.surface,
+                      side: BorderSide(color: scheme.outlineVariant),
+                    ),
+                    icon: Icon(
+                      Icons.arrow_back_rounded,
+                      color: scheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Meet6 Odası',
+                          style: TextStyle(
+                            color: scheme.onSurface,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w900,
+                          ),
                         ),
-                      ]
-                    : null,
-              ),
-              child: SafeArea(
-                bottom: false,
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
-                      child: Row(
-                        children: [
-                          IconButton(
-                            onPressed: _leaveRoom,
-                            style: IconButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              side: const BorderSide(color: AppColors.border),
-                            ),
-                            icon: const Icon(
-                              Icons.arrow_back_rounded,
-                              color: AppColors.navy,
-                            ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '6 kişi · Gizli seçim sohbet sonunda',
+                          style: TextStyle(
+                            color: scheme.onSurfaceVariant,
+                            fontSize: 10.8,
+                            fontWeight: FontWeight.w700,
                           ),
-                          const SizedBox(width: 9),
-                          const Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Meet6 Odası',
-                                  style: TextStyle(
-                                    color: AppColors.navy,
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                                SizedBox(height: 2),
-                                Text(
-                                  '6 kişi çevrimiçi',
-                                  style: TextStyle(
-                                    color: AppColors.muted,
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          InkWell(
-                            onTap: _showTestMenu,
-                            borderRadius: BorderRadius.circular(999),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 7,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(999),
-                                border: Border.all(color: AppColors.border),
-                              ),
-                              child: const Text(
-                                'TEST',
-                                style: TextStyle(
-                                  color: AppColors.blue,
-                                  fontSize: 9.5,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isLastMinute
-                                  ? const Color(0xFFFFECEA)
-                                  : AppColors.lime,
-                              borderRadius: BorderRadius.circular(999),
-                              border: Border.all(
-                                color: isLastMinute
-                                    ? const Color(0xFFFF6B5F)
-                                    : AppColors.navy,
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  Icons.timer_outlined,
-                                  color: AppColors.navy,
-                                  size: 16,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  timerText,
-                                  style: const TextStyle(
-                                    color: AppColors.navy,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  InkWell(
+                    onTap: _showTestMenu,
+                    borderRadius: BorderRadius.circular(14),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: scheme.surfaceContainerHigh,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: scheme.outlineVariant),
                       ),
-                    ),
-                    const Divider(height: 1, color: AppColors.border),
-                    const Padding(
-                      padding: EdgeInsets.only(top: 10),
-                      child: ParticipantStrip(),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(18, 2, 18, 10),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 220),
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 13,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isLastTwoMinutes
-                              ? const Color(0xFFFFF5D9)
-                              : const Color(0xFFF1F5FF),
-                          borderRadius: BorderRadius.circular(15),
-                          border: Border.all(
-                            color: isLastTwoMinutes
-                                ? const Color(0xFFFFC94A)
-                                : AppColors.blue.withOpacity(.12),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              isLastTwoMinutes
-                                  ? Icons.hourglass_bottom_rounded
-                                  : Icons.bolt_rounded,
-                              color: isLastTwoMinutes
-                                  ? const Color(0xFFD18B00)
-                                  : AppColors.blue,
-                              size: 19,
-                            ),
-                            const SizedBox(width: 7),
-                            Expanded(
-                              child: Text(
-                                isLastTwoMinutes
-                                    ? 'Sohbet bitmek üzere. Süre dolunca mesajlaşma kapanacak ve gizli seçim başlayacak.'
-                                    : 'Sohbet özgürce devam eder. Kişi seçimi yalnızca süre bittikten sonra açılır.',
-                                style: const TextStyle(
-                                  color: AppColors.navy,
-                                  fontSize: 11.5,
-                                  height: 1.3,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ],
+                      child: Text(
+                        'TEST',
+                        style: TextStyle(
+                          color: scheme.onSurfaceVariant,
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w900,
                         ),
                       ),
                     ),
-                    Expanded(
-                      child: ListView.builder(
-                        controller: scrollController,
-                        keyboardDismissBehavior:
-                            ScrollViewKeyboardDismissBehavior.onDrag,
-                        padding: const EdgeInsets.fromLTRB(18, 8, 18, 14),
-                        physics: const BouncingScrollPhysics(),
-                        itemCount: messages.length,
-                        itemBuilder: (context, index) =>
-                            ChatMessageBubble(message: messages[index]),
+                  ),
+                  const SizedBox(width: 8),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 220),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isLastMinute
+                          ? AppColors.lime
+                          : dark
+                              ? scheme.surfaceContainerHigh
+                              : AppColors.navy,
+                      borderRadius: BorderRadius.circular(15),
+                      border: Border.all(
+                        color: isLastMinute
+                            ? AppColors.lime
+                            : scheme.outlineVariant,
                       ),
                     ),
-                    if (secondsLeft > 0)
-                      ChatInputBar(
-                        controller: messageController,
-                        canSend: canSend,
-                        onChanged: (_) => setState(() {}),
-                        onSend: _sendMessage,
-                      )
-                    else
-                      const SizedBox(height: 18),
-                  ],
-                ),
+                    child: Text(
+                      timerText,
+                      style: TextStyle(
+                        color: isLastMinute
+                            ? AppColors.navy
+                            : dark
+                                ? scheme.onSurface
+                                : Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: .3,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          );
-        },
+            Divider(height: 1, color: scheme.outlineVariant),
+            const SizedBox(height: 10),
+            const ParticipantStrip(),
+            if (isLastTwoMinutes)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 4, 14, 8),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: AppColors.lime.withOpacity(dark ? .15 : .35),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: AppColors.lime.withOpacity(dark ? .45 : .55),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.timer_outlined,
+                        color: AppColors.lime,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          isLastMinute
+                              ? 'Son 1 dakika. Süre bitince gizli seçim açılacak.'
+                              : 'Sohbetin son 2 dakikası. Birazdan uzatma seçeneği gelecek.',
+                          style: TextStyle(
+                            color: scheme.onSurface,
+                            fontSize: 11.5,
+                            height: 1.3,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            Expanded(
+              child: ListView.builder(
+                controller: scrollController,
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+                physics: const BouncingScrollPhysics(),
+                itemCount: messages.length,
+                itemBuilder: (context, index) =>
+                    ChatMessageBubble(message: messages[index]),
+              ),
+            ),
+            ChatInputBar(
+              controller: messageController,
+              onChanged: (_) => setState(() {}),
+              onSend: _sendMessage,
+              canSend: canSend,
+            ),
+          ],
+        ),
       ),
     );
   }
