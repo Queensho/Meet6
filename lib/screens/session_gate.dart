@@ -5,7 +5,6 @@ import '../services/session_service.dart';
 import '../theme/app_colors.dart';
 import 'home/home_screen.dart';
 import 'login_screen.dart';
-import 'profile/profile_setup_screen.dart';
 
 class SessionGate extends StatefulWidget {
   const SessionGate({super.key});
@@ -37,13 +36,20 @@ class _SessionGateState extends State<SessionGate> {
     try {
       final response = await ApiService.getMe(sessionId: authSession);
       final raw = response['user'];
-      if (raw is! Map) return const ProfileSetupScreen();
+      if (raw is! Map) {
+        await SessionService.clear();
+        return const LoginScreen();
+      }
+
       final user = Map<String, dynamic>.from(raw);
       final completed = user['profile_completed'] == true;
       final name = user['display_name']?.toString().trim() ?? '';
+
+      // Never resume a half-finished registration from the app launch gate.
+      // A completed profile goes home; everything else starts from login.
       if (!completed || name.isEmpty) {
-        await SessionService.clearProfile();
-        return const ProfileSetupScreen();
+        await SessionService.clear();
+        return const LoginScreen();
       }
 
       final saved = _savedSessionFromUser(user);
