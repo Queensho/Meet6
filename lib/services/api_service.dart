@@ -1,7 +1,9 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 
+import '../models/picked_profile_photo.dart';
 import 'session_service.dart';
 
 class ApiException implements Exception {
@@ -32,6 +34,13 @@ class ApiService {
   static const baseUrl = 'https://meet6-api-185-165-46-213.nip.io';
 
   static Uri _uri(String path) => Uri.parse('$baseUrl$path');
+
+  static String absoluteMediaUrl(String? value) {
+    final raw = value?.trim() ?? '';
+    if (raw.isEmpty) return '';
+    if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+    return '$baseUrl${raw.startsWith('/') ? raw : '/$raw'}';
+  }
 
   static Map<String, String> _headers({String? sessionId}) => {
         'Content-Type': 'application/json',
@@ -76,6 +85,46 @@ class ApiService {
         .get(_uri('/api/me'), headers: _headers(sessionId: token))
         .timeout(const Duration(seconds: 15));
     return _decode(response);
+  }
+
+  static Future<List<String>> uploadProfilePhotos(
+    List<PickedProfilePhoto> photos,
+  ) async {
+    if (photos.isEmpty || photos.length > 4) {
+      throw const ApiException('1 ile 4 arasında fotoğraf seçmelisin.');
+    }
+
+    final token = await SessionService.loadAuthSessionId();
+    if (token == null || token.isEmpty) {
+      throw const ApiException('Oturum bulunamadı.');
+    }
+
+    final request = http.MultipartRequest('POST', _uri('/api/me/photos'))
+      ..headers['Accept'] = 'application/json'
+      ..headers['Authorization'] = 'Bearer $token';
+
+    for (final photo in photos) {
+      if (photo.bytes.length > 8 * 1024 * 1024) {
+        throw const ApiException('Her fotoğraf en fazla 8 MB olabilir.');
+      }
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'photos',
+          photo.bytes,
+          filename: photo.fileName,
+          contentType: MediaType.parse(photo.mimeType),
+        ),
+      );
+    }
+
+    final streamed = await request.send().timeout(const Duration(seconds: 45));
+    final response = await http.Response.fromStream(streamed);
+    final data = _decode(response);
+    final rawUrls = data['urls'];
+    if (rawUrls is! List) {
+      throw const ApiException('Fotoğraf yükleme cevabı geçersiz.');
+    }
+    return rawUrls.map((value) => value.toString()).toList(growable: false);
   }
 
   static Future<void> updateProfile({
