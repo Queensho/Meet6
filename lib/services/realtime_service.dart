@@ -30,7 +30,22 @@ class RealtimeService {
   }
 
   static void _push(String type, dynamic raw) {
-    _events.add(RealtimeEvent(type, _map(raw)));
+    final data = _map(raw);
+    _events.add(RealtimeEvent(type, data));
+
+    // HTTP kullanan test/yardımcı istemci altıncı kişiyi ekleyip odayı
+    // oluşturursa backend room:update yayınlar. Arama ekranı bunu da gerçek
+    // queue:matched olayı gibi ele alır; böylece polling'e geri dönmeyiz.
+    if (type == 'room:update') {
+      final rawRoom = data['room'];
+      if (rawRoom is Map) {
+        final room = Map<String, dynamic>.from(rawRoom);
+        final members = room['members'];
+        if (room['status'] == 'active' && members is List && members.length == 6) {
+          _events.add(RealtimeEvent('queue:matched', {'state': 'room', 'room': room}));
+        }
+      }
+    }
   }
 
   static void _register(io.Socket socket) {
