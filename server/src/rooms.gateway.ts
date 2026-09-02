@@ -119,6 +119,20 @@ export class RoomsGateway {
     return result.rows.map((row) => row.user_id);
   }
 
+  async broadcastQueueStatus() {
+    const queued = await this.infra.db.query<{ user_id: string }>(
+      'select user_id::text from matchmaking_queue order by joined_at asc',
+    );
+    for (const row of queued.rows) {
+      try {
+        const status = await this.rooms.queueStatus(row.user_id);
+        this.server.to(`user:${row.user_id}`).emit('queue:status', status);
+      } catch (_) {
+        // Bir kullanıcı aynı anda odaya alındıysa sıradaki yayına devam et.
+      }
+    }
+  }
+
   private scheduleRoomDeadline(room: Record<string, any>) {
     const roomId = room.id?.toString();
     if (!roomId) return;
@@ -167,11 +181,12 @@ export class RoomsGateway {
         room: personalized,
       });
     }
-    const firstId = ids.firstOrNull;
+    const firstId = ids[0];
     if (firstId) {
       const snapshot = await this.rooms.getRoom(firstId, roomId) as Record<string, any>;
       this.scheduleRoomDeadline(snapshot);
     }
+    await this.broadcastQueueStatus();
   }
 
   @SubscribeMessage('ping')
@@ -191,7 +206,7 @@ export class RoomsGateway {
       if (result.state === 'room' && result.room) {
         await this.notifyMatchedRoom(result.room as Record<string, any>);
       } else {
-        client.emit('queue:status', result);
+        await this.broadcastQueueStatus();
       }
       return result;
     });
@@ -204,7 +219,11 @@ export class RoomsGateway {
 
   @SubscribeMessage('queue:cancel')
   queueCancel(@ConnectedSocket() client: Socket) {
-    return this.safe(async () => this.rooms.cancelQueue(this.userId(client)));
+    return this.safe(async () => {
+      const result = await this.rooms.cancelQueue(this.userId(client));
+      await this.broadcastQueueStatus();
+      return result;
+    });
   }
 
   @SubscribeMessage('room:join')
@@ -368,16 +387,3 @@ export class RoomsGateway {
     return { ok: true };
   }
 }
-
-declare global {
-  interface Array<T> {
-    readonly firstOrNull: T | undefined;
-  }
-}
-
-Object.defineProperty(Array.prototype, 'firstOrNull', {
-  get() {
-    return this.length > 0 ? this[0] : undefined;
-  },
-  configurable: true,
-});
