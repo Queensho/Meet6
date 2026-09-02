@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
+import '../../models/picked_profile_photo.dart';
 import '../../models/profile_draft.dart';
 import '../../services/api_service.dart';
 import '../../services/location_service.dart';
@@ -22,20 +24,27 @@ class ProfileSetupScreen extends StatefulWidget {
 class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   final draft = ProfileDraft();
   final locationService = const LocationService();
+  final imagePicker = ImagePicker();
   final nameController = TextEditingController();
   final birthDateController = TextEditingController();
   final bioController = TextEditingController();
   final promptAnswerController = TextEditingController();
 
+  PickedProfilePhoto? mainPhoto;
+  final extraPhotos = List<PickedProfilePhoto?>.filled(3, null);
+
   int step = 1;
   bool locationLoading = false;
+  bool photoPicking = false;
   bool submitting = false;
   String? locationError;
 
+  int get extraPhotoCount => extraPhotos.whereType<PickedProfilePhoto>().length;
+
   bool get canAdvance {
-    if (submitting) return false;
+    if (submitting || photoPicking) return false;
     if (step == 1) {
-      return draft.mainPhotoSelected &&
+      return mainPhoto != null &&
           nameController.text.trim().length >= 2 &&
           birthDateController.text.isNotEmpty &&
           draft.gender != null;
@@ -45,7 +54,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
           draft.hasLocation &&
           draft.purpose != null;
     }
-    return draft.extraPhotoCount >= 2 &&
+    return extraPhotoCount >= 2 &&
         bioController.text.trim().length >= 3 &&
         draft.interests.isNotEmpty &&
         draft.prompt.trim().isNotEmpty &&
@@ -59,6 +68,69 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     bioController.dispose();
     promptAnswerController.dispose();
     super.dispose();
+  }
+
+  String _mimeForName(String name) {
+    final lower = name.toLowerCase();
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    if (lower.endsWith('.heic')) return 'image/heic';
+    if (lower.endsWith('.heif')) return 'image/heif';
+    return 'image/jpeg';
+  }
+
+  Future<PickedProfilePhoto?> _pickPhoto() async {
+    if (photoPicking || submitting) return null;
+    setState(() => photoPicking = true);
+    try {
+      final picked = await imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1800,
+        maxHeight: 1800,
+        imageQuality: 88,
+      );
+      if (picked == null) return null;
+      final bytes = await picked.readAsBytes();
+      if (bytes.length > 8 * 1024 * 1024) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Fotoğraf en fazla 8 MB olabilir.')),
+          );
+        }
+        return null;
+      }
+      return PickedProfilePhoto(
+        bytes: bytes,
+        fileName: picked.name,
+        mimeType: _mimeForName(picked.name),
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Fotoğraf seçilemedi. Tekrar dene.')),
+        );
+      }
+      return null;
+    } finally {
+      if (mounted) setState(() => photoPicking = false);
+    }
+  }
+
+  Future<void> _pickMainPhoto() async {
+    final picked = await _pickPhoto();
+    if (picked == null || !mounted) return;
+    setState(() => mainPhoto = picked);
+  }
+
+  Future<void> _pickExtraPhoto(int index) async {
+    final picked = await _pickPhoto();
+    if (picked == null || !mounted) return;
+    setState(() => extraPhotos[index] = picked);
+  }
+
+  void _removeExtraPhoto(int index) {
+    if (submitting) return;
+    setState(() => extraPhotos[index] = null);
   }
 
   Future<void> _requestLocation() async {
@@ -131,7 +203,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   }
 
   Future<void> _continue() async {
-    if (submitting) return;
+    if (submitting || !canAdvance) return;
     FocusScope.of(context).unfocus();
     draft.name = nameController.text.trim();
     draft.bio = bioController.text.trim();
@@ -152,9 +224,15 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
 
     final lookingFor = draft.lookingFor ?? 'Herkes';
     final purpose = draft.purpose ?? 'Yeni insanlarla tanışma';
+    final allPhotos = <PickedProfilePhoto>[
+      mainPhoto!,
+      ...extraPhotos.whereType<PickedProfilePhoto>(),
+    ];
 
     setState(() => submitting = true);
     try {
+      final photoUrls = await ApiService.uploadProfilePhotos(allPhotos);
+
       await ApiService.updateProfile(
         displayName: draft.name,
         birthDate: _birthDateIso(),
@@ -167,7 +245,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
         profilePrompt: draft.prompt,
         profileAnswer: draft.promptAnswer,
         interests: List<String>.from(draft.interests),
-        photoUrls: const [],
+        photoUrls: photoUrls,
         profileCompleted: true,
       );
 
@@ -245,13 +323,11 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
           nameController: nameController,
           birthDateController: birthDateController,
           gender: draft.gender,
-          photoSelected: draft.mainPhotoSelected,
+          photoBytes: mainPhoto?.bytes,
           onChanged: () => setState(() {}),
           onPickBirthDate: _pickBirthDate,
           onGenderChanged: (value) => setState(() => draft.gender = value),
-          onPhotoToggle: () => setState(
-            () => draft.mainPhotoSelected = !draft.mainPhotoSelected,
-          ),
+          onPickPhoto: _pickMainPhoto,
         );
       case 2:
         return ProfileStepTwo(
@@ -278,7 +354,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
         return ProfileStepThree(
           bioController: bioController,
           promptAnswerController: promptAnswerController,
-          extraPhotoCount: draft.extraPhotoCount,
+          extraPhotoBytes: extraPhotos.map((photo) => photo?.bytes).toList(),
           interests: draft.interests,
           selectedPrompt: draft.prompt,
           onBioChanged: () => setState(() {}),
@@ -287,8 +363,8 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
             draft.prompt = value;
             promptAnswerController.clear();
           }),
-          onExtraPhotoCountChanged: (value) =>
-              setState(() => draft.extraPhotoCount = value),
+          onPickExtraPhoto: _pickExtraPhoto,
+          onRemoveExtraPhoto: _removeExtraPhoto,
           onInterestToggle: _toggleInterest,
         );
     }
@@ -326,10 +402,12 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                     const SizedBox(height: 26),
                     PrimaryButton(
                       label: submitting
-                          ? 'Kaydediliyor...'
-                          : step == 3
-                              ? 'Profili tamamla'
-                              : 'Devam et',
+                          ? 'Fotoğraflar yükleniyor...'
+                          : photoPicking
+                              ? 'Fotoğraf hazırlanıyor...'
+                              : step == 3
+                                  ? 'Profili tamamla'
+                                  : 'Devam et',
                       onPressed: canAdvance ? _continue : null,
                     ),
                     const SizedBox(height: 4),
