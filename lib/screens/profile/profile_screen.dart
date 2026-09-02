@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../models/matching_preferences.dart';
+import '../../models/server_profile.dart';
+import '../../services/api_service.dart';
+import '../../services/session_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/main_bottom_nav.dart';
 import '../../widgets/phone_frame.dart';
@@ -33,52 +36,99 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   late String name;
-  int age = 28;
-  String bio =
-      'Yeni insanlarla tanışmayı, güzel sohbetleri ve spontane planları seviyorum.';
-  List<String> interests = ['Kahve', 'Seyahat', 'Müzik', 'Spor'];
-  String prompt = 'Benimle iyi anlaşmanın yolu...';
-  String promptAnswer = 'İyi kahve, bol kahkaha ve açık iletişim.';
   late MatchingPreferences preferences;
+  ServerProfile? profile;
+  bool loadingProfile = true;
+  String? profileError;
 
   @override
   void initState() {
     super.initState();
-    name = widget.profileName.trim().isEmpty
-        ? 'Tayfun'
-        : widget.profileName.trim();
+    name = widget.profileName.trim();
     preferences = widget.initialPreferences;
+    _loadProfile();
   }
 
-  EditProfileResult get currentProfile => EditProfileResult(
-        name: name,
-        age: age,
-        bio: bio,
-        interests: interests,
-        prompt: prompt,
-        promptAnswer: promptAnswer,
-      );
+  Future<void> _loadProfile({bool silent = false}) async {
+    if (!silent && mounted) {
+      setState(() {
+        loadingProfile = true;
+        profileError = null;
+      });
+    }
+    try {
+      final response = await ApiService.getMe();
+      final raw = response['user'];
+      if (raw is! Map) {
+        throw const ApiException('Profil sunucudan alınamadı.');
+      }
+      final loaded = ServerProfile.fromUser(Map<String, dynamic>.from(raw));
+      if (!mounted) return;
+      setState(() {
+        profile = loaded;
+        name = loaded.name;
+        preferences = loaded.preferences;
+        loadingProfile = false;
+        profileError = null;
+      });
+      widget.onPreferencesChanged?.call(loaded.preferences);
+      await _cacheProfile(loaded);
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        loadingProfile = false;
+        profileError = error.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        loadingProfile = false;
+        profileError = 'Profil sunucudan yüklenemedi.';
+      });
+    }
+  }
+
+  Future<void> _cacheProfile(ServerProfile value) {
+    return SessionService.saveProfile(
+      profileName: value.name,
+      city: value.city,
+      country: value.country,
+      latitude: value.latitude,
+      longitude: value.longitude,
+      distanceKm: value.distanceKm,
+      lookingFor: value.lookingFor,
+      minAge: value.minAge,
+      maxAge: value.maxAge,
+      purpose: value.purpose,
+    );
+  }
 
   Future<void> _openEditProfile() async {
-    final result = await Navigator.of(context).push<EditProfileResult>(
+    var current = profile;
+    if (current == null) {
+      await _loadProfile();
+      current = profile;
+    }
+    if (current == null || !mounted) return;
+
+    final result = await Navigator.of(context).push<ServerProfile>(
       MaterialPageRoute(
-        builder: (_) => EditProfileScreen(initial: currentProfile),
+        builder: (_) => EditProfileScreen(initial: current!),
       ),
     );
 
     if (result == null || !mounted) return;
     setState(() {
+      profile = result;
       name = result.name;
-      age = result.age;
-      bio = result.bio;
-      interests = result.interests;
-      prompt = result.prompt;
-      promptAnswer = result.promptAnswer;
+      preferences = result.preferences;
     });
+    await _cacheProfile(result);
 
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Profilin güncellendi.'),
+        content: Text('Profilin sunucuda güncellendi.'),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -93,10 +143,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (result == null || !mounted) return;
     setState(() => preferences = result);
     widget.onPreferencesChanged?.call(result);
+    await _loadProfile(silent: true);
 
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Eşleşme tercihlerin güncellendi.'),
+        content: Text('Eşleşme tercihlerin sunucuda güncellendi.'),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -149,272 +201,315 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Widget _gallery(ServerProfile value) {
+    final scheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      height: 112,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: value.photoUrls.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 9),
+        itemBuilder: (context, index) {
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              width: 88,
+              color: scheme.surfaceContainerHigh,
+              child: Image.network(
+                ApiService.absoluteMediaUrl(value.photoUrls[index]),
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Icon(
+                  Icons.broken_image_outlined,
+                  color: scheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _loadingOrError() {
+    final scheme = Theme.of(context).colorScheme;
+    if (loadingProfile) {
+      return Center(
+        child: CircularProgressIndicator(color: scheme.primary),
+      );
+    }
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.cloud_off_rounded, color: scheme.onSurfaceVariant, size: 40),
+            const SizedBox(height: 12),
+            Text(
+              profileError ?? 'Profil yüklenemedi.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: scheme.onSurface,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: _loadProfile,
+              child: const Text('Tekrar dene'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _profileContent() {
+    final value = profile;
+    if (value == null) return _loadingOrError();
+
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final dark = theme.brightness == Brightness.dark;
+    final primaryPhoto = value.photoUrls.isEmpty ? '' : value.photoUrls.first;
+    final ageText = value.age > 0 ? ', ${value.age}' : '';
 
     return Stack(
       children: [
         Positioned.fill(
-          child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.only(bottom: 28),
-            child: Column(
-              children: [
-                ProfileHero(name: name),
-                const SizedBox(height: 72),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 18),
-                  child: Column(
-                    children: [
-                      Text.rich(
-                        TextSpan(
-                          style: TextStyle(
-                            color: scheme.onSurface,
-                            fontSize: 28,
-                            height: 1,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -1,
-                          ),
-                          children: [
-                            TextSpan(text: name),
-                            TextSpan(
-                              text: ', $age',
-                              style: const TextStyle(fontWeight: FontWeight.w700),
-                            ),
-                          ],
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 7),
-                      Wrap(
-                        alignment: WrapAlignment.center,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        spacing: 6,
-                        runSpacing: 4,
-                        children: [
-                          Icon(
-                            Icons.location_on_outlined,
-                            color: scheme.primary,
-                            size: 17,
-                          ),
-                          Text(
-                            preferences.locationLabel,
+          child: RefreshIndicator(
+            onRefresh: () => _loadProfile(silent: true),
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+              padding: const EdgeInsets.only(bottom: 28),
+              child: Column(
+                children: [
+                  ProfileHero(name: value.name, imageUrl: primaryPhoto),
+                  const SizedBox(height: 72),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                    child: Column(
+                      children: [
+                        Text.rich(
+                          TextSpan(
                             style: TextStyle(
-                              color: scheme.onSurfaceVariant,
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          Text(
-                            '•',
-                            style: TextStyle(color: scheme.outlineVariant),
-                          ),
-                          const Text(
-                            'Şimdi aktif',
-                            style: TextStyle(
-                              color: Color(0xFF36C76C),
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 18),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 52,
-                        child: FilledButton.icon(
-                          onPressed: _openEditProfile,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: dark ? AppColors.lime : AppColors.navy,
-                            foregroundColor: dark ? AppColors.navy : Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(17),
-                            ),
-                          ),
-                          icon: const Icon(Icons.edit_rounded, size: 18),
-                          label: const Text(
-                            'Profili düzenle',
-                            style: TextStyle(
-                              fontSize: 14,
+                              color: scheme.onSurface,
+                              fontSize: 28,
+                              height: 1,
                               fontWeight: FontWeight.w900,
+                              letterSpacing: -1,
                             ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      InkWell(
-                        onTap: _openMatchingPreferences,
-                        borderRadius: BorderRadius.circular(20),
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(15),
-                          decoration: BoxDecoration(
-                            color: scheme.surface,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: scheme.outlineVariant),
-                          ),
-                          child: Row(
                             children: [
-                              Container(
-                                width: 44,
-                                height: 44,
-                                decoration: const BoxDecoration(
-                                  color: AppColors.lime,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.tune_rounded,
-                                  color: AppColors.navy,
-                                ),
-                              ),
-                              const SizedBox(width: 11),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Eşleşme tercihleri',
-                                      style: TextStyle(
-                                        color: scheme.onSurface,
-                                        fontSize: 13.5,
-                                        fontWeight: FontWeight.w900,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 3),
-                                    Text(
-                                      preferences.compactSummary,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        color: scheme.onSurfaceVariant,
-                                        fontSize: 11.2,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Icon(
-                                Icons.chevron_right_rounded,
-                                color: scheme.onSurfaceVariant,
+                              TextSpan(text: value.name),
+                              TextSpan(
+                                text: ageText,
+                                style: const TextStyle(fontWeight: FontWeight.w700),
                               ),
                             ],
                           ),
+                          textAlign: TextAlign.center,
                         ),
-                      ),
-                      const SizedBox(height: 14),
-                      ProfileSection(
-                        title: 'Hakkımda',
-                        child: Text(
-                          bio,
-                          style: TextStyle(
-                            color: scheme.onSurface,
-                            fontSize: 13.5,
-                            height: 1.45,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      ProfileSection(
-                        title: 'İlgi alanlarım',
-                        child: Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
+                        const SizedBox(height: 7),
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 6,
+                          runSpacing: 4,
                           children: [
-                            for (final interest in interests)
-                              ProfileInterestChip(label: interest),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      ProfileSection(
-                        title: 'Profil sorum',
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
+                            Icon(
+                              Icons.location_on_outlined,
+                              color: scheme.primary,
+                              size: 17,
+                            ),
                             Text(
-                              prompt,
+                              value.preferences.locationLabel,
                               style: TextStyle(
-                                color: scheme.primary,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w900,
+                                color: scheme.onSurfaceVariant,
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
-                            const SizedBox(height: 6),
-                            Text(
-                              promptAnswer,
+                            Text('•', style: TextStyle(color: scheme.outlineVariant)),
+                            const Text(
+                              'Şimdi aktif',
                               style: TextStyle(
-                                color: scheme.onSurface,
-                                fontSize: 14,
-                                height: 1.35,
+                                color: Color(0xFF36C76C),
+                                fontSize: 12.5,
                                 fontWeight: FontWeight.w800,
                               ),
                             ),
                           ],
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      ProfileSection(
-                        title: 'Profil bilgilerim',
-                        child: Wrap(
-                          spacing: 18,
-                          runSpacing: 13,
-                          children: [
-                            ProfileMiniInfo(
-                              icon: Icons.cake_outlined,
-                              text: '$age yaş',
-                            ),
-                            ProfileMiniInfo(
-                              icon: Icons.location_on_outlined,
-                              text: preferences.locationLabel,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: dark
-                              ? AppColors.lime.withOpacity(.12)
-                              : AppColors.lime.withOpacity(.28),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: dark
-                                ? AppColors.lime.withOpacity(.24)
-                                : scheme.outlineVariant,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.shield_outlined,
-                              color: dark ? AppColors.lime : scheme.primary,
-                              size: 22,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                'Mesafe ve eşleşme tercihlerin profil içeriğinden ayrıdır; oda oluşturulurken kullanılır.',
-                                style: TextStyle(
-                                  color: scheme.onSurface,
-                                  fontSize: 12,
-                                  height: 1.35,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                        const SizedBox(height: 18),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 52,
+                          child: FilledButton.icon(
+                            onPressed: _openEditProfile,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: dark ? AppColors.lime : AppColors.navy,
+                              foregroundColor: dark ? AppColors.navy : Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(17),
                               ),
                             ),
-                          ],
+                            icon: const Icon(Icons.edit_rounded, size: 18),
+                            label: const Text(
+                              'Profili düzenle',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 12),
+                        InkWell(
+                          onTap: _openMatchingPreferences,
+                          borderRadius: BorderRadius.circular(20),
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(15),
+                            decoration: BoxDecoration(
+                              color: scheme.surface,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: scheme.outlineVariant),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 44,
+                                  height: 44,
+                                  decoration: const BoxDecoration(
+                                    color: AppColors.lime,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.tune_rounded, color: AppColors.navy),
+                                ),
+                                const SizedBox(width: 11),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Eşleşme tercihleri',
+                                        style: TextStyle(
+                                          color: scheme.onSurface,
+                                          fontSize: 13.5,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        preferences.compactSummary,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: scheme.onSurfaceVariant,
+                                          fontSize: 11.2,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        if (value.photoUrls.isNotEmpty) ...[
+                          ProfileSection(
+                            title: 'Fotoğraflarım',
+                            child: _gallery(value),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                        ProfileSection(
+                          title: 'Hakkımda',
+                          child: Text(
+                            value.bio.isEmpty ? 'Henüz bio eklenmedi.' : value.bio,
+                            style: TextStyle(
+                              color: scheme.onSurface,
+                              fontSize: 13.5,
+                              height: 1.45,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        ProfileSection(
+                          title: 'İlgi alanlarım',
+                          child: value.interests.isEmpty
+                              ? Text(
+                                  'Henüz ilgi alanı eklenmedi.',
+                                  style: TextStyle(color: scheme.onSurfaceVariant),
+                                )
+                              : Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    for (final interest in value.interests)
+                                      ProfileInterestChip(label: interest),
+                                  ],
+                                ),
+                        ),
+                        const SizedBox(height: 12),
+                        ProfileSection(
+                          title: 'Profil sorum',
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                value.prompt,
+                                style: TextStyle(
+                                  color: scheme.primary,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                value.promptAnswer,
+                                style: TextStyle(
+                                  color: scheme.onSurface,
+                                  fontSize: 14,
+                                  height: 1.35,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        ProfileSection(
+                          title: 'Profil bilgilerim',
+                          child: Wrap(
+                            spacing: 18,
+                            runSpacing: 13,
+                            children: [
+                              if (value.age > 0)
+                                ProfileMiniInfo(
+                                  icon: Icons.cake_outlined,
+                                  text: '${value.age} yaş',
+                                ),
+                              if (value.gender.isNotEmpty)
+                                ProfileMiniInfo(
+                                  icon: Icons.person_outline_rounded,
+                                  text: value.gender,
+                                ),
+                              ProfileMiniInfo(
+                                icon: Icons.location_on_outlined,
+                                text: value.preferences.locationLabel,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
