@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 
+import '../../models/matching_preferences.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/primary_button.dart';
 import '../chat/room_chat_screen.dart';
+import '../preferences/matching_preferences_screen.dart';
 import '../profile/profile_screen.dart';
 import 'widgets/room_radar.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({
     super.key,
     this.profileName = '',
@@ -15,6 +17,10 @@ class HomeScreen extends StatelessWidget {
     this.latitude,
     this.longitude,
     this.distanceKm = 25,
+    this.lookingFor = 'Herkes',
+    this.minAge = 20,
+    this.maxAge = 35,
+    this.purpose = 'Yeni insanlarla tanışma',
   });
 
   final String profileName;
@@ -23,13 +29,55 @@ class HomeScreen extends StatelessWidget {
   final double? latitude;
   final double? longitude;
   final int distanceKm;
+  final String lookingFor;
+  final double minAge;
+  final double maxAge;
+  final String purpose;
 
-  String get locationLabel {
-    if (city.isNotEmpty && country.isNotEmpty) return '$city, $country';
-    if (city.isNotEmpty) return city;
-    if (country.isNotEmpty) return country;
-    if (latitude != null && longitude != null) return 'Konumun';
-    return 'Yakının';
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  late MatchingPreferences preferences;
+
+  @override
+  void initState() {
+    super.initState();
+    preferences = MatchingPreferences(
+      lookingFor: widget.lookingFor,
+      minAge: widget.minAge,
+      maxAge: widget.maxAge,
+      distanceKm: widget.distanceKm,
+      purpose: widget.purpose,
+      city: widget.city,
+      country: widget.country,
+      latitude: widget.latitude,
+      longitude: widget.longitude,
+    );
+  }
+
+  Future<void> _openPreferences() async {
+    final result = await Navigator.of(context).push<MatchingPreferences>(
+      MaterialPageRoute(
+        builder: (_) => MatchingPreferencesScreen(initial: preferences),
+      ),
+    );
+    if (result == null || !mounted) return;
+    setState(() => preferences = result);
+  }
+
+  Future<void> _openProfile() async {
+    final result = await Navigator.of(context).push<MatchingPreferences>(
+      MaterialPageRoute(
+        builder: (_) => ProfileScreen(
+          profileName: widget.profileName,
+          initialPreferences: preferences,
+        ),
+      ),
+    );
+    if (result == null || !mounted) return;
+    setState(() => preferences = result);
   }
 
   @override
@@ -96,27 +144,19 @@ class HomeScreen extends StatelessWidget {
                             ),
                           ),
                           _TopIcon(
+                            icon: Icons.tune_rounded,
+                            onTap: _openPreferences,
+                          ),
+                          const SizedBox(width: 8),
+                          _TopIcon(
                             icon: Icons.notifications_none_rounded,
                             showDot: true,
                             onTap: () {},
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 8),
                           _TopIcon(
                             icon: Icons.person_rounded,
-                            onTap: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => ProfileScreen(
-                                    profileName: profileName,
-                                    initialCity: city,
-                                    initialCountry: country,
-                                    initialLatitude: latitude,
-                                    initialLongitude: longitude,
-                                    initialDistanceKm: distanceKm,
-                                  ),
-                                ),
-                              );
-                            },
+                            onTap: _openProfile,
                           ),
                         ],
                       ),
@@ -142,9 +182,9 @@ class HomeScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 14),
                       Text(
-                        profileName.isEmpty
-                            ? '$locationLabel çevresindeki kişilerle\nsohbete hemen başla.'
-                            : '$profileName, $locationLabel çevresindeki kişilerle\nsohbete hemen başla.',
+                        widget.profileName.isEmpty
+                            ? '${preferences.locationLabel} çevresindeki kişilerle\nsohbete hemen başla.'
+                            : '${widget.profileName}, ${preferences.locationLabel} çevresindeki kişilerle\nsohbete hemen başla.',
                         textAlign: TextAlign.center,
                         style: const TextStyle(
                           color: AppColors.navy,
@@ -153,37 +193,47 @@ class HomeScreen extends StatelessWidget {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      const SizedBox(height: 18),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 9,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(.42),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.my_location_rounded,
-                              color: AppColors.blue,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 7),
-                            Flexible(
-                              child: Text(
-                                '$locationLabel · ${distanceKm == 100 ? 'mesafe fark etmez' : '$distanceKm km içinde'}',
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: AppColors.navy,
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w800,
+                      const SizedBox(height: 16),
+                      InkWell(
+                        onTap: _openPreferences,
+                        borderRadius: BorderRadius.circular(999),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 9,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(.42),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.my_location_rounded,
+                                color: AppColors.blue,
+                                size: 18,
+                              ),
+                              const SizedBox(width: 7),
+                              Flexible(
+                                child: Text(
+                                  '${preferences.locationLabel} · ${preferences.distanceLabel}',
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: AppColors.navy,
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w800,
+                                  ),
                                 ),
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 6),
+                              const Icon(
+                                Icons.tune_rounded,
+                                color: AppColors.navy,
+                                size: 15,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -195,7 +245,7 @@ class HomeScreen extends StatelessWidget {
                           Navigator.of(context).push(
                             MaterialPageRoute(
                               builder: (_) => RoomChatScreen(
-                                profileName: profileName,
+                                profileName: widget.profileName,
                               ),
                             ),
                           );
@@ -239,7 +289,7 @@ class _TopIcon extends StatelessWidget {
               color: Colors.white.withOpacity(.38),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: AppColors.navy, size: 25),
+            child: Icon(icon, color: AppColors.navy, size: 24),
           ),
           if (showDot)
             Positioned(
