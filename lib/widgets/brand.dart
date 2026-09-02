@@ -9,6 +9,9 @@ class Meet6Brand extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
+
     return Text.rich(
       TextSpan(
         style: TextStyle(
@@ -17,9 +20,19 @@ class Meet6Brand extends StatelessWidget {
           fontWeight: FontWeight.w900,
           letterSpacing: -2,
         ),
-        children: const [
-          TextSpan(text: 'meet', style: TextStyle(color: AppColors.navy)),
-          TextSpan(text: '6', style: TextStyle(color: AppColors.blue)),
+        children: [
+          TextSpan(
+            text: 'meet',
+            style: TextStyle(
+              color: dark ? theme.colorScheme.onSurface : AppColors.navy,
+            ),
+          ),
+          TextSpan(
+            text: '6',
+            style: TextStyle(
+              color: dark ? AppColors.lime : AppColors.blue,
+            ),
+          ),
         ],
       ),
     );
@@ -33,6 +46,9 @@ class Meet6MiniBrand extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
+
     return Text.rich(
       TextSpan(
         style: const TextStyle(
@@ -43,11 +59,19 @@ class Meet6MiniBrand extends StatelessWidget {
         children: [
           TextSpan(
             text: 'meet',
-            style: TextStyle(color: light ? Colors.white : AppColors.navy),
+            style: TextStyle(
+              color: light
+                  ? Colors.white
+                  : (dark ? theme.colorScheme.onSurface : AppColors.navy),
+            ),
           ),
           TextSpan(
             text: '6',
-            style: TextStyle(color: light ? Colors.white : AppColors.blue),
+            style: TextStyle(
+              color: light
+                  ? Colors.white
+                  : (dark ? AppColors.lime : AppColors.blue),
+            ),
           ),
         ],
       ),
