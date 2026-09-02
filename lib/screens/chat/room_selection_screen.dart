@@ -30,8 +30,11 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
   bool submitted = false;
   bool submitting = false;
   bool openingMatch = false;
+  bool popupShown = false;
   String? error;
+  int selectionSecondsLeft = 0;
   Timer? resultTimer;
+  Timer? countdownTimer;
 
   @override
   void initState() {
@@ -46,13 +49,116 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
       if (!mounted) return;
       setState(() {
         room = data;
+        selectionSecondsLeft = (data['selectionSecondsLeft'] as num?)?.toInt() ?? 0;
         selectedUserId = data['mySelectionUserId']?.toString();
-        submitted = selectedUserId != null && selectedUserId!.isNotEmpty && selectedUserId != 'null';
+        submitted = selectedUserId != null &&
+            selectedUserId!.isNotEmpty &&
+            selectedUserId != 'null';
       });
+      _startCountdown();
+      if (!submitted && data['status'] == 'selection') {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _showTimedSelectionPopup());
+      }
       if (submitted) _startResultPolling();
     } on ApiException catch (e) {
       if (mounted) setState(() => error = e.message);
     }
+  }
+
+  void _startCountdown() {
+    countdownTimer?.cancel();
+    if (selectionSecondsLeft <= 0) return;
+    countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (selectionSecondsLeft <= 1) {
+        timer.cancel();
+        setState(() => selectionSecondsLeft = 0);
+        await _syncExpiredSelection();
+      } else {
+        setState(() => selectionSecondsLeft--);
+      }
+    });
+  }
+
+  Future<void> _syncExpiredSelection() async {
+    try {
+      final latest = await LiveService.room(widget.roomId);
+      if (!mounted) return;
+      setState(() {
+        room = latest;
+        selectionSecondsLeft = (latest['selectionSecondsLeft'] as num?)?.toInt() ?? 0;
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _showTimedSelectionPopup() async {
+    if (!mounted || popupShown || submitted || selectionSecondsLeft <= 0) return;
+    popupShown = true;
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: theme.colorScheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        titlePadding: const EdgeInsets.fromLTRB(22, 22, 22, 6),
+        contentPadding: const EdgeInsets.fromLTRB(22, 6, 22, 12),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        title: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: const BoxDecoration(
+                color: AppColors.lime,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.timer_rounded, color: AppColors.navy),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Gizli seçim süreli',
+                style: TextStyle(
+                  color: theme.colorScheme.onSurface,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Bir kişiyi seçmek için toplam 25 saniyen var. Süre dolunca seçim kapanır ve sonradan seçim yapılamaz.',
+          style: TextStyle(
+            color: theme.colorScheme.onSurfaceVariant,
+            height: 1.45,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              style: FilledButton.styleFrom(
+                backgroundColor: dark ? AppColors.lime : AppColors.navy,
+                foregroundColor: dark ? AppColors.navy : Colors.white,
+                minimumSize: const Size.fromHeight(48),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              child: const Text('Anladım', style: TextStyle(fontWeight: FontWeight.w900)),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   List<Map<String, dynamic>> get candidates {
@@ -65,8 +171,14 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
         .toList();
   }
 
+  bool get selectionExpired {
+    if (room == null) return false;
+    return room?['status'] == 'closed' ||
+        (room?['status'] == 'selection' && selectionSecondsLeft <= 0);
+  }
+
   Future<void> _submit() async {
-    if (selectedUserId == null || submitting || submitted) return;
+    if (selectedUserId == null || submitting || submitted || selectionExpired) return;
     setState(() => submitting = true);
     try {
       final result = await LiveService.submitRoomSelection(widget.roomId, selectedUserId!);
@@ -105,8 +217,15 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
       }
       final latestRoom = await LiveService.room(widget.roomId);
       if (!mounted) return;
-      setState(() => room = latestRoom);
-      if (latestRoom['status'] == 'closed') resultTimer?.cancel();
+      final latestSeconds = (latestRoom['selectionSecondsLeft'] as num?)?.toInt() ?? 0;
+      setState(() {
+        room = latestRoom;
+        selectionSecondsLeft = latestSeconds;
+      });
+      if (latestRoom['status'] == 'closed') {
+        resultTimer?.cancel();
+        countdownTimer?.cancel();
+      }
     } catch (_) {}
   }
 
@@ -114,6 +233,7 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
     if (openingMatch) return;
     openingMatch = true;
     resultTimer?.cancel();
+    countdownTimer?.cancel();
     try {
       final detail = await LiveService.matchDetail(matchId);
       if (!mounted) return;
@@ -136,13 +256,14 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
   }
 
   String get selectionTimer {
-    final seconds = (room?['selectionSecondsLeft'] as num?)?.toInt() ?? 0;
+    final seconds = selectionSecondsLeft.clamp(0, 25);
     return '${(seconds ~/ 60).toString().padLeft(2, '0')}:${(seconds % 60).toString().padLeft(2, '0')}';
   }
 
   @override
   void dispose() {
     resultTimer?.cancel();
+    countdownTimer?.cancel();
     super.dispose();
   }
 
@@ -151,7 +272,7 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final dark = theme.brightness == Brightness.dark;
-    final closed = room?['status'] == 'closed';
+    final closed = selectionExpired;
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -182,27 +303,42 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
                       ),
                     ),
                     const Spacer(),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
                       decoration: BoxDecoration(
-                        color: scheme.surface,
+                        color: closed
+                            ? scheme.errorContainer
+                            : selectionSecondsLeft <= 5
+                                ? const Color(0xFFFFE7DF)
+                                : scheme.surface,
                         borderRadius: BorderRadius.circular(999),
-                        border: Border.all(color: scheme.outlineVariant),
+                        border: Border.all(
+                          color: closed || selectionSecondsLeft <= 5
+                              ? const Color(0xFFE76A60)
+                              : scheme.outlineVariant,
+                        ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            Icons.lock_rounded,
-                            color: dark ? AppColors.lime : AppColors.blue,
-                            size: 15,
+                            Icons.timer_rounded,
+                            color: closed || selectionSecondsLeft <= 5
+                                ? const Color(0xFFE76A60)
+                                : dark
+                                    ? AppColors.lime
+                                    : AppColors.blue,
+                            size: 16,
                           ),
-                          const SizedBox(width: 5),
+                          const SizedBox(width: 6),
                           Text(
                             closed ? 'Süre doldu' : selectionTimer,
                             style: TextStyle(
-                              color: scheme.onSurface,
-                              fontSize: 11,
+                              color: closed || selectionSecondsLeft <= 5
+                                  ? const Color(0xFFE76A60)
+                                  : scheme.onSurface,
+                              fontSize: 12,
                               fontWeight: FontWeight.w900,
                             ),
                           ),
@@ -213,7 +349,11 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
                 ),
                 const SizedBox(height: 24),
                 Text(
-                  submitted ? 'Seçimin gizlice\nkaydedildi' : 'Kiminle devam\netmek istersin?',
+                  submitted
+                      ? 'Seçimin gizlice\nkaydedildi'
+                      : closed
+                          ? 'Seçim süresi\ndoldu'
+                          : 'Kiminle devam\netmek istersin?',
                   style: TextStyle(
                     color: scheme.onSurface,
                     fontSize: 31,
@@ -226,7 +366,9 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
                 Text(
                   submitted
                       ? 'Karşı taraf da seni seçerse eşleşme otomatik açılır.'
-                      : 'Sadece bir kişiyi seçebilirsin. Seçimin diğer kişiler tarafından görülmez.',
+                      : closed
+                          ? '25 saniyelik gizli seçim penceresi kapandı.'
+                          : '25 saniye içinde sadece bir kişiyi seçebilirsin. Seçimin diğer kişiler tarafından görülmez.',
                   style: TextStyle(
                     color: scheme.onSurfaceVariant,
                     fontSize: 12.5,
@@ -328,12 +470,12 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
                         ),
                 ),
                 const SizedBox(height: 14),
-                if (!submitted)
+                if (!submitted && !closed)
                   SizedBox(
                     width: double.infinity,
                     height: 56,
                     child: FilledButton.icon(
-                      onPressed: selectedUserId == null || submitting || closed ? null : _submit,
+                      onPressed: selectedUserId == null || submitting ? null : _submit,
                       style: FilledButton.styleFrom(
                         backgroundColor: dark ? AppColors.lime : AppColors.navy,
                         foregroundColor: dark ? AppColors.navy : Colors.white,
