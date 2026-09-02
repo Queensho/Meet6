@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import '../../theme/app_colors.dart';
@@ -9,32 +11,35 @@ class ProfileStepOne extends StatelessWidget {
     required this.nameController,
     required this.birthDateController,
     required this.gender,
-    required this.photoSelected,
+    required this.photoBytes,
     required this.onChanged,
     required this.onPickBirthDate,
     required this.onGenderChanged,
-    required this.onPhotoToggle,
+    required this.onPickPhoto,
   });
 
   final TextEditingController nameController;
   final TextEditingController birthDateController;
   final String? gender;
-  final bool photoSelected;
+  final Uint8List? photoBytes;
   final VoidCallback onChanged;
   final VoidCallback onPickBirthDate;
   final ValueChanged<String> onGenderChanged;
-  final VoidCallback onPhotoToggle;
+  final VoidCallback onPickPhoto;
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final hasPhoto = photoBytes != null;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 20),
-        const Text(
+        Text(
           'Seni biraz\ntanıyalım',
           style: TextStyle(
-            color: AppColors.navy,
+            color: scheme.onSurface,
             fontSize: 33,
             height: 1.02,
             fontWeight: FontWeight.w900,
@@ -42,10 +47,10 @@ class ProfileStepOne extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 9),
-        const Text(
+        Text(
           'Diğer kişiler seni odada bu bilgilerle görecek.',
           style: TextStyle(
-            color: AppColors.muted,
+            color: scheme.onSurfaceVariant,
             fontSize: 13.5,
             height: 1.35,
             fontWeight: FontWeight.w600,
@@ -54,7 +59,7 @@ class ProfileStepOne extends StatelessWidget {
         const SizedBox(height: 22),
         Center(
           child: GestureDetector(
-            onTap: onPhotoToggle,
+            onTap: onPickPhoto,
             child: Stack(
               clipBehavior: Clip.none,
               children: [
@@ -62,24 +67,28 @@ class ProfileStepOne extends StatelessWidget {
                   duration: const Duration(milliseconds: 180),
                   width: 122,
                   height: 122,
+                  clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(
-                    color: photoSelected
-                        ? AppColors.lime
-                        : const Color(0xFFF0F2F8),
+                    color: hasPhoto ? AppColors.lime : scheme.surfaceContainerHigh,
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: photoSelected ? AppColors.navy : AppColors.border,
-                      width: photoSelected ? 2 : 1,
+                      color: hasPhoto ? AppColors.lime : scheme.outlineVariant,
+                      width: hasPhoto ? 3 : 1,
                     ),
                   ),
                   alignment: Alignment.center,
-                  child: Icon(
-                    photoSelected
-                        ? Icons.person_rounded
-                        : Icons.add_a_photo_rounded,
-                    color: photoSelected ? AppColors.navy : AppColors.muted,
-                    size: 46,
-                  ),
+                  child: hasPhoto
+                      ? Image.memory(
+                          photoBytes!,
+                          width: 122,
+                          height: 122,
+                          fit: BoxFit.cover,
+                        )
+                      : Icon(
+                          Icons.add_a_photo_rounded,
+                          color: scheme.onSurfaceVariant,
+                          size: 46,
+                        ),
                 ),
                 Positioned(
                   right: 2,
@@ -90,15 +99,12 @@ class ProfileStepOne extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: AppColors.blue,
                       shape: BoxShape.circle,
-                      border: Border.all(
-                        color: AppColors.background,
-                        width: 3,
-                      ),
+                      border: Border.all(color: scheme.surface, width: 3),
                     ),
-                    child: const Icon(
-                      Icons.add_rounded,
+                    child: Icon(
+                      hasPhoto ? Icons.edit_rounded : Icons.add_rounded,
                       color: Colors.white,
-                      size: 22,
+                      size: 20,
                     ),
                   ),
                 ),
@@ -109,9 +115,9 @@ class ProfileStepOne extends StatelessWidget {
         const SizedBox(height: 8),
         Center(
           child: Text(
-            photoSelected ? 'Fotoğraf eklendi' : 'Profil fotoğrafı ekle',
+            hasPhoto ? 'Fotoğrafı değiştir' : 'Profil fotoğrafı ekle',
             style: TextStyle(
-              color: photoSelected ? AppColors.blue : AppColors.muted,
+              color: hasPhoto ? AppColors.blue : scheme.onSurfaceVariant,
               fontSize: 12.5,
               fontWeight: FontWeight.w800,
             ),
@@ -124,8 +130,8 @@ class ProfileStepOne extends StatelessWidget {
           controller: nameController,
           textCapitalization: TextCapitalization.words,
           onChanged: (_) => onChanged(),
-          style: const TextStyle(
-            color: AppColors.navy,
+          style: TextStyle(
+            color: scheme.onSurface,
             fontSize: 15,
             fontWeight: FontWeight.w800,
           ),
@@ -141,8 +147,8 @@ class ProfileStepOne extends StatelessWidget {
           controller: birthDateController,
           readOnly: true,
           onTap: onPickBirthDate,
-          style: const TextStyle(
-            color: AppColors.navy,
+          style: TextStyle(
+            color: scheme.onSurface,
             fontSize: 15,
             fontWeight: FontWeight.w800,
           ),
@@ -153,10 +159,10 @@ class ProfileStepOne extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 6),
-        const Text(
+        Text(
           'Meet6 yalnızca 18 yaş ve üzeri kullanıcılar içindir.',
           style: TextStyle(
-            color: AppColors.muted,
+            color: scheme.onSurfaceVariant,
             fontSize: 10.5,
             fontWeight: FontWeight.w600,
           ),
