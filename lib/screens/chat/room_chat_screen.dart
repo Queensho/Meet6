@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../services/api_service.dart';
 import '../../services/live_service.dart';
+import '../../services/realtime_service.dart';
 import '../../services/session_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/phone_frame.dart';
@@ -29,7 +30,8 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
   final scrollController = ScrollController();
   final messages = <Map<String, dynamic>>[];
 
-  Timer? pollTimer;
+  StreamSubscription<RealtimeEvent>? realtimeSub;
+  Timer? countdownTimer;
   String? myUserId;
   Map<String, dynamic>? room;
   int lastMessageId = 0;
@@ -47,33 +49,67 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
 
   Future<void> _start() async {
     myUserId = await SessionService.loadAuthUserId();
-    await _refreshAll();
-    if (!mounted) return;
-    pollTimer = Timer.periodic(const Duration(milliseconds: 1400), (_) => _refreshAll());
+    realtimeSub = RealtimeService.events.listen(_onRealtimeEvent);
+    try {
+      await RealtimeService.connect();
+      await _refreshSnapshot();
+      await RealtimeService.joinRoom(widget.roomId);
+      _startCountdown();
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        error = e.message;
+      });
+    }
   }
 
-  Future<void> _refreshAll() async {
+  void _onRealtimeEvent(RealtimeEvent event) {
+    if (!mounted || navigating) return;
+    if (event.type == 'connection:connected') {
+      unawaited(_rejoinAfterReconnect());
+      return;
+    }
+    if (event.type == 'room:update' && event.data['roomId']?.toString() == widget.roomId) {
+      final raw = event.data['room'];
+      if (raw is Map) {
+        final latest = Map<String, dynamic>.from(raw);
+        setState(() {
+          room = latest;
+          error = null;
+        });
+        _handleRoomState(latest);
+      }
+      return;
+    }
+    if (event.type == 'room:message' && event.data['roomId']?.toString() == widget.roomId) {
+      final raw = event.data['message'];
+      if (raw is Map) _appendMessage(Map<String, dynamic>.from(raw));
+      return;
+    }
+    if (event.type == 'room:sync-messages' && event.data['roomId']?.toString() == widget.roomId) {
+      unawaited(_loadNewMessages());
+    }
+  }
+
+  Future<void> _rejoinAfterReconnect() async {
+    try {
+      await RealtimeService.joinRoom(widget.roomId);
+      await _refreshSnapshot();
+    } catch (_) {}
+  }
+
+  Future<void> _refreshSnapshot() async {
     if (!mounted || navigating) return;
     try {
       final roomData = await LiveService.room(widget.roomId);
-      final newMessages = await LiveService.roomMessages(
-        widget.roomId,
-        after: lastMessageId,
-      );
+      await _loadNewMessages();
       if (!mounted) return;
-      var added = false;
-      for (final item in newMessages) {
-        final id = int.tryParse(item['id']?.toString() ?? '') ?? 0;
-        if (id > lastMessageId) lastMessageId = id;
-        messages.add(item);
-        added = true;
-      }
       setState(() {
         room = roomData;
         loading = false;
         error = null;
       });
-      if (added) _scrollToBottom();
       _handleRoomState(roomData);
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -81,16 +117,47 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
         loading = false;
         error = e.message;
       });
-    } catch (_) {
-      // Geçici bağlantı kopmasında mevcut oda ekranını koru.
     }
+  }
+
+  Future<void> _loadNewMessages() async {
+    try {
+      final incoming = await LiveService.roomMessages(widget.roomId, after: lastMessageId);
+      if (!mounted) return;
+      for (final message in incoming) {
+        _appendMessage(message, rebuild: false);
+      }
+      if (incoming.isNotEmpty) {
+        setState(() {});
+        _scrollToBottom();
+      }
+    } catch (_) {}
+  }
+
+  void _appendMessage(Map<String, dynamic> message, {bool rebuild = true}) {
+    final id = int.tryParse(message['id']?.toString() ?? '') ?? 0;
+    if (id > 0 && messages.any((item) => item['id']?.toString() == '$id')) return;
+    if (id > lastMessageId) lastMessageId = id;
+    messages.add(message);
+    if (rebuild && mounted) setState(() {});
+    _scrollToBottom();
+  }
+
+  void _startCountdown() {
+    countdownTimer?.cancel();
+    countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted || room?['status'] != 'active') return;
+      final current = (room?['secondsLeft'] as num?)?.toInt() ?? 0;
+      if (current <= 0) return;
+      setState(() => room = {...?room, 'secondsLeft': current - 1});
+    });
   }
 
   void _handleRoomState(Map<String, dynamic> data) {
     final status = data['status']?.toString();
     if (status == 'selection' && !navigating) {
       navigating = true;
-      pollTimer?.cancel();
+      countdownTimer?.cancel();
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => RoomSelectionScreen(
@@ -103,7 +170,7 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
     }
     if (status == 'closed' && !navigating) {
       navigating = true;
-      pollTimer?.cancel();
+      countdownTimer?.cancel();
       Navigator.of(context).popUntil((route) => route.isFirst);
       return;
     }
@@ -187,11 +254,12 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
     );
     if (vote != null) {
       try {
-        await LiveService.voteRoomExtension(widget.roomId, vote);
-      } catch (_) {}
+        await RealtimeService.voteRoomExtension(widget.roomId, vote);
+      } on ApiException catch (e) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      }
     }
     extensionSheetOpen = false;
-    if (mounted) _refreshAll();
   }
 
   Future<void> _send() async {
@@ -199,13 +267,10 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
     if (text.isEmpty || sending || room?['status'] != 'active') return;
     setState(() => sending = true);
     try {
-      await LiveService.sendRoomMessage(widget.roomId, text);
+      await RealtimeService.sendRoomMessage(widget.roomId, text);
       messageController.clear();
-      await _refreshAll();
     } on ApiException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
-      }
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
     } finally {
       if (mounted) setState(() => sending = false);
     }
@@ -235,7 +300,9 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
 
   @override
   void dispose() {
-    pollTimer?.cancel();
+    realtimeSub?.cancel();
+    countdownTimer?.cancel();
+    unawaited(RealtimeService.leaveRoom(widget.roomId));
     messageController.dispose();
     scrollController.dispose();
     super.dispose();
@@ -278,7 +345,7 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
                             ),
                           ),
                           Text(
-                            '${members.length}/6 kişi',
+                            '${members.length}/6 kişi · canlı',
                             style: TextStyle(
                               color: scheme.onSurfaceVariant,
                               fontSize: 10.5,
@@ -529,7 +596,7 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
         backgroundColor: scheme.surface,
         title: const Text('Oda devam ediyor'),
         content: const Text(
-          'Sohbetten çıkarsan bu 15 dakikalık odaya geri dönmek için uygulamayı tekrar açabilirsin.',
+          'Ana ekrana dönsen bile aktif odan sunucuda korunur. Tekrar açtığında odaya yeniden bağlanabilirsin.',
         ),
         actions: [
           TextButton(
