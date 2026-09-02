@@ -8,9 +8,22 @@ import 'widgets/profile_hero.dart';
 import 'widgets/profile_info_section.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key, this.profileName = ''});
+  const ProfileScreen({
+    super.key,
+    this.profileName = '',
+    this.initialCity = '',
+    this.initialCountry = '',
+    this.initialLatitude,
+    this.initialLongitude,
+    this.initialDistanceKm = 25,
+  });
 
   final String profileName;
+  final String initialCity;
+  final String initialCountry;
+  final double? initialLatitude;
+  final double? initialLongitude;
+  final int initialDistanceKm;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -19,25 +32,43 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   late String name;
   int age = 28;
-  String city = 'İstanbul';
+  late String city;
+  late String country;
+  late double? latitude;
+  late double? longitude;
   String bio = 'Yeni insanlarla tanışmayı, güzel sohbetleri ve spontane planları seviyorum.';
   List<String> interests = ['Kahve', 'Seyahat', 'Müzik', 'Spor'];
   String prompt = 'Benimle iyi anlaşmanın yolu...';
   String promptAnswer = 'İyi kahve, bol kahkaha ve açık iletişim.';
   String lookingFor = 'Herkes';
-  int distanceKm = 25;
+  late int distanceKm;
   String purpose = 'Yeni insanlarla tanışma';
+
+  String get locationLabel {
+    if (city.isNotEmpty && country.isNotEmpty) return '$city, $country';
+    if (city.isNotEmpty) return city;
+    if (country.isNotEmpty) return country;
+    return latitude != null && longitude != null ? 'Konum alındı' : 'Konum yok';
+  }
 
   @override
   void initState() {
     super.initState();
     name = widget.profileName.trim().isEmpty ? 'Tayfun' : widget.profileName.trim();
+    city = widget.initialCity;
+    country = widget.initialCountry;
+    latitude = widget.initialLatitude;
+    longitude = widget.initialLongitude;
+    distanceKm = widget.initialDistanceKm;
   }
 
   EditProfileResult get currentProfile => EditProfileResult(
         name: name,
         age: age,
         city: city,
+        country: country,
+        latitude: latitude,
+        longitude: longitude,
         bio: bio,
         interests: interests,
         prompt: prompt,
@@ -59,6 +90,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       name = result.name;
       age = result.age;
       city = result.city;
+      country = result.country;
+      latitude = result.latitude;
+      longitude = result.longitude;
       bio = result.bio;
       interests = result.interests;
       prompt = result.prompt;
@@ -121,26 +155,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 7),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
+                          Wrap(
+                            alignment: WrapAlignment.center,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            spacing: 6,
+                            runSpacing: 4,
                             children: [
                               const Icon(
                                 Icons.location_on_outlined,
                                 color: AppColors.blue,
                                 size: 17,
                               ),
-                              const SizedBox(width: 4),
                               Text(
-                                city,
+                                locationLabel,
                                 style: const TextStyle(
                                   color: AppColors.muted,
                                   fontSize: 12.5,
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
-                              const SizedBox(width: 8),
                               const Text('•', style: TextStyle(color: AppColors.border)),
-                              const SizedBox(width: 8),
                               const Text(
                                 'Şimdi aktif',
                                 style: TextStyle(
@@ -242,8 +276,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   text: lookingFor,
                                 ),
                                 ProfileMiniInfo(
-                                  icon: Icons.explore_outlined,
-                                  text: '$distanceKm km',
+                                  icon: Icons.my_location_rounded,
+                                  text: distanceKm == 100
+                                      ? 'Mesafe fark etmez'
+                                      : '$distanceKm km',
                                 ),
                                 ProfileMiniInfo(
                                   icon: Icons.favorite_border_rounded,
@@ -263,18 +299,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 color: AppColors.navy.withOpacity(.08),
                               ),
                             ),
-                            child: const Row(
+                            child: Row(
                               children: [
-                                Icon(
-                                  Icons.verified_user_outlined,
+                                const Icon(
+                                  Icons.my_location_rounded,
                                   color: AppColors.blue,
                                   size: 22,
                                 ),
-                                SizedBox(width: 10),
+                                const SizedBox(width: 10),
                                 Expanded(
                                   child: Text(
-                                    'Profilin tamamlandı. Odalarda diğer kişiler bu bilgileri görecek.',
-                                    style: TextStyle(
+                                    '$locationLabel merkez alınarak ${distanceKm == 100 ? 'mesafe sınırı olmadan' : '$distanceKm km çevrede'} oda eşleştirmesi yapılır.',
+                                    style: const TextStyle(
                                       color: AppColors.navy,
                                       fontSize: 12,
                                       height: 1.35,
