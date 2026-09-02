@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/api_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/brand.dart';
@@ -17,8 +18,10 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final phoneController = TextEditingController();
+  bool submitting = false;
 
   bool get canContinue =>
+      !submitting &&
       phoneController.text.replaceAll(RegExp(r'[^0-9]'), '').length >= 10;
 
   @override
@@ -33,13 +36,31 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _continue() {
+  Future<void> _continue() async {
+    if (!canContinue) return;
     FocusScope.of(context).unfocus();
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => OtpScreen(phoneNumber: phoneController.text),
-      ),
-    );
+    setState(() => submitting = true);
+    try {
+      await ApiService.requestOtp(phoneController.text);
+      if (!mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => OtpScreen(phoneNumber: phoneController.text),
+        ),
+      );
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sunucuya bağlanılamadı. Tekrar dene.')),
+      );
+    } finally {
+      if (mounted) setState(() => submitting = false);
+    }
   }
 
   @override
@@ -105,6 +126,19 @@ class _LoginScreenState extends State<LoginScreen> {
                       onChanged: () => setState(() {}),
                       onContinue: _continue,
                     ),
+                    if (submitting) ...[
+                      const SizedBox(height: 10),
+                      const Center(
+                        child: SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.4,
+                            color: AppColors.navy,
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
