@@ -11,12 +11,14 @@ import {
 import { AuthService } from './auth.service';
 import { InfrastructureService } from './infrastructure.service';
 import { normalizeTurkishPhone } from './phone.util';
+import { RoomsGateway } from './rooms.gateway';
 
 @Controller('rooms')
 export class RoomControlController {
   constructor(
     private readonly auth: AuthService,
     private readonly infra: InfrastructureService,
+    private readonly realtime: RoomsGateway,
   ) {}
 
   private async userId(authorization?: string) {
@@ -89,7 +91,7 @@ export class RoomControlController {
        set status = 'selection',
            ends_at = now(),
            selection_started_at = now(),
-           selection_ends_at = now() + interval '25 seconds'
+           selection_ends_at = now() + interval '10 seconds'
        where id = $1 and status = 'active'
        returning id::text`,
       [roomId],
@@ -100,15 +102,17 @@ export class RoomControlController {
 
     await this.infra.db.query(
       `insert into room_messages(room_id, sender_user_id, body)
-       values($1, null, 'Sohbet erken bitirildi. Gizli seçim için 25 saniyen var.')`,
+       values($1, null, 'Sohbet erken bitirildi. Gizli seçim için 10 saniyen var.')`,
       [roomId],
     );
+
+    await this.realtime.broadcastRoomUpdate(roomId);
 
     return {
       ok: true,
       roomId: result.rows[0].id,
       status: 'selection',
-      selectionSecondsLeft: 25,
+      selectionSecondsLeft: 10,
     };
   }
 }
