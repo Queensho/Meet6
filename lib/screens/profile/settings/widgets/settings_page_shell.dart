@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../theme/app_colors.dart';
 import '../../../../widgets/phone_frame.dart';
 
 class SettingsPageShell extends StatelessWidget {
@@ -15,40 +14,46 @@ class SettingsPageShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: PhoneFrame(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 14, 8),
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    style: IconButton.styleFrom(backgroundColor: Colors.white),
-                    icon: const Icon(
-                      Icons.arrow_back_rounded,
-                      color: AppColors.navy,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: const TextStyle(
-                        color: AppColors.navy,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
+        child: ColoredBox(
+          color: theme.scaffoldBackgroundColor,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 14, 8),
+                child: Row(
+                  children: [
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: IconButton.styleFrom(backgroundColor: scheme.surface),
+                      icon: Icon(
+                        Icons.arrow_back_rounded,
+                        color: scheme.onSurface,
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: TextStyle(
+                          color: scheme.onSurface,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const Divider(height: 1, color: AppColors.border),
-            Expanded(child: child),
-          ],
+              Divider(height: 1, color: scheme.outlineVariant),
+              Expanded(child: child),
+            ],
+          ),
         ),
       ),
     );
