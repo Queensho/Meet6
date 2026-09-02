@@ -1,13 +1,22 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../../services/api_service.dart';
+import '../../services/live_service.dart';
+import '../../services/session_service.dart';
 import '../../theme/app_colors.dart';
-import '../../widgets/meet6_3d_avatar.dart';
 import '../../widgets/phone_frame.dart';
 import '../matches/match_success_screen.dart';
 
 class RoomSelectionScreen extends StatefulWidget {
-  const RoomSelectionScreen({super.key, this.profileName = ''});
+  const RoomSelectionScreen({
+    super.key,
+    required this.roomId,
+    this.profileName = '',
+  });
 
+  final String roomId;
   final String profileName;
 
   @override
@@ -15,36 +24,126 @@ class RoomSelectionScreen extends StatefulWidget {
 }
 
 class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
-  static const participants = [
-    _Participant('A', 'Aslı', Alignment(-.70, -.70)),
-    _Participant('M', 'Mert', Alignment(.72, -.72)),
-    _Participant('E', 'Ece', Alignment(-.78, .48)),
-    _Participant('B', 'Bora', Alignment(.76, .48)),
-    _Participant('S', 'Selin', Alignment(0, -.92)),
-  ];
-
-  int? selectedIndex;
+  String? myUserId;
+  Map<String, dynamic>? room;
+  String? selectedUserId;
+  bool submitted = false;
   bool submitting = false;
+  bool openingMatch = false;
+  String? error;
+  Timer? resultTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    myUserId = await SessionService.loadAuthUserId();
+    try {
+      final data = await LiveService.room(widget.roomId);
+      if (!mounted) return;
+      setState(() {
+        room = data;
+        selectedUserId = data['mySelectionUserId']?.toString();
+        submitted = selectedUserId != null && selectedUserId!.isNotEmpty && selectedUserId != 'null';
+      });
+      if (submitted) _startResultPolling();
+    } on ApiException catch (e) {
+      if (mounted) setState(() => error = e.message);
+    }
+  }
+
+  List<Map<String, dynamic>> get candidates {
+    final raw = room?['members'];
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .where((e) => e['user_id']?.toString() != myUserId)
+        .toList();
+  }
 
   Future<void> _submit() async {
-    if (selectedIndex == null || submitting) return;
+    if (selectedUserId == null || submitting || submitted) return;
     setState(() => submitting = true);
+    try {
+      final result = await LiveService.submitRoomSelection(widget.roomId, selectedUserId!);
+      if (!mounted) return;
+      setState(() {
+        submitted = true;
+        submitting = false;
+      });
+      if (result['matched'] == true && result['matchId'] != null) {
+        await _openMatch(result['matchId'].toString());
+      } else {
+        _startResultPolling();
+      }
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        submitting = false;
+        error = e.message;
+      });
+    }
+  }
 
-    await Future<void>.delayed(const Duration(milliseconds: 450));
-    if (!mounted) return;
+  void _startResultPolling() {
+    resultTimer?.cancel();
+    resultTimer = Timer.periodic(const Duration(seconds: 2), (_) => _checkResult());
+    _checkResult();
+  }
 
-    final participant = participants[selectedIndex!];
+  Future<void> _checkResult() async {
+    if (!mounted || openingMatch) return;
+    try {
+      final result = await LiveService.roomSelectionResult(widget.roomId);
+      if (result['matched'] == true && result['matchId'] != null) {
+        await _openMatch(result['matchId'].toString());
+        return;
+      }
+      final latestRoom = await LiveService.room(widget.roomId);
+      if (!mounted) return;
+      setState(() => room = latestRoom);
+      if (latestRoom['status'] == 'closed') resultTimer?.cancel();
+    } catch (_) {}
+  }
 
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => MatchSuccessScreen(
-          profileName: widget.profileName,
-          matchName: participant.name,
-          matchInitial: participant.initial,
-          avatarAlignment: participant.alignment,
+  Future<void> _openMatch(String matchId) async {
+    if (openingMatch) return;
+    openingMatch = true;
+    resultTimer?.cancel();
+    try {
+      final detail = await LiveService.matchDetail(matchId);
+      if (!mounted) return;
+      final raw = detail['profile'];
+      final profile = raw is Map
+          ? Map<String, dynamic>.from(raw)
+          : <String, dynamic>{};
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => MatchSuccessScreen(
+            matchId: matchId,
+            profileName: widget.profileName,
+            matchProfile: profile,
+          ),
         ),
-      ),
-    );
+      );
+    } catch (_) {
+      openingMatch = false;
+    }
+  }
+
+  String get selectionTimer {
+    final seconds = (room?['selectionSecondsLeft'] as num?)?.toInt() ?? 0;
+    return '${(seconds ~/ 60).toString().padLeft(2, '0')}:${(seconds % 60).toString().padLeft(2, '0')}';
+  }
+
+  @override
+  void dispose() {
+    resultTimer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -52,13 +151,14 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
     final dark = theme.brightness == Brightness.dark;
+    final closed = room?['status'] == 'closed';
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: PhoneFrame(
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(22, 18, 22, 20),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -83,10 +183,7 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
                     ),
                     const Spacer(),
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 11,
-                        vertical: 8,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
                       decoration: BoxDecoration(
                         color: scheme.surface,
                         borderRadius: BorderRadius.circular(999),
@@ -102,7 +199,7 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
                           ),
                           const SizedBox(width: 5),
                           Text(
-                            'Gizli seçim',
+                            closed ? 'Süre doldu' : selectionTimer,
                             style: TextStyle(
                               color: scheme.onSurface,
                               fontSize: 11,
@@ -114,200 +211,170 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 26),
+                const SizedBox(height: 24),
                 Text(
-                  'Kiminle devam\netmek istersin?',
+                  submitted ? 'Seçimin gizlice\nkaydedildi' : 'Kiminle devam\netmek istersin?',
                   style: TextStyle(
                     color: scheme.onSurface,
-                    fontSize: 33,
+                    fontSize: 31,
                     height: 1.02,
-                    letterSpacing: -1.2,
                     fontWeight: FontWeight.w900,
+                    letterSpacing: -1,
                   ),
                 ),
-                const SizedBox(height: 9),
+                const SizedBox(height: 8),
                 Text(
-                  'Sohbette en çok bağ kurduğun 1 kişiyi seç. Seçimin yalnızca karşılıklıysa açıklanır.',
+                  submitted
+                      ? 'Karşı taraf da seni seçerse eşleşme otomatik açılır.'
+                      : 'Sadece bir kişiyi seçebilirsin. Seçimin diğer kişiler tarafından görülmez.',
                   style: TextStyle(
                     color: scheme.onSurfaceVariant,
-                    fontSize: 13,
+                    fontSize: 12.5,
                     height: 1.4,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: 20),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 9,
-                  ),
-                  decoration: BoxDecoration(
-                    color: dark
-                        ? AppColors.lime.withOpacity(.13)
-                        : AppColors.lime.withOpacity(.22),
-                    borderRadius: BorderRadius.circular(14),
-                    border: dark
-                        ? Border.all(color: AppColors.lime.withOpacity(.24))
-                        : null,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.science_outlined,
-                        color: dark ? AppColors.lime : AppColors.navy,
-                        size: 17,
-                      ),
-                      const SizedBox(width: 7),
-                      Expanded(
-                        child: Text(
-                          'Test modu: mock kullanıcıların seçimleri hazır.',
-                          style: TextStyle(
-                            color: dark ? scheme.onSurface : AppColors.navy,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Expanded(
-                  child: GridView.builder(
-                    physics: const BouncingScrollPhysics(),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      mainAxisSpacing: 12,
-                      crossAxisSpacing: 12,
-                      childAspectRatio: 1.02,
+                if (error != null) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    error!,
+                    style: const TextStyle(
+                      color: Color(0xFFE76A60),
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
                     ),
-                    itemCount: participants.length,
-                    itemBuilder: (context, index) {
-                      final participant = participants[index];
-                      final selected = selectedIndex == index;
-
-                      final cardColor = selected
-                          ? AppColors.lime
-                          : (dark ? scheme.surface : Colors.white);
-                      final nameColor = selected
-                          ? AppColors.navy
-                          : scheme.onSurface;
-
-                      return InkWell(
-                        onTap: submitting
-                            ? null
-                            : () => setState(() => selectedIndex = index),
-                        borderRadius: BorderRadius.circular(23),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 180),
-                          decoration: BoxDecoration(
-                            color: cardColor,
-                            borderRadius: BorderRadius.circular(23),
-                            border: Border.all(
-                              color: selected
-                                  ? AppColors.navy
-                                  : scheme.outlineVariant,
-                              width: selected ? 2 : 1,
-                            ),
-                            boxShadow: dark
-                                ? null
-                                : const [
-                                    BoxShadow(
-                                      color: Color(0x0C111B4C),
-                                      blurRadius: 16,
-                                      offset: Offset(0, 8),
-                                    ),
-                                  ],
-                          ),
-                          child: Stack(
-                            children: [
-                              Center(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Meet63DAvatar(
-                                      alignment: participant.alignment,
-                                      size: 76,
-                                      borderWidth: 3.5,
-                                    ),
-                                    const SizedBox(height: 10),
-                                    Text(
-                                      participant.name,
-                                      style: TextStyle(
-                                        color: nameColor,
-                                        fontSize: 15.5,
-                                        fontWeight: FontWeight.w900,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              if (selected)
-                                const Positioned(
-                                  top: 10,
-                                  right: 10,
-                                  child: Icon(
-                                    Icons.check_circle_rounded,
-                                    color: AppColors.navy,
-                                    size: 24,
+                  ),
+                ],
+                const SizedBox(height: 18),
+                Expanded(
+                  child: candidates.isEmpty
+                      ? const Center(child: CircularProgressIndicator(color: AppColors.lime))
+                      : ListView.separated(
+                          physics: const BouncingScrollPhysics(),
+                          itemCount: candidates.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 9),
+                          itemBuilder: (context, index) {
+                            final person = candidates[index];
+                            final id = person['user_id']?.toString() ?? '';
+                            final selected = selectedUserId == id;
+                            final name = person['display_name']?.toString() ?? 'Meet6';
+                            final age = (person['age'] as num?)?.toInt();
+                            final photos = person['photo_urls'];
+                            final photo = photos is List && photos.isNotEmpty
+                                ? photos.first.toString()
+                                : '';
+                            return InkWell(
+                              onTap: submitted || closed
+                                  ? null
+                                  : () => setState(() => selectedUserId = id),
+                              borderRadius: BorderRadius.circular(20),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 180),
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: selected ? AppColors.lime : scheme.surface,
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: selected ? AppColors.navy : scheme.outlineVariant,
+                                    width: selected ? 2 : 1,
                                   ),
                                 ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  height: 58,
-                  child: FilledButton(
-                    onPressed:
-                        selectedIndex == null || submitting ? null : _submit,
-                    style: FilledButton.styleFrom(
-                      backgroundColor:
-                          dark ? AppColors.lime : AppColors.navy,
-                      disabledBackgroundColor: dark
-                          ? scheme.surfaceContainerHigh
-                          : AppColors.navy.withOpacity(.18),
-                      foregroundColor:
-                          dark ? AppColors.navy : Colors.white,
-                      disabledForegroundColor: scheme.onSurfaceVariant,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(19),
-                      ),
-                    ),
-                    child: submitting
-                        ? SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.4,
-                              color: dark
-                                  ? AppColors.navy
-                                  : AppColors.lime,
-                            ),
-                          )
-                        : const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                'Seçimimi kaydet',
-                                style: TextStyle(
-                                  fontSize: 15.5,
-                                  fontWeight: FontWeight.w900,
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 58,
+                                      height: 58,
+                                      clipBehavior: Clip.antiAlias,
+                                      decoration: const BoxDecoration(
+                                        color: AppColors.navy,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: photo.isEmpty
+                                          ? Center(
+                                              child: Text(
+                                                name.characters.first.toUpperCase(),
+                                                style: const TextStyle(
+                                                  color: AppColors.lime,
+                                                  fontSize: 21,
+                                                  fontWeight: FontWeight.w900,
+                                                ),
+                                              ),
+                                            )
+                                          : Image.network(
+                                              ApiService.absoluteMediaUrl(photo),
+                                              fit: BoxFit.cover,
+                                            ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        age == null ? name : '$name, $age',
+                                        style: TextStyle(
+                                          color: selected ? AppColors.navy : scheme.onSurface,
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                    ),
+                                    Icon(
+                                      selected ? Icons.check_circle_rounded : Icons.circle_outlined,
+                                      color: selected ? AppColors.navy : scheme.onSurfaceVariant,
+                                    ),
+                                  ],
                                 ),
                               ),
-                              SizedBox(width: 9),
-                              Icon(Icons.lock_rounded, size: 20),
-                            ],
-                          ),
-                  ),
+                            );
+                          },
+                        ),
                 ),
+                const SizedBox(height: 14),
+                if (!submitted)
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: FilledButton.icon(
+                      onPressed: selectedUserId == null || submitting || closed ? null : _submit,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: dark ? AppColors.lime : AppColors.navy,
+                        foregroundColor: dark ? AppColors.navy : Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(19),
+                        ),
+                      ),
+                      icon: submitting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2.3),
+                            )
+                          : const Icon(Icons.favorite_rounded),
+                      label: const Text(
+                        'Seçimimi kaydet',
+                        style: TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                  )
+                else
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: OutlinedButton.icon(
+                      onPressed: closed
+                          ? () => Navigator.of(context).popUntil((route) => route.isFirst)
+                          : null,
+                      icon: closed
+                          ? const Icon(Icons.home_outlined)
+                          : const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2.3),
+                            ),
+                      label: Text(
+                        closed ? 'Ana ekrana dön' : 'Karşılıklı seçim bekleniyor...',
+                        style: const TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -315,16 +382,4 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
       ),
     );
   }
-}
-
-class _Participant {
-  const _Participant(
-    this.initial,
-    this.name,
-    this.alignment,
-  );
-
-  final String initial;
-  final String name;
-  final Alignment alignment;
 }
