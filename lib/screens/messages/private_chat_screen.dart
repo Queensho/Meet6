@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../services/api_service.dart';
 import '../../services/live_service.dart';
+import '../../services/realtime_service.dart';
 import '../../services/session_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/phone_frame.dart';
@@ -34,72 +35,145 @@ class _PrivateChatScreenState extends State<PrivateChatScreen> {
   final controller = TextEditingController();
   final scrollController = ScrollController();
   final messages = <Map<String, dynamic>>[];
-  Timer? pollTimer;
+
+  StreamSubscription<RealtimeEvent>? realtimeSub;
+  Timer? typingTimer;
   String? myUserId;
   int lastMessageId = 0;
   bool loading = true;
   bool sending = false;
+  bool peerTyping = false;
+  late bool peerOnline;
   String? error;
 
   @override
   void initState() {
     super.initState();
+    peerOnline = widget.isOnline;
     _start();
   }
 
   Future<void> _start() async {
     myUserId = await SessionService.loadAuthUserId();
-    await _refresh();
+    realtimeSub = RealtimeService.events.listen(_onRealtimeEvent);
     try {
-      await LiveService.markMatchRead(widget.matchId);
-    } catch (_) {}
-    if (!mounted) return;
-    pollTimer = Timer.periodic(const Duration(milliseconds: 1500), (_) => _refresh());
-  }
-
-  Future<void> _refresh() async {
-    try {
-      final incoming = await LiveService.privateMessages(
-        widget.matchId,
-        after: lastMessageId,
-      );
-      if (!mounted) return;
-      var added = false;
-      for (final message in incoming) {
-        final id = int.tryParse(message['id']?.toString() ?? '') ?? 0;
-        if (id > lastMessageId) lastMessageId = id;
-        messages.add(message);
-        added = true;
-      }
-      setState(() {
-        loading = false;
-        error = null;
-      });
-      if (added) {
-        _scrollToBottom();
-        unawaited(LiveService.markMatchRead(widget.matchId).catchError((_) {}));
-      }
+      await RealtimeService.connect();
+      await RealtimeService.joinMatch(widget.matchId);
+      await _loadNewMessages();
+      await RealtimeService.markMatchRead(widget.matchId);
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
         loading = false;
         error = e.message;
       });
+    }
+  }
+
+  void _onRealtimeEvent(RealtimeEvent event) {
+    if (!mounted) return;
+    if (event.type == 'connection:connected') {
+      unawaited(_rejoinAfterReconnect());
+      return;
+    }
+    if (event.type == 'match:message' && event.data['matchId']?.toString() == widget.matchId) {
+      final raw = event.data['message'];
+      if (raw is Map) {
+        final message = Map<String, dynamic>.from(raw);
+        _appendMessage(message);
+        if (message['sender_user_id']?.toString() != myUserId) {
+          unawaited(RealtimeService.markMatchRead(widget.matchId).catchError((_) => <String, dynamic>{}));
+        }
+      }
+      return;
+    }
+    if (event.type == 'match:read' && event.data['matchId']?.toString() == widget.matchId) {
+      final reader = event.data['readerUserId']?.toString();
+      if (reader != null && reader != myUserId) {
+        final readAt = event.data['readAt']?.toString();
+        setState(() {
+          for (final message in messages) {
+            if (message['sender_user_id']?.toString() == myUserId && message['read_at'] == null) {
+              message['read_at'] = readAt;
+            }
+          }
+        });
+      }
+      return;
+    }
+    if (event.type == 'match:typing' && event.data['matchId']?.toString() == widget.matchId) {
+      if (event.data['userId']?.toString() == widget.userId) {
+        setState(() => peerTyping = event.data['typing'] == true);
+      }
+      return;
+    }
+    if (event.type == 'presence:update' && event.data['userId']?.toString() == widget.userId) {
+      setState(() => peerOnline = event.data['online'] == true);
+    }
+  }
+
+  Future<void> _rejoinAfterReconnect() async {
+    try {
+      await RealtimeService.joinMatch(widget.matchId);
+      await _loadNewMessages();
+      await RealtimeService.markMatchRead(widget.matchId);
     } catch (_) {}
+  }
+
+  Future<void> _loadNewMessages() async {
+    try {
+      final incoming = await LiveService.privateMessages(widget.matchId, after: lastMessageId);
+      if (!mounted) return;
+      for (final message in incoming) {
+        _appendMessage(message, rebuild: false);
+      }
+      setState(() {
+        loading = false;
+        error = null;
+      });
+      if (incoming.isNotEmpty) _scrollToBottom();
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        error = e.message;
+      });
+    }
+  }
+
+  void _appendMessage(Map<String, dynamic> message, {bool rebuild = true}) {
+    final id = int.tryParse(message['id']?.toString() ?? '') ?? 0;
+    if (id > 0 && messages.any((item) => item['id']?.toString() == '$id')) return;
+    if (id > lastMessageId) lastMessageId = id;
+    messages.add(message);
+    if (rebuild && mounted) setState(() {});
+    _scrollToBottom();
   }
 
   Future<void> _send() async {
     final text = controller.text.trim();
     if (text.isEmpty || sending) return;
     setState(() => sending = true);
+    RealtimeService.setTyping(widget.matchId, false);
+    typingTimer?.cancel();
     try {
-      await LiveService.sendPrivateMessage(widget.matchId, text);
+      await RealtimeService.sendPrivateMessage(widget.matchId, text);
       controller.clear();
-      await _refresh();
     } on ApiException catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
     } finally {
       if (mounted) setState(() => sending = false);
+    }
+  }
+
+  void _onTypingChanged(String value) {
+    final typing = value.trim().isNotEmpty;
+    RealtimeService.setTyping(widget.matchId, typing);
+    typingTimer?.cancel();
+    if (typing) {
+      typingTimer = Timer(const Duration(milliseconds: 1400), () {
+        RealtimeService.setTyping(widget.matchId, false);
+      });
     }
   }
 
@@ -156,7 +230,10 @@ class _PrivateChatScreenState extends State<PrivateChatScreen> {
     if (action == 'report') {
       await _report();
     } else if (action == 'block') {
-      final ok = await _confirm('Kullanıcı engellensin mi?', 'Bir daha aynı odada eşleştirilmezsiniz ve bu sohbet kapanır.');
+      final ok = await _confirm(
+        'Kullanıcı engellensin mi?',
+        'Bir daha aynı odada eşleştirilmezsiniz ve bu sohbet kapanır.',
+      );
       if (ok == true) {
         await LiveService.blockUser(widget.userId);
         if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
@@ -232,7 +309,10 @@ class _PrivateChatScreenState extends State<PrivateChatScreen> {
 
   @override
   void dispose() {
-    pollTimer?.cancel();
+    typingTimer?.cancel();
+    realtimeSub?.cancel();
+    RealtimeService.setTyping(widget.matchId, false);
+    unawaited(RealtimeService.leaveMatch(widget.matchId));
     controller.dispose();
     scrollController.dispose();
     super.dispose();
@@ -279,12 +359,22 @@ class _PrivateChatScreenState extends State<PrivateChatScreen> {
                               fontWeight: FontWeight.w900,
                             ),
                           ),
-                          Text(
-                            widget.isOnline ? 'Çevrimiçi' : 'Meet6 eşleşmesi',
-                            style: TextStyle(
-                              color: widget.isOnline ? const Color(0xFF36C76C) : scheme.onSurfaceVariant,
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w700,
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 160),
+                            child: Text(
+                              peerTyping
+                                  ? 'yazıyor...'
+                                  : peerOnline
+                                      ? 'Çevrimiçi'
+                                      : 'Meet6 eşleşmesi',
+                              key: ValueKey('$peerTyping-$peerOnline'),
+                              style: TextStyle(
+                                color: peerTyping || peerOnline
+                                    ? const Color(0xFF36C76C)
+                                    : scheme.onSurfaceVariant,
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
                         ],
@@ -331,26 +421,44 @@ class _PrivateChatScreenState extends State<PrivateChatScreen> {
                             }
                             final item = messages[index];
                             final mine = item['sender_user_id']?.toString() == myUserId;
+                            final read = item['read_at'] != null;
                             return Align(
                               alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-                              child: Container(
-                                constraints: const BoxConstraints(maxWidth: 286),
-                                margin: const EdgeInsets.only(bottom: 8),
-                                padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
-                                decoration: BoxDecoration(
-                                  color: mine ? outgoingBubble : scheme.surface,
-                                  borderRadius: BorderRadius.circular(17),
-                                  border: mine ? null : Border.all(color: scheme.outlineVariant),
-                                ),
-                                child: Text(
-                                  item['body']?.toString() ?? '',
-                                  style: TextStyle(
-                                    color: mine ? outgoingText : scheme.onSurface,
-                                    fontSize: 13.5,
-                                    height: 1.32,
-                                    fontWeight: FontWeight.w600,
+                              child: Column(
+                                crossAxisAlignment: mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    constraints: const BoxConstraints(maxWidth: 286),
+                                    margin: const EdgeInsets.only(bottom: 3),
+                                    padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+                                    decoration: BoxDecoration(
+                                      color: mine ? outgoingBubble : scheme.surface,
+                                      borderRadius: BorderRadius.circular(17),
+                                      border: mine ? null : Border.all(color: scheme.outlineVariant),
+                                    ),
+                                    child: Text(
+                                      item['body']?.toString() ?? '',
+                                      style: TextStyle(
+                                        color: mine ? outgoingText : scheme.onSurface,
+                                        fontSize: 13.5,
+                                        height: 1.32,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
                                   ),
-                                ),
+                                  if (mine)
+                                    Padding(
+                                      padding: const EdgeInsets.only(right: 5, bottom: 6),
+                                      child: Text(
+                                        read ? 'Okundu' : 'Gönderildi',
+                                        style: TextStyle(
+                                          color: scheme.onSurfaceVariant,
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
                             );
                           },
@@ -371,6 +479,7 @@ class _PrivateChatScreenState extends State<PrivateChatScreen> {
                         controller: controller,
                         minLines: 1,
                         maxLines: 4,
+                        onChanged: _onTypingChanged,
                         onSubmitted: (_) => _send(),
                         decoration: const InputDecoration(
                           hintText: 'Mesaj yaz...',
