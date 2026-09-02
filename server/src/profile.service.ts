@@ -1,7 +1,17 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import path from 'node:path';
 
 import { InfrastructureService } from './infrastructure.service';
 import { UpdatePreferencesDto, UpdateProfileDto } from './profile.dto';
+
+type UploadedPhoto = {
+  buffer: Buffer;
+  mimetype: string;
+  size: number;
+  originalname: string;
+};
 
 @Injectable()
 export class ProfileService {
@@ -23,7 +33,46 @@ export class ProfileService {
     return { ok: true, user: user.rows[0] ?? null };
   }
 
+  async uploadPhotos(userId: string, files: UploadedPhoto[]) {
+    if (files.length < 1 || files.length > 4) {
+      throw new BadRequestException('1 ile 4 arasında fotoğraf yüklemelisin.');
+    }
+
+    const allowed: Record<string, string> = {
+      'image/jpeg': 'jpg',
+      'image/png': 'png',
+      'image/webp': 'webp',
+      'image/heic': 'heic',
+      'image/heif': 'heif',
+    };
+
+    const root = process.env.UPLOAD_ROOT ?? '/var/www/meet6/uploads';
+    const userDir = path.join(root, 'profile', userId);
+    await mkdir(userDir, { recursive: true });
+
+    const urls: string[] = [];
+    for (finalFile of files) {
+      const ext = allowed[finalFile.mimetype];
+      if (!ext) throw new BadRequestException('Yalnızca JPG, PNG, WEBP veya HEIC fotoğraf yüklenebilir.');
+      if (!finalFile.buffer?.length || finalFile.size > 8 * 1024 * 1024) {
+        throw new BadRequestException('Fotoğraf boyutu en fazla 8 MB olabilir.');
+      }
+      const filename = `${Date.now()}-${randomUUID()}.${ext}`;
+      await writeFile(path.join(userDir, filename), finalFile.buffer, { flag: 'wx' });
+      urls.push(`/uploads/profile/${userId}/${filename}`);
+    }
+
+    return { ok: true, urls };
+  }
+
   async updateProfile(userId: string, body: UpdateProfileDto) {
+    if (body.photoUrls != null && body.photoUrls.length > 4) {
+      throw new BadRequestException('En fazla 4 profil fotoğrafı olabilir.');
+    }
+    if (body.profileCompleted === true && (!body.photoUrls || body.photoUrls.length < 3)) {
+      throw new BadRequestException('Profili tamamlamak için en az 3 fotoğraf gerekli.');
+    }
+
     await this.infra.db.query(
       `insert into profiles(
          user_id, display_name, birth_date, gender, bio, city, country,
