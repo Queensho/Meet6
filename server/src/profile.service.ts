@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { mkdir, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
-import path from 'node:path';
+import { mkdir, writeFile } from 'node:fs/promises';
+import * as path from 'node:path';
 
 import { InfrastructureService } from './infrastructure.service';
 import { UpdatePreferencesDto, UpdateProfileDto } from './profile.dto';
@@ -51,9 +51,13 @@ export class ProfileService {
     await mkdir(userDir, { recursive: true });
 
     const urls: string[] = [];
-    for (finalFile of files) {
+    for (const finalFile of files) {
       const ext = allowed[finalFile.mimetype];
-      if (!ext) throw new BadRequestException('Yalnızca JPG, PNG, WEBP veya HEIC fotoğraf yüklenebilir.');
+      if (!ext) {
+        throw new BadRequestException(
+          'Yalnızca JPG, PNG, WEBP veya HEIC fotoğraf yüklenebilir.',
+        );
+      }
       if (!finalFile.buffer?.length || finalFile.size > 8 * 1024 * 1024) {
         throw new BadRequestException('Fotoğraf boyutu en fazla 8 MB olabilir.');
       }
