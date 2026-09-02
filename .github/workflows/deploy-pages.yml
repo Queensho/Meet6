@@ -46,6 +46,9 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      - name: Build Android debug APK
+        run: flutter build apk --debug
+
       - name: Build web
         run: flutter build web --release --base-href /Meet6/
 
