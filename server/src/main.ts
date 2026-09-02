@@ -2,11 +2,12 @@ import 'reflect-metadata';
 
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     cors: false,
   });
 
@@ -18,6 +19,13 @@ async function bootstrap() {
   app.enableCors({
     origin: origins,
     credentials: true,
+  });
+
+  const uploadRoot = process.env.UPLOAD_ROOT ?? '/var/www/meet6/uploads';
+  app.useStaticAssets(uploadRoot, {
+    prefix: '/uploads/',
+    fallthrough: false,
+    maxAge: '7d',
   });
 
   app.setGlobalPrefix('api');
