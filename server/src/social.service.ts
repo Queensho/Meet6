@@ -129,7 +129,7 @@ export class SocialService {
     );
     await this.infra.db.query(
       `insert into notifications(user_id,type,title,body,data)
-       values($1,'message',$2,$3,jsonb_build_object('matchId',$4))`,
+       values($1,'message',$2,$3,jsonb_build_object('matchId',$4::text))`,
       [otherId, sender.rows[0]?.display_name ?? 'Meet6', body.slice(0, 200), String(matchId)],
     );
     return { ok: true, message: result.rows[0] };
