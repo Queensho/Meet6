@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'screens/session_gate.dart';
+import 'services/app_navigator.dart';
 import 'theme/app_colors.dart';
 import 'theme/theme_controller.dart';
 
@@ -128,6 +129,7 @@ class Meet6App extends StatelessWidget {
       valueListenable: ThemeController.instance,
       builder: (context, mode, _) {
         return MaterialApp(
+          navigatorKey: AppNavigator.key,
           debugShowCheckedModeBanner: false,
           title: 'Meet6',
           theme: _lightTheme(),
