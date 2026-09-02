@@ -9,30 +9,36 @@ class ProfileStepTwo extends StatelessWidget {
     required this.lookingFor,
     required this.minAge,
     required this.maxAge,
-    required this.cityController,
+    required this.locationLabel,
+    required this.locationLoading,
+    required this.locationError,
     required this.distanceKm,
     required this.purpose,
     required this.onLookingForChanged,
     required this.onAgeChanged,
+    required this.onRequestLocation,
     required this.onDistanceChanged,
     required this.onPurposeChanged,
-    required this.onChanged,
   });
 
   final String? lookingFor;
   final double minAge;
   final double maxAge;
-  final TextEditingController cityController;
+  final String locationLabel;
+  final bool locationLoading;
+  final String? locationError;
   final int distanceKm;
   final String? purpose;
   final ValueChanged<String> onLookingForChanged;
   final ValueChanged<RangeValues> onAgeChanged;
+  final VoidCallback onRequestLocation;
   final ValueChanged<int> onDistanceChanged;
   final ValueChanged<String> onPurposeChanged;
-  final VoidCallback onChanged;
 
   @override
   Widget build(BuildContext context) {
+    final hasLocation = locationLabel.isNotEmpty;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -98,24 +104,102 @@ class ProfileStepTwo extends StatelessWidget {
           onChanged: onAgeChanged,
         ),
         const SizedBox(height: 8),
-        const FieldLabel('Şehir'),
-        const SizedBox(height: 7),
-        TextField(
-          controller: cityController,
-          textCapitalization: TextCapitalization.words,
-          onChanged: (_) => onChanged(),
-          style: const TextStyle(
-            color: AppColors.navy,
-            fontSize: 15,
-            fontWeight: FontWeight.w800,
+        const FieldLabel('Konumun'),
+        const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: hasLocation
+                ? AppColors.lime.withOpacity(.3)
+                : Colors.white.withOpacity(.86),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: hasLocation ? AppColors.navy.withOpacity(.18) : AppColors.border,
+            ),
           ),
-          decoration: meet6InputDecoration(
-            hint: 'Örn. İstanbul',
-            icon: Icons.location_city_rounded,
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: hasLocation ? AppColors.lime : AppColors.softSurface,
+                  shape: BoxShape.circle,
+                ),
+                child: locationLoading
+                    ? const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: CircularProgressIndicator(strokeWidth: 2.5),
+                      )
+                    : Icon(
+                        hasLocation
+                            ? Icons.my_location_rounded
+                            : Icons.location_on_outlined,
+                        color: AppColors.navy,
+                      ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      locationLoading
+                          ? 'Konumun bulunuyor...'
+                          : hasLocation
+                              ? locationLabel
+                              : 'Konum izni gerekli',
+                      style: const TextStyle(
+                        color: AppColors.navy,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      locationError ??
+                          (hasLocation
+                              ? 'Ülke ve şehir otomatik alındı. Mesafe filtresi bu konuma göre çalışacak.'
+                              : 'Meet6 yakınındaki odaları bulmak için konumunu kullanır.'),
+                      style: TextStyle(
+                        color: locationError == null
+                            ? AppColors.muted
+                            : const Color(0xFFD34B42),
+                        fontSize: 11,
+                        height: 1.35,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: locationLoading ? null : onRequestLocation,
+                child: Text(
+                  hasLocation ? 'Yenile' : 'İzin ver',
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 18),
-        const FieldLabel('Maksimum mesafe'),
+        Row(
+          children: [
+            const FieldLabel('Konumuna göre maksimum mesafe'),
+            const Spacer(),
+            Text(
+              distanceKm == 100 ? 'Fark etmez' : '$distanceKm km',
+              style: const TextStyle(
+                color: AppColors.blue,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
         const SizedBox(height: 9),
         Wrap(
           spacing: 8,
