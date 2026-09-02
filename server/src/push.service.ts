@@ -113,6 +113,21 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
+  async queueTest(userId: string) {
+    const result = await this.infra.db.query<{ id: string }>(
+      `insert into notifications(user_id,type,title,body,data)
+       values($1,'push_test','Meet6 bildirim testi','Push bildirimleri çalışıyor.',jsonb_build_object('screen','home'))
+       returning id::text`,
+      [userId],
+    );
+    void this.processOutbox();
+    return {
+      ok: true,
+      notificationId: result.rows[0]?.id,
+      firebaseConfigured: this.messaging != null,
+    };
+  }
+
   private async claimBatch() {
     return this.infra.db.query<PushNotificationRow>(
       `with picked as (
