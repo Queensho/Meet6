@@ -150,7 +150,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _profileContent() {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final dark = theme.brightness == Brightness.dark;
 
     return Stack(
       children: [
@@ -212,7 +214,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           const Text(
                             'Şimdi aktif',
                             style: TextStyle(
-                              color: Color(0xFF28A745),
+                              color: Color(0xFF36C76C),
                               fontSize: 12.5,
                               fontWeight: FontWeight.w800,
                             ),
@@ -226,8 +228,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         child: FilledButton.icon(
                           onPressed: _openEditProfile,
                           style: FilledButton.styleFrom(
-                            backgroundColor: AppColors.navy,
-                            foregroundColor: Colors.white,
+                            backgroundColor: dark ? AppColors.lime : AppColors.navy,
+                            foregroundColor: dark ? AppColors.navy : Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(17),
                             ),
@@ -377,15 +379,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: AppColors.lime.withOpacity(.28),
+                          color: dark
+                              ? AppColors.lime.withOpacity(.12)
+                              : AppColors.lime.withOpacity(.28),
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: scheme.outlineVariant),
+                          border: Border.all(
+                            color: dark
+                                ? AppColors.lime.withOpacity(.24)
+                                : scheme.outlineVariant,
+                          ),
                         ),
                         child: Row(
                           children: [
                             Icon(
                               Icons.shield_outlined,
-                              color: scheme.primary,
+                              color: dark ? AppColors.lime : scheme.primary,
                               size: 22,
                             ),
                             const SizedBox(width: 10),
@@ -437,25 +445,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: PhoneFrame(
-        child: ColoredBox(
-          color: theme.scaffoldBackgroundColor,
-          child: widget.asRootTab
-              ? Column(
-                  children: [
-                    Expanded(child: _profileContent()),
-                    MainBottomNav(
-                      selectedIndex: 3,
-                      unreadMessages: 2,
-                      onTap: (index) {
-                        if (index == 0) _goHome();
-                        if (index == 1) _goMatches();
-                        if (index == 2) _goMessages();
-                      },
-                    ),
-                  ],
-                )
-              : _profileContent(),
-        ),
+        child: widget.asRootTab
+            ? Column(
+                children: [
+                  Expanded(child: _profileContent()),
+                  MainBottomNav(
+                    selectedIndex: 3,
+                    unreadMessages: 2,
+                    onTap: (index) {
+                      if (index == 0) _goHome();
+                      if (index == 1) _goMatches();
+                      if (index == 2) _goMessages();
+                    },
+                  ),
+                ],
+              )
+            : _profileContent(),
       ),
     );
   }
