@@ -110,8 +110,12 @@ class _MatchingPreferencesScreenState extends State<MatchingPreferencesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final dark = theme.brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: PhoneFrame(
         child: Column(
           children: [
@@ -121,18 +125,18 @@ class _MatchingPreferencesScreenState extends State<MatchingPreferencesScreen> {
                 children: [
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    style: IconButton.styleFrom(backgroundColor: Colors.white),
-                    icon: const Icon(
+                    style: IconButton.styleFrom(backgroundColor: scheme.surface),
+                    icon: Icon(
                       Icons.arrow_back_rounded,
-                      color: AppColors.navy,
+                      color: scheme.onSurface,
                     ),
                   ),
                   const SizedBox(width: 8),
-                  const Expanded(
+                  Expanded(
                     child: Text(
                       'Eşleşme tercihleri',
                       style: TextStyle(
-                        color: AppColors.navy,
+                        color: scheme.onSurface,
                         fontSize: 20,
                         fontWeight: FontWeight.w900,
                       ),
@@ -141,7 +145,7 @@ class _MatchingPreferencesScreenState extends State<MatchingPreferencesScreen> {
                 ],
               ),
             ),
-            const Divider(height: 1, color: AppColors.border),
+            Divider(height: 1, color: scheme.outlineVariant),
             Expanded(
               child: SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
@@ -153,25 +157,29 @@ class _MatchingPreferencesScreenState extends State<MatchingPreferencesScreen> {
                       width: double.infinity,
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: AppColors.lime.withOpacity(.36),
+                        color: dark
+                            ? AppColors.lime.withOpacity(.12)
+                            : AppColors.lime.withOpacity(.36),
                         borderRadius: BorderRadius.circular(22),
                         border: Border.all(
-                          color: AppColors.navy.withOpacity(.08),
+                          color: dark
+                              ? AppColors.lime.withOpacity(.24)
+                              : scheme.outlineVariant,
                         ),
                       ),
-                      child: const Row(
+                      child: Row(
                         children: [
                           Icon(
                             Icons.tune_rounded,
-                            color: AppColors.blue,
+                            color: dark ? AppColors.lime : scheme.primary,
                             size: 24,
                           ),
-                          SizedBox(width: 10),
+                          const SizedBox(width: 10),
                           Expanded(
                             child: Text(
                               'Odaya gireceğin kişiler bu tercihlere ve gerçek konumuna göre seçilir.',
                               style: TextStyle(
-                                color: AppColors.navy,
+                                color: scheme.onSurface,
                                 fontSize: 12,
                                 height: 1.35,
                                 fontWeight: FontWeight.w700,
@@ -188,9 +196,9 @@ class _MatchingPreferencesScreenState extends State<MatchingPreferencesScreen> {
                       width: double.infinity,
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(.9),
+                        color: scheme.surface,
                         borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: AppColors.border),
+                        border: Border.all(color: scheme.outlineVariant),
                       ),
                       child: Row(
                         children: [
@@ -221,8 +229,8 @@ class _MatchingPreferencesScreenState extends State<MatchingPreferencesScreen> {
                               children: [
                                 Text(
                                   locationLabel,
-                                  style: const TextStyle(
-                                    color: AppColors.navy,
+                                  style: TextStyle(
+                                    color: scheme.onSurface,
                                     fontSize: 13.5,
                                     fontWeight: FontWeight.w900,
                                   ),
@@ -233,8 +241,8 @@ class _MatchingPreferencesScreenState extends State<MatchingPreferencesScreen> {
                                       'Şehir ve ülke konum izninden otomatik alınır.',
                                   style: TextStyle(
                                     color: locationError == null
-                                        ? AppColors.muted
-                                        : const Color(0xFFD34B42),
+                                        ? scheme.onSurfaceVariant
+                                        : const Color(0xFFE76A60),
                                     fontSize: 10.8,
                                     height: 1.3,
                                     fontWeight: FontWeight.w600,
@@ -245,9 +253,12 @@ class _MatchingPreferencesScreenState extends State<MatchingPreferencesScreen> {
                           ),
                           TextButton(
                             onPressed: locationLoading ? null : _refreshLocation,
-                            child: const Text(
+                            child: Text(
                               'Güncelle',
-                              style: TextStyle(fontWeight: FontWeight.w900),
+                              style: TextStyle(
+                                color: scheme.primary,
+                                fontWeight: FontWeight.w900,
+                              ),
                             ),
                           ),
                         ],
@@ -279,8 +290,8 @@ class _MatchingPreferencesScreenState extends State<MatchingPreferencesScreen> {
                         const Spacer(),
                         Text(
                           '${minAge.round()} – ${maxAge.round()}',
-                          style: const TextStyle(
-                            color: AppColors.blue,
+                          style: TextStyle(
+                            color: scheme.primary,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
@@ -291,8 +302,8 @@ class _MatchingPreferencesScreenState extends State<MatchingPreferencesScreen> {
                       min: 18,
                       max: 65,
                       divisions: 47,
-                      activeColor: AppColors.blue,
-                      inactiveColor: AppColors.border,
+                      activeColor: dark ? AppColors.lime : scheme.primary,
+                      inactiveColor: scheme.outlineVariant,
                       labels: RangeLabels(
                         '${minAge.round()}',
                         '${maxAge.round()}',
@@ -309,8 +320,8 @@ class _MatchingPreferencesScreenState extends State<MatchingPreferencesScreen> {
                         const Spacer(),
                         Text(
                           distanceKm == 100 ? 'Fark etmez' : '$distanceKm km',
-                          style: const TextStyle(
-                            color: AppColors.blue,
+                          style: TextStyle(
+                            color: scheme.primary,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
@@ -356,9 +367,10 @@ class _MatchingPreferencesScreenState extends State<MatchingPreferencesScreen> {
                       child: FilledButton.icon(
                         onPressed: hasLocation ? _save : null,
                         style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.navy,
-                          foregroundColor: Colors.white,
-                          disabledBackgroundColor: AppColors.border,
+                          backgroundColor: dark ? AppColors.lime : AppColors.navy,
+                          foregroundColor: dark ? AppColors.navy : Colors.white,
+                          disabledBackgroundColor: scheme.surfaceContainerHigh,
+                          disabledForegroundColor: scheme.onSurfaceVariant,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(18),
                           ),
