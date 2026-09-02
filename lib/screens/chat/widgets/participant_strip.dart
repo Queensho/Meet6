@@ -16,6 +16,8 @@ class ParticipantStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
     return SizedBox(
       height: 68,
       child: ListView.separated(
@@ -37,18 +39,18 @@ class ParticipantStrip extends StatelessWidget {
                     width: 42,
                     height: 42,
                     decoration: BoxDecoration(
-                      color: isMe ? AppColors.lime : Colors.white,
+                      color: isMe ? AppColors.lime : scheme.surfaceContainerHigh,
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: isMe ? AppColors.navy : AppColors.border,
+                        color: isMe ? AppColors.lime : scheme.outlineVariant,
                         width: isMe ? 2 : 1,
                       ),
                     ),
                     alignment: Alignment.center,
                     child: Text(
                       item.$1,
-                      style: const TextStyle(
-                        color: AppColors.navy,
+                      style: TextStyle(
+                        color: isMe ? AppColors.navy : scheme.onSurface,
                         fontSize: 15,
                         fontWeight: FontWeight.w900,
                       ),
@@ -63,7 +65,7 @@ class ParticipantStrip extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: const Color(0xFF34C759),
                         shape: BoxShape.circle,
-                        border: Border.all(color: AppColors.background, width: 2),
+                        border: Border.all(color: scheme.surface, width: 2),
                       ),
                     ),
                   ),
@@ -73,7 +75,7 @@ class ParticipantStrip extends StatelessWidget {
               Text(
                 item.$2,
                 style: TextStyle(
-                  color: isMe ? AppColors.navy : AppColors.muted,
+                  color: isMe ? scheme.onSurface : scheme.onSurfaceVariant,
                   fontSize: 10.5,
                   fontWeight: isMe ? FontWeight.w900 : FontWeight.w700,
                 ),
