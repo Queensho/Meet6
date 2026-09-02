@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/session_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/brand.dart';
 import '../widgets/login_form.dart';
@@ -19,6 +20,12 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool get canContinue =>
       phoneController.text.replaceAll(RegExp(r'[^0-9]'), '').length >= 10;
+
+  @override
+  void initState() {
+    super.initState();
+    SessionService.clear();
+  }
 
   @override
   void dispose() {
