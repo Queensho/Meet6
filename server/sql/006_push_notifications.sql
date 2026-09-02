@@ -20,6 +20,13 @@ alter table notifications
   add column if not exists push_attempts integer not null default 0,
   add column if not exists push_error varchar(500);
 
+-- Existing in-app notifications predate push delivery. Mark them processed so
+-- enabling Firebase cannot suddenly send historical matches/messages in bulk.
+update notifications
+set push_processed_at = coalesce(push_processed_at, now()),
+    push_error = coalesce(push_error, 'pre_push_migration')
+where push_processed_at is null;
+
 create index if not exists notifications_push_outbox_idx
   on notifications(push_processed_at, id)
   where push_processed_at is null;
