@@ -1,0 +1,201 @@
+import 'dart:async';
+
+import 'package:socket_io_client/socket_io_client.dart' as io;
+
+import 'api_service.dart';
+import 'session_service.dart';
+
+class RealtimeEvent {
+  const RealtimeEvent(this.type, this.data);
+
+  final String type;
+  final Map<String, dynamic> data;
+}
+
+class RealtimeService {
+  const RealtimeService._();
+
+  static io.Socket? _socket;
+  static String? _token;
+  static Completer<void>? _connecting;
+  static final _events = StreamController<RealtimeEvent>.broadcast();
+
+  static Stream<RealtimeEvent> get events => _events.stream;
+  static bool get connected => _socket?.connected == true;
+
+  static Map<String, dynamic> _map(dynamic raw) {
+    if (raw is Map<String, dynamic>) return raw;
+    if (raw is Map) return Map<String, dynamic>.from(raw);
+    return <String, dynamic>{};
+  }
+
+  static void _push(String type, dynamic raw) {
+    _events.add(RealtimeEvent(type, _map(raw)));
+  }
+
+  static void _register(io.Socket socket) {
+    const forwarded = [
+      'server:ready',
+      'auth:error',
+      'queue:status',
+      'queue:matched',
+      'room:update',
+      'room:message',
+      'room:sync-messages',
+      'room:selection-status',
+      'match:created',
+      'match:message',
+      'user:message',
+      'match:read',
+      'match:typing',
+      'presence:update',
+    ];
+
+    for (final name in forwarded) {
+      socket.on(name, (data) => _push(name, data));
+    }
+
+    socket.onConnect((_) {
+      _events.add(const RealtimeEvent('connection:connected', {}));
+      if (!(_connecting?.isCompleted ?? true)) _connecting?.complete();
+    });
+    socket.onDisconnect((reason) {
+      _events.add(RealtimeEvent('connection:disconnected', {'reason': '$reason'}));
+    });
+    socket.onConnectError((error) {
+      _events.add(RealtimeEvent('connection:error', {'message': '$error'}));
+      if (!(_connecting?.isCompleted ?? true)) {
+        _connecting?.completeError(const ApiException('Gerçek zamanlı bağlantı kurulamadı.'));
+      }
+    });
+    socket.onError((error) {
+      _events.add(RealtimeEvent('connection:error', {'message': '$error'}));
+    });
+  }
+
+  static Future<void> connect() async {
+    final token = await SessionService.loadAuthSessionId();
+    if (token == null || token.isEmpty) {
+      throw const ApiException('Oturum bulunamadı.');
+    }
+
+    if (_socket != null && _token == token) {
+      if (_socket!.connected) return;
+      if (_connecting != null && !(_connecting!.isCompleted)) {
+        return _connecting!.future.timeout(const Duration(seconds: 12));
+      }
+      _connecting = Completer<void>();
+      _socket!.connect();
+      return _connecting!.future.timeout(const Duration(seconds: 12));
+    }
+
+    _socket?.dispose();
+    _token = token;
+    _connecting = Completer<void>();
+    final socket = io.io(
+      '${ApiService.baseUrl}/rooms',
+      <String, dynamic>{
+        'transports': ['websocket'],
+        'autoConnect': false,
+        'reconnection': true,
+        'reconnectionAttempts': 1000000,
+        'reconnectionDelay': 500,
+        'reconnectionDelayMax': 4000,
+        'timeout': 10000,
+        'auth': {'token': token},
+      },
+    );
+    _socket = socket;
+    _register(socket);
+    socket.connect();
+    return _connecting!.future.timeout(const Duration(seconds: 12));
+  }
+
+  static Future<Map<String, dynamic>> _ack(
+    String event, [
+    Map<String, dynamic> data = const {},
+  ]) async {
+    await connect();
+    final socket = _socket;
+    if (socket == null || !socket.connected) {
+      throw const ApiException('Gerçek zamanlı bağlantı yok.');
+    }
+
+    final completer = Completer<Map<String, dynamic>>();
+    socket.emitWithAck(
+      event,
+      data,
+      ack: (raw) {
+        if (completer.isCompleted) return;
+        final result = _map(raw);
+        if (result['ok'] == false) {
+          completer.completeError(
+            ApiException(result['error']?.toString() ?? 'İşlem başarısız oldu.'),
+          );
+          return;
+        }
+        completer.complete(result);
+      },
+    );
+    return completer.future.timeout(
+      const Duration(seconds: 12),
+      onTimeout: () => throw const ApiException('Sunucudan gerçek zamanlı yanıt alınamadı.'),
+    );
+  }
+
+  static Future<Map<String, dynamic>> joinQueue() => _ack('queue:join');
+  static Future<Map<String, dynamic>> queueStatus() => _ack('queue:status');
+  static Future<Map<String, dynamic>> cancelQueue() => _ack('queue:cancel');
+
+  static Future<Map<String, dynamic>> joinRoom(String roomId) =>
+      _ack('room:join', {'roomId': roomId});
+
+  static Future<void> leaveRoom(String roomId) async {
+    try {
+      await _ack('room:leave', {'roomId': roomId});
+    } catch (_) {}
+  }
+
+  static Future<Map<String, dynamic>> sendRoomMessage(String roomId, String body) =>
+      _ack('room:send', {'roomId': roomId, 'body': body});
+
+  static Future<Map<String, dynamic>> voteRoomExtension(String roomId, bool vote) =>
+      _ack('room:extension', {'roomId': roomId, 'vote': vote});
+
+  static Future<Map<String, dynamic>> submitRoomSelection(
+    String roomId,
+    String selectedUserId,
+  ) =>
+      _ack(
+        'room:selection',
+        {'roomId': roomId, 'selectedUserId': int.parse(selectedUserId)},
+      );
+
+  static Future<Map<String, dynamic>> joinMatch(String matchId) =>
+      _ack('match:join', {'matchId': matchId});
+
+  static Future<void> leaveMatch(String matchId) async {
+    try {
+      await _ack('match:leave', {'matchId': matchId});
+    } catch (_) {}
+  }
+
+  static Future<Map<String, dynamic>> sendPrivateMessage(String matchId, String body) =>
+      _ack('match:send', {'matchId': matchId, 'body': body});
+
+  static Future<Map<String, dynamic>> markMatchRead(String matchId) =>
+      _ack('match:read', {'matchId': matchId});
+
+  static void setTyping(String matchId, bool typing) {
+    final socket = _socket;
+    if (socket?.connected != true) return;
+    socket!.emit('match:typing', {'matchId': matchId, 'typing': typing});
+  }
+
+  static void disconnect() {
+    _socket?.dispose();
+    _socket = null;
+    _token = null;
+    _connecting = null;
+  }
+}
