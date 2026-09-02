@@ -18,11 +18,15 @@ class ChatInputBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final dark = theme.brightness == Brightness.dark;
+
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: AppColors.border)),
+      decoration: BoxDecoration(
+        color: dark ? scheme.surface.withOpacity(.96) : Colors.white.withOpacity(.96),
+        border: Border(top: BorderSide(color: scheme.outlineVariant)),
       ),
       child: SafeArea(
         top: false,
@@ -39,33 +43,31 @@ class ChatInputBar extends StatelessWidget {
                 onSubmitted: (_) {
                   if (canSend) onSend();
                 },
-                style: const TextStyle(
-                  color: AppColors.navy,
+                style: TextStyle(
+                  color: scheme.onSurface,
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                 ),
                 decoration: InputDecoration(
                   hintText: 'Mesajını yaz...',
-                  hintStyle: const TextStyle(
-                    color: AppColors.muted,
+                  hintStyle: TextStyle(
+                    color: scheme.onSurfaceVariant,
                     fontWeight: FontWeight.w600,
                   ),
                   filled: true,
-                  fillColor: AppColors.softSurface,
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  fillColor: dark ? scheme.surfaceContainerHigh : AppColors.softSurface,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(20),
-                    borderSide: const BorderSide(color: AppColors.border),
+                    borderSide: BorderSide(color: scheme.outlineVariant),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(20),
-                    borderSide:
-                        const BorderSide(color: AppColors.blue, width: 1.5),
+                    borderSide: BorderSide(color: scheme.primary, width: 1.5),
                   ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(20),
-                    borderSide: const BorderSide(color: AppColors.border),
+                    borderSide: BorderSide(color: scheme.outlineVariant),
                   ),
                 ),
               ),
@@ -76,17 +78,17 @@ class ChatInputBar extends StatelessWidget {
               width: 46,
               height: 46,
               decoration: BoxDecoration(
-                color: canSend ? AppColors.lime : AppColors.softSurface,
+                color: canSend ? AppColors.lime : scheme.surfaceContainerHigh,
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: canSend ? AppColors.navy : AppColors.border,
+                  color: canSend ? AppColors.lime : scheme.outlineVariant,
                 ),
               ),
               child: IconButton(
                 onPressed: canSend ? onSend : null,
                 icon: Icon(
                   Icons.arrow_upward_rounded,
-                  color: canSend ? AppColors.navy : AppColors.muted,
+                  color: canSend ? AppColors.navy : scheme.onSurfaceVariant,
                   size: 23,
                 ),
               ),
