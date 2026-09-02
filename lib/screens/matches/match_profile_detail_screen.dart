@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/match_profile.dart';
+import '../../services/blocked_accounts_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/phone_frame.dart';
 import '../messages/private_chat_screen.dart';
@@ -21,6 +22,155 @@ class MatchProfileDetailScreen extends StatelessWidget {
           initial: profile.initial,
           isOnline: profile.isOnline,
           fromNewMatch: true,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _blockUser(BuildContext context) async {
+    final approved = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFFEEEE),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.block_rounded,
+                  color: Color(0xFFE24A4A),
+                  size: 31,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                '${profile.name} engellensin mi?',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: AppColors.navy,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Bu kişi eşleşmelerinden kaldırılır, sana mesaj gönderemez ve aynı odalarda sana gösterilmez.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.muted,
+                  fontSize: 12.5,
+                  height: 1.4,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(sheetContext, false),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.navy,
+                        side: const BorderSide(color: AppColors.border),
+                        minimumSize: const Size.fromHeight(48),
+                      ),
+                      child: const Text(
+                        'Vazgeç',
+                        style: TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => Navigator.pop(sheetContext, true),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFE24A4A),
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size.fromHeight(48),
+                      ),
+                      child: const Text(
+                        'Engelle',
+                        style: TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (approved != true || !context.mounted) return;
+
+    await BlockedAccountsService.block(
+      name: profile.name,
+      initial: profile.initial,
+    );
+    if (!context.mounted) return;
+
+    Navigator.of(context).pop(true);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${profile.name} engellendi.'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _openMenu(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 8),
+              ListTile(
+                leading: const Icon(
+                  Icons.block_rounded,
+                  color: Color(0xFFE24A4A),
+                ),
+                title: Text(
+                  '${profile.name} kişisini engelle',
+                  style: const TextStyle(
+                    color: Color(0xFFE24A4A),
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                subtitle: const Text(
+                  'Eşleşmelerden ve mesajlardan kaldır',
+                ),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _blockUser(context);
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
         ),
       ),
     );
@@ -265,6 +415,23 @@ class MatchProfileDetailScreen extends StatelessWidget {
                     width: 44,
                     height: 44,
                     child: Icon(Icons.arrow_back_rounded, color: AppColors.navy),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 12,
+              right: 12,
+              child: Material(
+                color: Colors.white.withOpacity(.92),
+                shape: const CircleBorder(),
+                child: InkWell(
+                  onTap: () => _openMenu(context),
+                  customBorder: const CircleBorder(),
+                  child: const SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: Icon(Icons.more_horiz_rounded, color: AppColors.navy),
                   ),
                 ),
               ),
