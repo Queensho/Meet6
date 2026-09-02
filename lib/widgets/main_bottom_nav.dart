@@ -97,65 +97,54 @@ class _NavItem extends StatelessWidget {
       selected: selected,
       child: InkWell(
         onTap: onTap,
-        customBorder: const CircleBorder(),
+        borderRadius: BorderRadius.circular(16),
         child: Center(
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 220),
             curve: Curves.easeOutCubic,
-            width: selected ? 50 : 44,
-            height: 50,
+            width: selected ? 42 : 44,
+            height: selected ? 42 : 44,
             decoration: BoxDecoration(
-              color: selected ? Colors.white : Colors.transparent,
-              shape: BoxShape.circle,
+              color: selected ? AppColors.lime : Colors.transparent,
+              borderRadius: BorderRadius.circular(selected ? 13 : 18),
             ),
             alignment: Alignment.center,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOutCubic,
-              width: selected ? 36 : 42,
-              height: selected ? 36 : 42,
-              decoration: BoxDecoration(
-                color: selected ? AppColors.lime : Colors.transparent,
-                borderRadius: BorderRadius.circular(selected ? 11 : 18),
-              ),
-              alignment: Alignment.center,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  Icon(
-                    selected ? icon : outlineIcon,
-                    color: selected ? AppColors.navy : Colors.white,
-                    size: selected ? 22 : 23,
-                  ),
-                  if (badge > 0)
-                    Positioned(
-                      top: -8,
-                      right: -11,
-                      child: Container(
-                        constraints: const BoxConstraints(
-                          minWidth: 18,
-                          minHeight: 18,
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        decoration: BoxDecoration(
-                          color: AppColors.blue,
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(color: Colors.white, width: 2),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          badge > 9 ? '9+' : '$badge',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 8.5,
-                            height: 1,
-                            fontWeight: FontWeight.w900,
-                          ),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(
+                  selected ? icon : outlineIcon,
+                  color: selected ? AppColors.navy : Colors.white,
+                  size: selected ? 23 : 23,
+                ),
+                if (badge > 0)
+                  Positioned(
+                    top: -9,
+                    right: -12,
+                    child: Container(
+                      constraints: const BoxConstraints(
+                        minWidth: 18,
+                        minHeight: 18,
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.blue,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: AppColors.navy, width: 2),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        badge > 9 ? '9+' : '$badge',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 8.5,
+                          height: 1,
+                          fontWeight: FontWeight.w900,
                         ),
                       ),
                     ),
-                ],
-              ),
+                  ),
+              ],
             ),
           ),
         ),
