@@ -57,9 +57,15 @@ class _PrivateChatScreenState extends State<PrivateChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final dark = theme.brightness == Brightness.dark;
+    final incomingBubble = dark ? scheme.surfaceContainerHigh : scheme.surface;
+    final outgoingBubble = dark ? const Color(0xFF213670) : AppColors.navy;
+
     return Scaffold(
       resizeToAvoidBottomInset: true,
-      backgroundColor: AppColors.background,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: PhoneFrame(
         child: Column(
           children: [
@@ -69,8 +75,11 @@ class _PrivateChatScreenState extends State<PrivateChatScreen> {
                 children: [
                   IconButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.arrow_back_rounded, color: AppColors.navy),
-                    style: IconButton.styleFrom(backgroundColor: Colors.white),
+                    icon: Icon(
+                      Icons.arrow_back_rounded,
+                      color: scheme.onSurface,
+                    ),
+                    style: IconButton.styleFrom(backgroundColor: scheme.surface),
                   ),
                   const SizedBox(width: 7),
                   Stack(
@@ -103,7 +112,7 @@ class _PrivateChatScreenState extends State<PrivateChatScreen> {
                             decoration: BoxDecoration(
                               color: const Color(0xFF36C76C),
                               shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 2),
+                              border: Border.all(color: scheme.surface, width: 2),
                             ),
                           ),
                         ),
@@ -116,8 +125,8 @@ class _PrivateChatScreenState extends State<PrivateChatScreen> {
                       children: [
                         Text(
                           widget.name,
-                          style: const TextStyle(
-                            color: AppColors.navy,
+                          style: TextStyle(
+                            color: scheme.onSurface,
                             fontSize: 16,
                             fontWeight: FontWeight.w900,
                           ),
@@ -125,8 +134,8 @@ class _PrivateChatScreenState extends State<PrivateChatScreen> {
                         const SizedBox(height: 2),
                         Text(
                           widget.isOnline ? 'Çevrimiçi' : 'Yakın zamanda aktifti',
-                          style: const TextStyle(
-                            color: AppColors.muted,
+                          style: TextStyle(
+                            color: scheme.onSurfaceVariant,
                             fontSize: 10.8,
                             fontWeight: FontWeight.w700,
                           ),
@@ -136,12 +145,15 @@ class _PrivateChatScreenState extends State<PrivateChatScreen> {
                   ),
                   IconButton(
                     onPressed: () {},
-                    icon: const Icon(Icons.more_horiz_rounded, color: AppColors.navy),
+                    icon: Icon(
+                      Icons.more_horiz_rounded,
+                      color: scheme.onSurface,
+                    ),
                   ),
                 ],
               ),
             ),
-            const Divider(height: 1, color: AppColors.border),
+            Divider(height: 1, color: scheme.outlineVariant),
             Expanded(
               child: ListView.builder(
                 reverse: true,
@@ -154,15 +166,21 @@ class _PrivateChatScreenState extends State<PrivateChatScreen> {
                       margin: const EdgeInsets.only(bottom: 12),
                       padding: const EdgeInsets.all(13),
                       decoration: BoxDecoration(
-                        color: AppColors.lime.withOpacity(.36),
+                        color: dark
+                            ? AppColors.lime.withOpacity(.16)
+                            : AppColors.lime.withOpacity(.36),
                         borderRadius: BorderRadius.circular(17),
-                        border: Border.all(color: AppColors.navy.withOpacity(.08)),
+                        border: Border.all(
+                          color: dark
+                              ? AppColors.lime.withOpacity(.32)
+                              : AppColors.navy.withOpacity(.08),
+                        ),
                       ),
                       child: Text(
                         message.text,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: AppColors.navy,
+                        style: TextStyle(
+                          color: dark ? AppColors.lime : AppColors.navy,
                           fontSize: 12,
                           height: 1.35,
                           fontWeight: FontWeight.w700,
@@ -177,19 +195,25 @@ class _PrivateChatScreenState extends State<PrivateChatScreen> {
                       margin: const EdgeInsets.only(bottom: 9),
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
                       decoration: BoxDecoration(
-                        color: message.mine ? AppColors.navy : Colors.white,
+                        color: message.mine ? outgoingBubble : incomingBubble,
                         borderRadius: BorderRadius.only(
                           topLeft: const Radius.circular(17),
                           topRight: const Radius.circular(17),
                           bottomLeft: Radius.circular(message.mine ? 17 : 5),
                           bottomRight: Radius.circular(message.mine ? 5 : 17),
                         ),
-                        border: message.mine ? null : Border.all(color: AppColors.border),
+                        border: message.mine
+                            ? Border.all(
+                                color: dark
+                                    ? const Color(0xFF3452A3)
+                                    : AppColors.navy,
+                              )
+                            : Border.all(color: scheme.outlineVariant),
                       ),
                       child: Text(
                         message.text,
                         style: TextStyle(
-                          color: message.mine ? Colors.white : AppColors.navy,
+                          color: message.mine ? Colors.white : scheme.onSurface,
                           fontSize: 13.5,
                           height: 1.35,
                           fontWeight: FontWeight.w600,
@@ -202,9 +226,9 @@ class _PrivateChatScreenState extends State<PrivateChatScreen> {
             ),
             Container(
               padding: const EdgeInsets.fromLTRB(12, 9, 12, 12),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                border: Border(top: BorderSide(color: AppColors.border)),
+              decoration: BoxDecoration(
+                color: scheme.surface,
+                border: Border(top: BorderSide(color: scheme.outlineVariant)),
               ),
               child: Row(
                 children: [
@@ -213,15 +237,25 @@ class _PrivateChatScreenState extends State<PrivateChatScreen> {
                       controller: controller,
                       minLines: 1,
                       maxLines: 4,
+                      style: TextStyle(color: scheme.onSurface),
                       onSubmitted: (_) => _send(),
                       decoration: InputDecoration(
                         hintText: 'Mesaj yaz...',
+                        hintStyle: TextStyle(color: scheme.onSurfaceVariant),
                         filled: true,
-                        fillColor: AppColors.softSurface,
+                        fillColor: scheme.surfaceContainerHigh,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          borderSide: BorderSide(color: scheme.outlineVariant),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          borderSide: BorderSide(color: scheme.primary, width: 1.4),
+                        ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(20),
-                          borderSide: BorderSide.none,
+                          borderSide: BorderSide(color: scheme.outlineVariant),
                         ),
                       ),
                     ),
@@ -230,8 +264,8 @@ class _PrivateChatScreenState extends State<PrivateChatScreen> {
                   IconButton.filled(
                     onPressed: _send,
                     style: IconButton.styleFrom(
-                      backgroundColor: AppColors.navy,
-                      foregroundColor: AppColors.lime,
+                      backgroundColor: dark ? AppColors.lime : AppColors.navy,
+                      foregroundColor: dark ? AppColors.navy : AppColors.lime,
                     ),
                     icon: const Icon(Icons.arrow_upward_rounded),
                   ),
