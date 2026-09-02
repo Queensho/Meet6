@@ -217,14 +217,10 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                             ),
                             const SizedBox(height: 8),
-                            Text(
-                              widget.profileName.isEmpty
-                                  ? '${preferences.locationLabel} çevresindeki kişilerle sohbet et.'
-                                  : '${widget.profileName}, ${preferences.locationLabel} çevresindeki kişilerle sohbet et.',
+                            const Text(
+                              'Yakınındaki kişilerle sohbet et.',
                               textAlign: TextAlign.center,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: AppColors.navy,
                                 fontSize: 13.2,
                                 height: 1.25,
@@ -248,20 +244,17 @@ class _HomeScreenState extends State<HomeScreen> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     const Icon(
-                                      Icons.my_location_rounded,
+                                      Icons.radar_rounded,
                                       color: AppColors.blue,
                                       size: 17,
                                     ),
                                     const SizedBox(width: 7),
-                                    Flexible(
-                                      child: Text(
-                                        '${preferences.locationLabel} · ${preferences.distanceLabel}',
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          color: AppColors.navy,
-                                          fontSize: 11.8,
-                                          fontWeight: FontWeight.w800,
-                                        ),
+                                    Text(
+                                      preferences.distanceLabel,
+                                      style: const TextStyle(
+                                        color: AppColors.navy,
+                                        fontSize: 11.8,
+                                        fontWeight: FontWeight.w800,
                                       ),
                                     ),
                                     const SizedBox(width: 6),
