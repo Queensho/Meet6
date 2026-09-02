@@ -19,7 +19,6 @@ jobs:
   release:
     runs-on: ubuntu-latest
     env:
-      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
       MEET6_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
       MEET6_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
       MEET6_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
@@ -30,7 +29,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
@@ -45,18 +44,25 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$ANDROID_KEYSTORE_BASE64" || (echo "Missing ANDROID_KEYSTORE_BASE64" && exit 1)
           test -n "$MEET6_KEYSTORE_PASSWORD" || (echo "Missing ANDROID_KEYSTORE_PASSWORD" && exit 1)
           test -n "$MEET6_KEY_ALIAS" || (echo "Missing ANDROID_KEY_ALIAS" && exit 1)
           test -n "$MEET6_KEY_PASSWORD" || (echo "Missing ANDROID_KEY_PASSWORD" && exit 1)
+          test -s android/signing/meet6-upload-keystore.jks.enc.b64 || (echo "Encrypted keystore blob missing" && exit 1)
 
       - name: Restore upload keystore
         shell: bash
         run: |
           set -euo pipefail
-          CLEANED="$(printf '%s' "$ANDROID_KEYSTORE_BASE64" | sed 's/^ANDROID_KEYSTORE_BASE64=//' | tr -d '[:space:]')"
-          printf '%s' "$CLEANED" | base64 --decode > android/app/meet6-upload-keystore.jks
+          base64 --decode android/signing/meet6-upload-keystore.jks.enc.b64 > "$RUNNER_TEMP/meet6-upload-keystore.jks.enc"
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
+            -pass env:MEET6_KEYSTORE_PASSWORD \
+            -in "$RUNNER_TEMP/meet6-upload-keystore.jks.enc" \
+            -out android/app/meet6-upload-keystore.jks
           test -s android/app/meet6-upload-keystore.jks
+          keytool -list \
+            -keystore android/app/meet6-upload-keystore.jks \
+            -storepass "$MEET6_KEYSTORE_PASSWORD" \
+            -alias "$MEET6_KEY_ALIAS" >/dev/null
 
       - name: Get dependencies
         run: flutter pub get
@@ -100,4 +106,6 @@ jobs:
       - name: Remove restored keystore
         if: always()
         shell: bash
-        run: rm -f android/app/meet6-upload-keystore.jks
+        run: |
+          rm -f android/app/meet6-upload-keystore.jks
+          rm -f "$RUNNER_TEMP/meet6-upload-keystore.jks.enc"
