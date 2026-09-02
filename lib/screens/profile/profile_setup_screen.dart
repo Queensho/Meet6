@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/profile_draft.dart';
+import '../../services/api_service.dart';
 import '../../services/location_service.dart';
 import '../../services/session_service.dart';
 import '../../widgets/phone_frame.dart';
@@ -28,9 +29,11 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
 
   int step = 1;
   bool locationLoading = false;
+  bool submitting = false;
   String? locationError;
 
   bool get canAdvance {
+    if (submitting) return false;
     if (step == 1) {
       return draft.mainPhotoSelected &&
           nameController.text.trim().length >= 2 &&
@@ -111,7 +114,14 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     setState(() {});
   }
 
+  String _birthDateIso() {
+    final parts = draft.birthDate.split('.');
+    if (parts.length != 3) return draft.birthDate;
+    return '${parts[2]}-${parts[1]}-${parts[0]}';
+  }
+
   void _goBack() {
+    if (submitting) return;
     FocusScope.of(context).unfocus();
     if (step > 1) {
       setState(() => step--);
@@ -121,6 +131,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   }
 
   Future<void> _continue() async {
+    if (submitting) return;
     FocusScope.of(context).unfocus();
     draft.name = nameController.text.trim();
     draft.bio = bioController.text.trim();
@@ -142,38 +153,79 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     final lookingFor = draft.lookingFor ?? 'Herkes';
     final purpose = draft.purpose ?? 'Yeni insanlarla tanışma';
 
-    await SessionService.saveProfile(
-      profileName: draft.name,
-      city: draft.city,
-      country: draft.country,
-      latitude: draft.latitude,
-      longitude: draft.longitude,
-      distanceKm: draft.distanceKm,
-      lookingFor: lookingFor,
-      minAge: draft.minAge,
-      maxAge: draft.maxAge,
-      purpose: purpose,
-    );
+    setState(() => submitting = true);
+    try {
+      await ApiService.updateProfile(
+        displayName: draft.name,
+        birthDate: _birthDateIso(),
+        gender: draft.gender ?? '',
+        bio: draft.bio,
+        city: draft.city,
+        country: draft.country,
+        latitude: draft.latitude,
+        longitude: draft.longitude,
+        profilePrompt: draft.prompt,
+        profileAnswer: draft.promptAnswer,
+        interests: List<String>.from(draft.interests),
+        photoUrls: const [],
+        profileCompleted: true,
+      );
 
-    if (!mounted) return;
+      await ApiService.updatePreferences(
+        lookingFor: lookingFor,
+        minAge: draft.minAge,
+        maxAge: draft.maxAge,
+        distanceKm: draft.distanceKm,
+        purpose: purpose,
+      );
 
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(
-        builder: (_) => HomeScreen(
-          profileName: draft.name,
-          city: draft.city,
-          country: draft.country,
-          latitude: draft.latitude,
-          longitude: draft.longitude,
-          distanceKm: draft.distanceKm,
-          lookingFor: lookingFor,
-          minAge: draft.minAge,
-          maxAge: draft.maxAge,
-          purpose: purpose,
+      await SessionService.saveProfile(
+        profileName: draft.name,
+        city: draft.city,
+        country: draft.country,
+        latitude: draft.latitude,
+        longitude: draft.longitude,
+        distanceKm: draft.distanceKm,
+        lookingFor: lookingFor,
+        minAge: draft.minAge,
+        maxAge: draft.maxAge,
+        purpose: purpose,
+      );
+
+      if (!mounted) return;
+
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => HomeScreen(
+            profileName: draft.name,
+            city: draft.city,
+            country: draft.country,
+            latitude: draft.latitude,
+            longitude: draft.longitude,
+            distanceKm: draft.distanceKm,
+            lookingFor: lookingFor,
+            minAge: draft.minAge,
+            maxAge: draft.maxAge,
+            purpose: purpose,
+          ),
         ),
-      ),
-      (route) => false,
-    );
+        (route) => false,
+      );
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Profil sunucuya kaydedilemedi. Tekrar dene.'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => submitting = false);
+    }
   }
 
   void _toggleInterest(String value) {
@@ -273,7 +325,11 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                     ),
                     const SizedBox(height: 26),
                     PrimaryButton(
-                      label: step == 3 ? 'Profili tamamla' : 'Devam et',
+                      label: submitting
+                          ? 'Kaydediliyor...'
+                          : step == 3
+                              ? 'Profili tamamla'
+                              : 'Devam et',
                       onPressed: canAdvance ? _continue : null,
                     ),
                     const SizedBox(height: 4),
