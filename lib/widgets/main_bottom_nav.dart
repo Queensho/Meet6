@@ -20,7 +20,7 @@ class MainBottomNav extends StatelessWidget {
       top: false,
       child: Container(
         height: 72,
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 7),
+        padding: const EdgeInsets.fromLTRB(10, 8, 10, 7),
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(.97),
           border: const Border(
@@ -40,12 +40,21 @@ class MainBottomNav extends StatelessWidget {
             ),
             Expanded(
               child: _NavItem(
+                icon: Icons.favorite_rounded,
+                outlineIcon: Icons.favorite_border_rounded,
+                label: 'Eşleşmeler',
+                selected: selectedIndex == 1,
+                onTap: () => onTap(1),
+              ),
+            ),
+            Expanded(
+              child: _NavItem(
                 icon: Icons.chat_bubble_rounded,
                 outlineIcon: Icons.chat_bubble_outline_rounded,
                 label: 'Mesajlar',
-                selected: selectedIndex == 1,
+                selected: selectedIndex == 2,
                 badge: unreadMessages,
-                onTap: () => onTap(1),
+                onTap: () => onTap(2),
               ),
             ),
             Expanded(
@@ -53,8 +62,8 @@ class MainBottomNav extends StatelessWidget {
                 icon: Icons.person_rounded,
                 outlineIcon: Icons.person_outline_rounded,
                 label: 'Profil',
-                selected: selectedIndex == 2,
-                onTap: () => onTap(2),
+                selected: selectedIndex == 3,
+                onTap: () => onTap(3),
               ),
             ),
           ],
@@ -85,13 +94,13 @@ class _NavItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(17),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(vertical: 5),
         decoration: BoxDecoration(
           color: selected ? AppColors.lime.withOpacity(.28) : Colors.transparent,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(17),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -102,7 +111,7 @@ class _NavItem extends StatelessWidget {
                 Icon(
                   selected ? icon : outlineIcon,
                   color: selected ? AppColors.navy : AppColors.muted,
-                  size: 24,
+                  size: 23,
                 ),
                 if (badge > 0)
                   Positioned(
@@ -133,9 +142,11 @@ class _NavItem extends StatelessWidget {
             const SizedBox(height: 3),
             Text(
               label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: selected ? AppColors.navy : AppColors.muted,
-                fontSize: 10.5,
+                fontSize: 9.3,
                 fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
               ),
             ),
