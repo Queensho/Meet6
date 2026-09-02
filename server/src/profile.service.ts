@@ -33,12 +33,43 @@ export class ProfileService {
     return { ok: true, user: user.rows[0] ?? null };
   }
 
+  private detectImageType(buffer: Buffer): string | null {
+    if (buffer.length < 12) return null;
+    if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+      return 'image/jpeg';
+    }
+    if (
+      buffer[0] === 0x89 &&
+      buffer[1] === 0x50 &&
+      buffer[2] === 0x4e &&
+      buffer[3] === 0x47 &&
+      buffer[4] === 0x0d &&
+      buffer[5] === 0x0a &&
+      buffer[6] === 0x1a &&
+      buffer[7] === 0x0a
+    ) {
+      return 'image/png';
+    }
+    if (
+      buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
+      buffer.subarray(8, 12).toString('ascii') === 'WEBP'
+    ) {
+      return 'image/webp';
+    }
+    if (buffer.subarray(4, 8).toString('ascii') === 'ftyp') {
+      const brand = buffer.subarray(8, 12).toString('ascii').toLowerCase();
+      if (['heic', 'heix', 'hevc', 'hevx'].includes(brand)) return 'image/heic';
+      if (['heif', 'mif1', 'msf1'].includes(brand)) return 'image/heif';
+    }
+    return null;
+  }
+
   async uploadPhotos(userId: string, files: UploadedPhoto[]) {
     if (files.length < 1 || files.length > 4) {
       throw new BadRequestException('1 ile 4 arasında fotoğraf yüklemelisin.');
     }
 
-    const allowed: Record<string, string> = {
+    const extensions: Record<string, string> = {
       'image/jpeg': 'jpg',
       'image/png': 'png',
       'image/webp': 'webp',
@@ -52,14 +83,15 @@ export class ProfileService {
 
     const urls: string[] = [];
     for (const finalFile of files) {
-      const ext = allowed[finalFile.mimetype];
-      if (!ext) {
-        throw new BadRequestException(
-          'Yalnızca JPG, PNG, WEBP veya HEIC fotoğraf yüklenebilir.',
-        );
-      }
       if (!finalFile.buffer?.length || finalFile.size > 8 * 1024 * 1024) {
         throw new BadRequestException('Fotoğraf boyutu en fazla 8 MB olabilir.');
+      }
+      const detected = this.detectImageType(finalFile.buffer);
+      const ext = detected ? extensions[detected] : null;
+      if (!detected || !ext) {
+        throw new BadRequestException(
+          'Dosya gerçek bir JPG, PNG, WEBP veya HEIC görseli değil.',
+        );
       }
       const filename = `${Date.now()}-${randomUUID()}.${ext}`;
       await writeFile(path.join(userDir, filename), finalFile.buffer, { flag: 'wx' });
@@ -69,13 +101,52 @@ export class ProfileService {
     return { ok: true, urls };
   }
 
+  private validateCompletedProfile(userId: string, body: UpdateProfileDto) {
+    if (body.profileCompleted !== true) return;
+
+    const requiredStrings: Array<[string | undefined, string]> = [
+      [body.displayName, 'Ad'],
+      [body.birthDate, 'Doğum tarihi'],
+      [body.gender, 'Cinsiyet'],
+      [body.bio, 'Bio'],
+      [body.city, 'Şehir'],
+      [body.country, 'Ülke'],
+      [body.profilePrompt, 'Profil sorusu'],
+      [body.profileAnswer, 'Profil cevabı'],
+    ];
+    for (const [value, label] of requiredStrings) {
+      if (!value?.trim()) throw new BadRequestException(`${label} zorunlu.`);
+    }
+    if (body.latitude == null || body.longitude == null) {
+      throw new BadRequestException('Gerçek konum zorunlu.');
+    }
+    if (!body.interests?.length) {
+      throw new BadRequestException('En az 1 ilgi alanı zorunlu.');
+    }
+    if (!body.photoUrls || body.photoUrls.length < 3 || body.photoUrls.length > 4) {
+      throw new BadRequestException('Profili tamamlamak için 3 veya 4 fotoğraf gerekli.');
+    }
+    const ownPrefix = `/uploads/profile/${userId}/`;
+    if (body.photoUrls.some((url) => !url.startsWith(ownPrefix))) {
+      throw new BadRequestException('Profil fotoğrafları kendi Meet6 yüklemelerin olmalı.');
+    }
+
+    const birth = new Date(body.birthDate!);
+    if (Number.isNaN(birth.getTime())) {
+      throw new BadRequestException('Doğum tarihi geçersiz.');
+    }
+    const now = new Date();
+    let age = now.getUTCFullYear() - birth.getUTCFullYear();
+    const monthDiff = now.getUTCMonth() - birth.getUTCMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && now.getUTCDate() < birth.getUTCDate())) age--;
+    if (age < 18) throw new BadRequestException('Meet6 yalnızca 18 yaş ve üzeri kullanıcılar içindir.');
+  }
+
   async updateProfile(userId: string, body: UpdateProfileDto) {
     if (body.photoUrls != null && body.photoUrls.length > 4) {
       throw new BadRequestException('En fazla 4 profil fotoğrafı olabilir.');
     }
-    if (body.profileCompleted === true && (!body.photoUrls || body.photoUrls.length < 3)) {
-      throw new BadRequestException('Profili tamamlamak için en az 3 fotoğraf gerekli.');
-    }
+    this.validateCompletedProfile(userId, body);
 
     await this.infra.db.query(
       `insert into profiles(
