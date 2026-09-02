@@ -67,12 +67,6 @@ function acceptedHelperGender(lookingFor, index) {
   return index % 2 === 0 ? 'Kadın' : 'Erkek';
 }
 
-function helperLookingFor(targetGender) {
-  if (targetGender === 'Kadın') return 'Kadınlar';
-  if (targetGender === 'Erkek') return 'Erkekler';
-  return 'Herkes';
-}
-
 async function clearHelperUsers() {
   const phones = helpers.map((u) => u.phone);
   const existing = await pool.query(
@@ -111,7 +105,8 @@ async function createHelper(helper, index, target) {
   if (!uploadResponse.ok) throw new Error(`Photo upload failed for ${helper.name}: ${upload.message ?? JSON.stringify(upload)}`);
 
   const gender = acceptedHelperGender(target.looking_for, index);
-  const year = Math.max(1965, Math.min(2005, new Date().getUTCFullYear() - Math.max(22, target.min_age + 2)));
+  const desiredAge = Math.max(Number(target.min_age), Math.min(Number(target.max_age), Math.max(22, Number(target.min_age) + 2)));
+  const year = new Date().getUTCFullYear() - desiredAge;
   const birthDate = `${year}-0${(index % 8) + 1}-1${index}`;
 
   await jsonRequest('PUT', '/me/profile', {
@@ -136,7 +131,7 @@ async function createHelper(helper, index, target) {
   await jsonRequest('PUT', '/me/preferences', {
     sessionId: helper.sessionId,
     body: {
-      lookingFor: helperLookingFor(target.gender),
+      lookingFor: 'Herkes',
       minAge: 18,
       maxAge: 65,
       distanceKm: 500,
