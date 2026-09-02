@@ -1,18 +1,17 @@
 import 'package:flutter/material.dart';
 
+import '../../../services/api_service.dart';
 import '../../../theme/app_colors.dart';
 
 class ProfileHero extends StatelessWidget {
   const ProfileHero({
     super.key,
     required this.name,
-    this.age = 28,
-    this.city = 'İstanbul',
+    this.imageUrl = '',
   });
 
   final String name;
-  final int age;
-  final String city;
+  final String imageUrl;
 
   String get initial {
     final value = name.trim();
@@ -21,6 +20,8 @@ class ProfileHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final resolvedImage = ApiService.absoluteMediaUrl(imageUrl);
+
     return Stack(
       clipBehavior: Clip.none,
       alignment: Alignment.bottomCenter,
@@ -83,20 +84,14 @@ class ProfileHero extends StatelessWidget {
                   color: Colors.white,
                   shape: BoxShape.circle,
                 ),
-                child: Container(
-                  decoration: const BoxDecoration(
-                    color: AppColors.navy,
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    initial,
-                    style: const TextStyle(
-                      color: AppColors.lime,
-                      fontSize: 42,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
+                child: ClipOval(
+                  child: resolvedImage.isNotEmpty
+                      ? Image.network(
+                          resolvedImage,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _Fallback(initial: initial),
+                        )
+                      : _Fallback(initial: initial),
                 ),
               ),
               Positioned(
@@ -116,6 +111,28 @@ class ProfileHero extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _Fallback extends StatelessWidget {
+  const _Fallback({required this.initial});
+
+  final String initial;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColors.navy,
+      alignment: Alignment.center,
+      child: Text(
+        initial,
+        style: const TextStyle(
+          color: AppColors.lime,
+          fontSize: 42,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
     );
   }
 }
