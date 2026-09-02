@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../services/api_service.dart';
 import '../../services/session_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/theme_controller.dart';
@@ -23,6 +24,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool showOnline = true;
   bool preciseLocation = false;
   bool vibration = true;
+  bool accountActionRunning = false;
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +43,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 child: Row(
                   children: [
                     IconButton(
-                      onPressed: () => Navigator.of(context).pop(),
+                      onPressed: accountActionRunning
+                          ? null
+                          : () => Navigator.of(context).pop(),
                       style: IconButton.styleFrom(backgroundColor: scheme.surface),
                       icon: Icon(
                         Icons.arrow_back_rounded,
@@ -59,6 +63,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                       ),
                     ),
+                    if (accountActionRunning)
+                      SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.2,
+                          color: scheme.primary,
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -201,13 +214,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           icon: Icons.logout_rounded,
                           title: 'Çıkış yap',
                           danger: true,
-                          onTap: _showLogoutConfirm,
+                          onTap: accountActionRunning
+                              ? () {}
+                              : _showLogoutConfirm,
                         ),
                         _LinkTile(
                           icon: Icons.delete_outline_rounded,
                           title: 'Hesabımı sil',
                           danger: true,
-                          onTap: _showDeleteConfirm,
+                          onTap: accountActionRunning
+                              ? () {}
+                              : _showDeleteConfirm,
                           last: true,
                         ),
                       ],
@@ -237,35 +254,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final approved = await _showConfirmSheet(
       icon: Icons.logout_rounded,
       title: 'Çıkış yapmak istiyor musun?',
-      description: 'Çıkış yaptığında giriş ekranına dönersin.',
+      description:
+          'Bu cihazdaki Meet6 oturumun sunucuda kapatılacak ve giriş ekranına döneceksin.',
       confirmLabel: 'Çıkış yap',
     );
 
-    if (approved == true && mounted) {
+    if (approved != true || !mounted) return;
+    setState(() => accountActionRunning = true);
+    await ApiService.logout();
+    await SessionService.clear();
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
+    );
+  }
+
+  Future<void> _showDeleteConfirm() async {
+    final approved = await _showConfirmSheet(
+      icon: Icons.warning_amber_rounded,
+      title: 'Hesabını kalıcı olarak sil?',
+      description:
+          'Profilin, fotoğrafların, eşleşmelerin ve mesajların sunucudan kalıcı olarak silinir. Bu işlem geri alınamaz.',
+      confirmLabel: 'Hesabı kalıcı sil',
+    );
+
+    if (approved != true || !mounted) return;
+    setState(() => accountActionRunning = true);
+    try {
+      await ApiService.deleteAccount();
       await SessionService.clear();
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const LoginScreen()),
         (route) => false,
       );
-    }
-  }
-
-  Future<void> _showDeleteConfirm() async {
-    final approved = await _showConfirmSheet(
-      icon: Icons.warning_amber_rounded,
-      title: 'Hesabını silmek istiyor musun?',
-      description:
-          'Gerçek hesap backend’i henüz bağlı olmadığı için bu işlem prototip verilerini temizler ve giriş ekranına döner.',
-      confirmLabel: 'Prototip hesabı sil',
-    );
-
-    if (approved == true && mounted) {
-      await SessionService.clear();
+    } on ApiException catch (error) {
       if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-        (route) => false,
+      setState(() => accountActionRunning = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => accountActionRunning = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Hesap silinemedi. Bağlantını kontrol edip tekrar dene.'),
+        ),
       );
     }
   }
