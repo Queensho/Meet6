@@ -52,7 +52,7 @@ class _RoomForceSelectionButtonState extends State<RoomForceSelectionButton> {
         backgroundColor: scheme.surface,
         title: const Text('Sohbeti bitir?'),
         content: const Text(
-          'Oda tüm kullanıcılar için hemen kapanacak ve 25 saniyelik gizli seçim başlayacak.',
+          'Oda tüm kullanıcılar için hemen kapanacak ve 10 saniyelik gizli seçim başlayacak.',
         ),
         actions: [
           TextButton(
