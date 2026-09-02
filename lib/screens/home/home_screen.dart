@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../models/matching_preferences.dart';
+import '../../services/push_notification_service.dart';
+import '../../services/realtime_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/main_bottom_nav.dart';
 import '../matches/matches_screen.dart';
@@ -56,6 +60,15 @@ class _HomeScreenState extends State<HomeScreen> {
       country: widget.country,
       latitude: widget.latitude,
       longitude: widget.longitude,
+    );
+    _startAuthenticatedServices();
+  }
+
+  void _startAuthenticatedServices() {
+    unawaited(RealtimeService.connect().catchError((_) {}));
+    unawaited(
+      PushNotificationService.initializeForAuthenticatedUser()
+          .catchError((_) {}),
     );
   }
 
@@ -119,244 +132,211 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.lime,
-      body: LayoutBuilder(
-        builder: (context, viewport) {
-          final desktop = viewport.maxWidth > 520;
-          final width = desktop ? 390.0 : viewport.maxWidth;
-          final height = desktop ? 844.0 : viewport.maxHeight;
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            final horizontal = (width * .055).clamp(18.0, 24.0);
 
-          return Container(
-            color: desktop ? const Color(0xFFEFF1F7) : AppColors.lime,
-            alignment: Alignment.center,
-            child: Container(
-              width: width,
-              height: height,
-              clipBehavior: Clip.antiAlias,
-              decoration: BoxDecoration(
-                color: AppColors.lime,
-                borderRadius:
-                    desktop ? BorderRadius.circular(32) : BorderRadius.zero,
-                boxShadow: desktop
-                    ? const [
-                        BoxShadow(
-                          color: Color(0x22000000),
-                          blurRadius: 28,
-                          offset: Offset(0, 14),
-                        ),
-                      ]
-                    : null,
-              ),
+            return Padding(
+              padding: EdgeInsets.fromLTRB(horizontal, 12, horizontal, 0),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: SafeArea(
-                      bottom: false,
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(22, 16, 22, 8),
-                        child: Column(
+                  Row(
+                    children: [
+                      Text.rich(
+                        const TextSpan(
+                          style: TextStyle(
+                            fontSize: 31,
+                            height: 1,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -1.8,
+                          ),
                           children: [
-                            Row(
-                              children: [
-                                const Expanded(
-                                  child: Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: Text.rich(
-                                      TextSpan(
-                                        style: TextStyle(
-                                          fontSize: 34,
-                                          height: 1,
-                                          fontWeight: FontWeight.w900,
-                                          letterSpacing: -2,
-                                        ),
-                                        children: [
-                                          TextSpan(
-                                            text: 'meet',
-                                            style: TextStyle(color: AppColors.navy),
-                                          ),
-                                          TextSpan(
-                                            text: '6',
-                                            style: TextStyle(color: AppColors.blue),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                _TopIcon(
-                                  icon: Icons.tune_rounded,
-                                  onTap: _openPreferences,
-                                ),
-                                const SizedBox(width: 8),
-                                _TopIcon(
-                                  icon: Icons.notifications_none_rounded,
-                                  showDot: true,
-                                  onTap: () {},
-                                ),
-                              ],
+                            TextSpan(
+                              text: 'meet',
+                              style: TextStyle(color: AppColors.navy),
                             ),
-                            const SizedBox(height: 4),
-                            Expanded(
-                              flex: 7,
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 2),
-                                child: RoomRadar(onTap: _enterRoom),
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            const Text(
-                              '6 kişi. 15 dk.\nGerçek sohbet.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: AppColors.navy,
-                                fontSize: 34,
-                                height: .98,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: -1.5,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            const Text(
-                              'Yakınındaki kişilerle sohbet et.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: AppColors.navy,
-                                fontSize: 13.2,
-                                height: 1.25,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            InkWell(
-                              onTap: _enterRoom,
-                              borderRadius: BorderRadius.circular(18),
-                              child: Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 11,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(.30),
-                                  borderRadius: BorderRadius.circular(18),
-                                  border: Border.all(
-                                    color: AppColors.navy.withOpacity(.08),
-                                  ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 36,
-                                      height: 36,
-                                      decoration: const BoxDecoration(
-                                        color: AppColors.navy,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: const Icon(
-                                        Icons.touch_app_rounded,
-                                        color: AppColors.lime,
-                                        size: 19,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    const Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'Odaya girmek için 6’ya dokun',
-                                            style: TextStyle(
-                                              color: AppColors.navy,
-                                              fontSize: 12.5,
-                                              fontWeight: FontWeight.w900,
-                                            ),
-                                          ),
-                                          SizedBox(height: 2),
-                                          Text(
-                                            'Kuralları kabul et, uygun oda bulunsun.',
-                                            style: TextStyle(
-                                              color: AppColors.navy,
-                                              fontSize: 10.5,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    const Icon(
-                                      Icons.arrow_forward_rounded,
-                                      color: AppColors.navy,
-                                      size: 20,
-                                    ),
-                                  ],
-                                ),
-                              ),
+                            TextSpan(
+                              text: '6',
+                              style: TextStyle(color: AppColors.blue),
                             ),
                           ],
                         ),
                       ),
+                      const Spacer(),
+                      _TopButton(
+                        icon: Icons.tune_rounded,
+                        onTap: _openPreferences,
+                      ),
+                      const SizedBox(width: 9),
+                      const _TopButton(icon: Icons.notifications_none_rounded),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  Expanded(
+                    flex: 6,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: RoomRadar(onTap: _enterRoom),
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    '6 kişi. 15 dk.\nGerçek sohbet.',
+                    style: TextStyle(
+                      color: AppColors.navy,
+                      fontSize: 34,
+                      height: .98,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -1.3,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Yakınındaki kişilerle sohbet et.',
+                    style: TextStyle(
+                      color: AppColors.navy,
+                      fontSize: 15,
+                      height: 1.25,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  GestureDetector(
+                    onTap: _openPreferences,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: .42),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: AppColors.navy.withValues(alpha: .12),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.radar_rounded,
+                            size: 17,
+                            color: AppColors.navy,
+                          ),
+                          const SizedBox(width: 7),
+                          Text(
+                            preferences.distanceLabel,
+                            style: const TextStyle(
+                              color: AppColors.navy,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          const Icon(
+                            Icons.tune_rounded,
+                            size: 15,
+                            color: AppColors.navy,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  GestureDetector(
+                    onTap: _enterRoom,
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: .42),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: AppColors.navy.withValues(alpha: .12),
+                        ),
+                      ),
+                      child: const Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 18,
+                            backgroundColor: AppColors.navy,
+                            child: Icon(
+                              Icons.touch_app_rounded,
+                              size: 19,
+                              color: AppColors.lime,
+                            ),
+                          ),
+                          SizedBox(width: 11),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Odaya girmek için 6’ya dokun',
+                                  style: TextStyle(
+                                    color: AppColors.navy,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'Sana uygun 5 kişiyle sohbet başlar.',
+                                  style: TextStyle(
+                                    color: AppColors.navy,
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            Icons.arrow_forward_rounded,
+                            color: AppColors.navy,
+                            size: 20,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
                   MainBottomNav(
                     selectedIndex: 0,
-                    unreadMessages: 2,
-                    onTap: (index) {
-                      if (index == 1) _openMatches();
-                      if (index == 2) _openMessages();
-                      if (index == 3) _openProfile();
-                    },
+                    onHomeTap: () {},
+                    onMatchesTap: _openMatches,
+                    onMessagesTap: _openMessages,
+                    onProfileTap: _openProfile,
                   ),
                 ],
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
 }
 
-class _TopIcon extends StatelessWidget {
-  const _TopIcon({
-    required this.icon,
-    required this.onTap,
-    this.showDot = false,
-  });
+class _TopButton extends StatelessWidget {
+  const _TopButton({required this.icon, this.onTap});
 
   final IconData icon;
-  final VoidCallback onTap;
-  final bool showDot;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(999),
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(.38),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: AppColors.navy, size: 24),
-          ),
-          if (showDot)
-            Positioned(
-              top: 4,
-              right: 4,
-              child: Container(
-                width: 9,
-                height: 9,
-                decoration: const BoxDecoration(
-                  color: AppColors.blue,
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-        ],
+    return Material(
+      color: Colors.white.withValues(alpha: .42),
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: SizedBox(
+          width: 42,
+          height: 42,
+          child: Icon(icon, color: AppColors.navy, size: 22),
+        ),
       ),
     );
   }
