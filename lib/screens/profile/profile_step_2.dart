@@ -115,7 +115,9 @@ class ProfileStepTwo extends StatelessWidget {
                 : Colors.white.withOpacity(.86),
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color: hasLocation ? AppColors.navy.withOpacity(.18) : AppColors.border,
+              color: hasLocation
+                  ? AppColors.navy.withOpacity(.18)
+                  : AppColors.border,
             ),
           ),
           child: Row(
@@ -223,7 +225,7 @@ class ProfileStepTwo extends StatelessWidget {
             for (final item in const [
               'Ciddi ilişki',
               'Flört',
-              'Yeni insanlar',
+              'Yeni insanlarla tanışma',
               'Akışına bırakıyorum',
             ])
               SelectChip(
