@@ -38,10 +38,14 @@ class _PushTargetScreenState extends State<PushTargetScreen> {
 
       if (type == 'room_found' && roomId.isNotEmpty) {
         await LiveService.room(roomId);
+        final saved = await SessionService.loadProfile();
         if (!mounted) return;
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
-            builder: (_) => RoomChatScreen(roomId: roomId),
+            builder: (_) => RoomChatScreen(
+              roomId: roomId,
+              profileName: saved?.profileName ?? '',
+            ),
           ),
         );
         return;
@@ -62,7 +66,8 @@ class _PushTargetScreenState extends State<PushTargetScreen> {
         return;
       }
 
-      if (type == 'private_message' && matchId.isNotEmpty) {
+      if ((type == 'message' || type == 'private_message') &&
+          matchId.isNotEmpty) {
         final detail = await LiveService.matchDetail(matchId);
         final raw = detail['profile'];
         final profile = raw is Map
