@@ -5,6 +5,7 @@ import '../../theme/app_colors.dart';
 import '../../widgets/main_bottom_nav.dart';
 import '../../widgets/primary_button.dart';
 import '../chat/room_chat_screen.dart';
+import '../matches/matches_screen.dart';
 import '../messages/messages_screen.dart';
 import '../preferences/matching_preferences_screen.dart';
 import '../profile/profile_screen.dart';
@@ -67,6 +68,17 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     if (result == null || !mounted) return;
     setState(() => preferences = result);
+  }
+
+  void _openMatches() {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => MatchesScreen(
+          profileName: widget.profileName,
+          preferences: preferences,
+        ),
+      ),
+    );
   }
 
   void _openMessages() {
@@ -275,8 +287,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     selectedIndex: 0,
                     unreadMessages: 2,
                     onTap: (index) {
-                      if (index == 1) _openMessages();
-                      if (index == 2) _openProfile();
+                      if (index == 1) _openMatches();
+                      if (index == 2) _openMessages();
+                      if (index == 3) _openProfile();
                     },
                   ),
                 ],
