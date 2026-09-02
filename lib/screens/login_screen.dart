@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
+import '../services/realtime_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/brand.dart';
@@ -28,6 +29,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
+    RealtimeService.disconnect();
     SessionService.clear();
   }
 
