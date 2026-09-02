@@ -24,6 +24,7 @@ export class RoomController {
       const roomId = (result.room as Record<string, any>).id?.toString();
       if (roomId) await this.realtime.broadcastRoomUpdate(roomId);
     }
+    await this.realtime.broadcastQueueStatus();
     return result;
   }
 
@@ -34,7 +35,9 @@ export class RoomController {
 
   @Delete('queue')
   async cancelQueue(@Headers('authorization') authorization?: string) {
-    return this.rooms.cancelQueue(await this.userId(authorization));
+    const result = await this.rooms.cancelQueue(await this.userId(authorization));
+    await this.realtime.broadcastQueueStatus();
+    return result;
   }
 
   @Get(':roomId')
