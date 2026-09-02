@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../services/api_service.dart';
-import '../../services/live_service.dart';
+import '../../services/realtime_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/phone_frame.dart';
 import '../chat/room_chat_screen.dart';
@@ -20,9 +20,11 @@ class RoomSearchingScreen extends StatefulWidget {
 class _RoomSearchingScreenState extends State<RoomSearchingScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController pulse;
-  Timer? pollTimer;
+  StreamSubscription<RealtimeEvent>? realtimeSub;
   bool leavingForRoom = false;
   bool loading = true;
+  bool firstConnectionSeen = false;
+  bool joining = false;
   String? error;
   int queueTotal = 0;
   int queuePosition = 0;
@@ -34,15 +36,16 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1800),
     )..repeat(reverse: true);
-    _join();
+    _startRealtime();
   }
 
-  Future<void> _join() async {
+  Future<void> _startRealtime() async {
+    await realtimeSub?.cancel();
+    realtimeSub = RealtimeService.events.listen(_onRealtimeEvent);
     try {
-      final data = await LiveService.joinRoomQueue();
+      await RealtimeService.connect();
       if (!mounted) return;
-      await _handleStatus(data);
-      pollTimer ??= Timer.periodic(const Duration(seconds: 2), (_) => _poll());
+      await _joinQueue();
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -58,14 +61,40 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
     }
   }
 
-  Future<void> _poll() async {
+  void _onRealtimeEvent(RealtimeEvent event) {
     if (!mounted || leavingForRoom) return;
+    if (event.type == 'connection:connected') {
+      if (firstConnectionSeen) {
+        unawaited(_joinQueue());
+      } else {
+        firstConnectionSeen = true;
+      }
+      return;
+    }
+    if (event.type == 'connection:disconnected') {
+      setState(() => error = 'Bağlantı yenileniyor...');
+      return;
+    }
+    if (event.type == 'queue:status' || event.type == 'queue:matched') {
+      unawaited(_handleStatus(event.data));
+    }
+  }
+
+  Future<void> _joinQueue() async {
+    if (joining || leavingForRoom) return;
+    joining = true;
     try {
-      final data = await LiveService.roomQueueStatus();
+      final data = await RealtimeService.joinQueue();
       if (!mounted) return;
       await _handleStatus(data);
-    } catch (_) {
-      // Kısa bağlantı kopmalarında kullanıcıyı kuyruktan çıkarmıyoruz.
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        error = e.message;
+      });
+    } finally {
+      joining = false;
     }
   }
 
@@ -78,15 +107,15 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
       final roomId = room['id']?.toString() ?? '';
       if (roomId.isEmpty || leavingForRoom) return;
       leavingForRoom = true;
-      pollTimer?.cancel();
       if (mounted) {
         setState(() {
           loading = false;
+          error = null;
           queueTotal = 6;
           queuePosition = 1;
         });
       }
-      await Future<void>.delayed(const Duration(milliseconds: 550));
+      await Future<void>.delayed(const Duration(milliseconds: 350));
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
@@ -99,6 +128,7 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
       return;
     }
 
+    if (!mounted) return;
     setState(() {
       loading = false;
       error = null;
@@ -108,19 +138,18 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
   }
 
   Future<void> _cancel() async {
-    pollTimer?.cancel();
     try {
-      await LiveService.cancelRoomQueue();
+      await RealtimeService.cancelQueue();
     } catch (_) {}
     if (mounted) Navigator.of(context).pop();
   }
 
   @override
   void dispose() {
-    pollTimer?.cancel();
+    realtimeSub?.cancel();
     pulse.dispose();
     if (!leavingForRoom) {
-      unawaited(LiveService.cancelRoomQueue().catchError((_) {}));
+      unawaited(RealtimeService.cancelQueue().catchError((_) => <String, dynamic>{}));
     }
     super.dispose();
   }
@@ -237,7 +266,7 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                   ),
                   const SizedBox(height: 28),
                   Text(
-                    error != null
+                    error != null && error != 'Bağlantı yenileniyor...'
                         ? 'Bağlantı sorunu'
                         : leavingForRoom
                             ? 'Uygun oda bulundu!'
@@ -267,14 +296,14 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                     ),
                   ),
                   const SizedBox(height: 22),
-                  if (error != null)
+                  if (error != null && error != 'Bağlantı yenileniyor...')
                     FilledButton.icon(
                       onPressed: () {
                         setState(() {
                           loading = true;
                           error = null;
                         });
-                        _join();
+                        _startRealtime();
                       },
                       style: FilledButton.styleFrom(
                         backgroundColor: AppColors.navy,
@@ -310,7 +339,7 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                             child: Text(
                               leavingForRoom
                                   ? 'Oda sunucuda oluşturuldu.'
-                                  : 'Yaş, tercih, mesafe ve engel filtreleri uygulanıyor.',
+                                  : 'Canlı bağlantı açık. Yaş, tercih, mesafe ve engel filtreleri uygulanıyor.',
                               style: TextStyle(
                                 color: scheme.onSurface,
                                 fontSize: 12,
