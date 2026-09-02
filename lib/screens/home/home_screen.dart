@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/primary_button.dart';
 import '../chat/room_chat_screen.dart';
+import '../profile/profile_screen.dart';
 import 'widgets/room_radar.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -81,7 +82,15 @@ class HomeScreen extends StatelessWidget {
                           const SizedBox(width: 10),
                           _TopIcon(
                             icon: Icons.person_rounded,
-                            onTap: () {},
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => ProfileScreen(
+                                    profileName: profileName,
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                         ],
                       ),
