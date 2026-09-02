@@ -17,6 +17,7 @@ alter table notifications
   add column if not exists push_claimed_at timestamptz,
   add column if not exists push_processed_at timestamptz,
   add column if not exists push_sent_at timestamptz,
+  add column if not exists push_attempts integer not null default 0,
   add column if not exists push_error varchar(500);
 
 create index if not exists notifications_push_outbox_idx
