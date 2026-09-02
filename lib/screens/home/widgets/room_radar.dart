@@ -50,7 +50,7 @@ class _RoomRadarState extends State<RoomRadar>
       child: LayoutBuilder(
         builder: (context, constraints) {
           final size = math.min(constraints.maxWidth, constraints.maxHeight);
-          final avatarSize = (size * .14).clamp(42.0, 56.0);
+          final avatarSize = (size * .14).clamp(42.0, 56.0).toDouble();
           final orbitRadius = size * .365;
           final center = size / 2;
 
@@ -86,42 +86,38 @@ class _RoomRadarState extends State<RoomRadar>
                       child: InkWell(
                         onTap: widget.onTap,
                         customBorder: const CircleBorder(),
-                        child: AnimatedScale(
-                          duration: const Duration(milliseconds: 180),
-                          scale: 1,
-                          child: Container(
-                            width: size * .39,
-                            height: size * .39,
-                            decoration: BoxDecoration(
-                              color: AppColors.lime,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: AppColors.navy,
-                                width: 3,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.white.withOpacity(.68),
-                                  blurRadius: 22,
-                                  spreadRadius: 5,
-                                ),
-                                BoxShadow(
-                                  color: AppColors.blue.withOpacity(.18),
-                                  blurRadius: 34,
-                                  spreadRadius: 10,
-                                ),
-                              ],
+                        child: Container(
+                          width: size * .39,
+                          height: size * .39,
+                          decoration: BoxDecoration(
+                            color: AppColors.lime,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: AppColors.navy,
+                              width: 3,
                             ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              '6',
-                              style: TextStyle(
-                                color: AppColors.navy,
-                                fontSize: size * .22,
-                                height: .9,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: -6,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.white.withOpacity(.68),
+                                blurRadius: 22,
+                                spreadRadius: 5,
                               ),
+                              BoxShadow(
+                                color: AppColors.blue.withOpacity(.18),
+                                blurRadius: 34,
+                                spreadRadius: 10,
+                              ),
+                            ],
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            '6',
+                            style: TextStyle(
+                              color: AppColors.navy,
+                              fontSize: size * .22,
+                              height: .9,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -6,
                             ),
                           ),
                         ),
@@ -188,35 +184,38 @@ class _RoomRadarState extends State<RoomRadar>
       top: top,
       width: avatarSize,
       height: avatarSize,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: AppColors.navy.withOpacity(.16),
-            width: 1.5,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.navy.withOpacity(.14),
-              blurRadius: 12,
-              offset: const Offset(0, 5),
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.all(3),
+      child: Tooltip(
+        message: profile.name,
         child: Container(
-          decoration: const BoxDecoration(
-            color: AppColors.navy,
+          decoration: BoxDecoration(
+            color: Colors.white,
             shape: BoxShape.circle,
+            border: Border.all(
+              color: AppColors.navy.withOpacity(.16),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.navy.withOpacity(.14),
+                blurRadius: 12,
+                offset: const Offset(0, 5),
+              ),
+            ],
           ),
-          alignment: Alignment.center,
-          child: Text(
-            profile.initial,
-            style: TextStyle(
-              color: AppColors.lime,
-              fontSize: avatarSize * .38,
-              fontWeight: FontWeight.w900,
+          padding: const EdgeInsets.all(3),
+          child: Container(
+            decoration: const BoxDecoration(
+              color: AppColors.navy,
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              profile.initial,
+              style: TextStyle(
+                color: AppColors.lime,
+                fontSize: avatarSize * .38,
+                fontWeight: FontWeight.w900,
+              ),
             ),
           ),
         ),
