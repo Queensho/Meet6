@@ -3,12 +3,14 @@ import { Body, Controller, Delete, Get, Headers, Param, Post, Put, Query } from 
 import { AuthService } from './auth.service';
 import { ExtensionVoteDto, RoomSelectionDto, SendRoomMessageDto } from './room.dto';
 import { RoomService } from './room.service';
+import { RoomsGateway } from './rooms.gateway';
 
 @Controller('rooms')
 export class RoomController {
   constructor(
     private readonly auth: AuthService,
     private readonly rooms: RoomService,
+    private readonly realtime: RoomsGateway,
   ) {}
 
   private async userId(authorization?: string) {
@@ -17,7 +19,12 @@ export class RoomController {
 
   @Post('queue')
   async joinQueue(@Headers('authorization') authorization?: string) {
-    return this.rooms.joinQueue(await this.userId(authorization));
+    const result = await this.rooms.joinQueue(await this.userId(authorization)) as Record<string, any>;
+    if (result.state === 'room' && result.room) {
+      const roomId = (result.room as Record<string, any>).id?.toString();
+      if (roomId) await this.realtime.broadcastRoomUpdate(roomId);
+    }
+    return result;
   }
 
   @Get('queue')
@@ -66,7 +73,9 @@ export class RoomController {
     @Param('roomId') roomId: string,
     @Body() body: ExtensionVoteDto,
   ) {
-    return this.rooms.voteExtension(await this.userId(authorization), roomId, body.vote);
+    const result = await this.rooms.voteExtension(await this.userId(authorization), roomId, body.vote);
+    await this.realtime.broadcastRoomUpdate(roomId);
+    return result;
   }
 
   @Put(':roomId/selection')
