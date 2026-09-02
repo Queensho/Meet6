@@ -7,6 +7,7 @@ import '../../services/live_service.dart';
 import '../../services/session_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/phone_frame.dart';
+import 'room_force_selection_button.dart';
 import 'room_selection_screen.dart';
 
 class RoomChatScreen extends StatefulWidget {
@@ -286,6 +287,10 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
                           ),
                         ],
                       ),
+                    ),
+                    RoomForceSelectionButton(
+                      roomId: widget.roomId,
+                      profileName: widget.profileName,
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
