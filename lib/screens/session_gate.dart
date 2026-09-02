@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
+import '../services/push_notification_service.dart';
 import '../services/realtime_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_colors.dart';
@@ -25,12 +26,25 @@ class _SessionGateState extends State<SessionGate> {
     _screenFuture = _resolveScreen();
   }
 
+  void _startAuthenticatedServices() {
+    unawaited(RealtimeService.connect().catchError((_) {}));
+    unawaited(
+      PushNotificationService.initializeForAuthenticatedUser()
+          .catchError((_) {}),
+    );
+  }
+
+  Future<void> _stopAuthenticatedServices() async {
+    RealtimeService.disconnect();
+    await PushNotificationService.resetRuntimeState();
+  }
+
   Future<Widget> _resolveScreen() async {
     final authSession = await SessionService.loadAuthSessionId();
     final local = await SessionService.loadProfile();
 
     if (authSession == null) {
-      RealtimeService.disconnect();
+      await _stopAuthenticatedServices();
       if (local != null) await SessionService.clearProfile();
       return const LoginScreen();
     }
@@ -39,7 +53,7 @@ class _SessionGateState extends State<SessionGate> {
       final response = await ApiService.getMe(sessionId: authSession);
       final raw = response['user'];
       if (raw is! Map) {
-        RealtimeService.disconnect();
+        await _stopAuthenticatedServices();
         await SessionService.clear();
         return const LoginScreen();
       }
@@ -49,29 +63,29 @@ class _SessionGateState extends State<SessionGate> {
       final name = user['display_name']?.toString().trim() ?? '';
 
       if (!completed || name.isEmpty) {
-        RealtimeService.disconnect();
+        await _stopAuthenticatedServices();
         await SessionService.clear();
         return const LoginScreen();
       }
 
       final saved = _savedSessionFromUser(user);
       await _cache(saved);
-      unawaited(RealtimeService.connect().catchError((_) {}));
+      _startAuthenticatedServices();
       return _home(saved);
     } on ApiException catch (error) {
       if (error.statusCode == 401) {
-        RealtimeService.disconnect();
+        await _stopAuthenticatedServices();
         await SessionService.clear();
         return const LoginScreen();
       }
       if (local != null) {
-        unawaited(RealtimeService.connect().catchError((_) {}));
+        _startAuthenticatedServices();
         return _home(local);
       }
       return const LoginScreen();
     } catch (_) {
       if (local != null) {
-        unawaited(RealtimeService.connect().catchError((_) {}));
+        _startAuthenticatedServices();
         return _home(local);
       }
       return const LoginScreen();
