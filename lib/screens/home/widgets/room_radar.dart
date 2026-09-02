@@ -5,7 +5,12 @@ import 'package:flutter/material.dart';
 import '../../../theme/app_colors.dart';
 
 class RoomRadar extends StatefulWidget {
-  const RoomRadar({super.key});
+  const RoomRadar({
+    super.key,
+    required this.onTap,
+  });
+
+  final VoidCallback onTap;
 
   @override
   State<RoomRadar> createState() => _RoomRadarState();
@@ -15,12 +20,20 @@ class _RoomRadarState extends State<RoomRadar>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
+  static const _profiles = [
+    _OrbitProfile('E', 'Ece'),
+    _OrbitProfile('S', 'Selin'),
+    _OrbitProfile('D', 'Deniz'),
+    _OrbitProfile('B', 'Bora'),
+    _OrbitProfile('M', 'Mert'),
+  ];
+
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2200),
+      duration: const Duration(seconds: 12),
     )..repeat();
   }
 
@@ -34,53 +47,189 @@ class _RoomRadarState extends State<RoomRadar>
   Widget build(BuildContext context) {
     return AspectRatio(
       aspectRatio: 1,
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, child) {
-          return Stack(
-            alignment: Alignment.center,
-            children: [
-              Positioned.fill(
-                child: CustomPaint(
-                  painter: _RadarPainter(progress: _controller.value),
-                ),
-              ),
-              Container(
-                width: 154,
-                height: 154,
-                decoration: BoxDecoration(
-                  color: AppColors.lime,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: AppColors.navy.withOpacity(.82),
-                    width: 2,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.navy.withOpacity(.10),
-                      blurRadius: 30,
-                      spreadRadius: 8,
-                    ),
-                  ],
-                ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final size = math.min(constraints.maxWidth, constraints.maxHeight);
+          final avatarSize = (size * .14).clamp(42.0, 56.0);
+          final orbitRadius = size * .365;
+          final center = size / 2;
+
+          return AnimatedBuilder(
+            animation: _controller,
+            builder: (context, child) {
+              final orbitAngle = _controller.value * math.pi * 2;
+              final pulseProgress = (_controller.value * 4) % 1.0;
+
+              return Stack(
                 alignment: Alignment.center,
-                child: const Text(
-                  '6',
-                  style: TextStyle(
-                    color: AppColors.navy,
-                    fontSize: 88,
-                    height: .9,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -6,
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned.fill(
+                    child: CustomPaint(
+                      painter: _RadarPainter(progress: pulseProgress),
+                    ),
                   ),
-                ),
-              ),
-            ],
+                  for (var index = 0; index < _profiles.length; index++)
+                    _buildOrbitProfile(
+                      profile: _profiles[index],
+                      index: index,
+                      orbitAngle: orbitAngle,
+                      center: center,
+                      radius: orbitRadius,
+                      avatarSize: avatarSize,
+                    ),
+                  Semantics(
+                    button: true,
+                    label: 'Odaya gir',
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: widget.onTap,
+                        customBorder: const CircleBorder(),
+                        child: AnimatedScale(
+                          duration: const Duration(milliseconds: 180),
+                          scale: 1,
+                          child: Container(
+                            width: size * .39,
+                            height: size * .39,
+                            decoration: BoxDecoration(
+                              color: AppColors.lime,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: AppColors.navy,
+                                width: 3,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.white.withOpacity(.68),
+                                  blurRadius: 22,
+                                  spreadRadius: 5,
+                                ),
+                                BoxShadow(
+                                  color: AppColors.blue.withOpacity(.18),
+                                  blurRadius: 34,
+                                  spreadRadius: 10,
+                                ),
+                              ],
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              '6',
+                              style: TextStyle(
+                                color: AppColors.navy,
+                                fontSize: size * .22,
+                                height: .9,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -6,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: size * .09,
+                    child: IgnorePointer(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.navy.withOpacity(.88),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.touch_app_rounded,
+                              color: AppColors.lime,
+                              size: 14,
+                            ),
+                            SizedBox(width: 5),
+                            Text(
+                              '6’ya dokun',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
           );
         },
       ),
     );
   }
+
+  Widget _buildOrbitProfile({
+    required _OrbitProfile profile,
+    required int index,
+    required double orbitAngle,
+    required double center,
+    required double radius,
+    required double avatarSize,
+  }) {
+    final angle = orbitAngle + (math.pi * 2 / _profiles.length) * index;
+    final left = center + math.cos(angle) * radius - avatarSize / 2;
+    final top = center + math.sin(angle) * radius - avatarSize / 2;
+
+    return Positioned(
+      left: left,
+      top: top,
+      width: avatarSize,
+      height: avatarSize,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: AppColors.navy.withOpacity(.16),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.navy.withOpacity(.14),
+              blurRadius: 12,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(3),
+        child: Container(
+          decoration: const BoxDecoration(
+            color: AppColors.navy,
+            shape: BoxShape.circle,
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            profile.initial,
+            style: TextStyle(
+              color: AppColors.lime,
+              fontSize: avatarSize * .38,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OrbitProfile {
+  const _OrbitProfile(this.initial, this.name);
+
+  final String initial;
+  final String name;
 }
 
 class _RadarPainter extends CustomPainter {
@@ -94,24 +243,35 @@ class _RadarPainter extends CustomPainter {
     final base = math.min(size.width, size.height);
 
     final fixedPaint = Paint()
-      ..color = AppColors.navy.withOpacity(.13)
+      ..color = AppColors.navy.withOpacity(.20)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.3;
+      ..strokeWidth = 1.65;
 
-    for (final factor in [.30, .44, .58]) {
+    for (final factor in [.27, .39, .51]) {
       canvas.drawCircle(center, base * factor, fixedPaint);
     }
 
-    for (var i = 0; i < 3; i++) {
-      final local = (progress + i / 3) % 1.0;
-      final radius = base * (.22 + local * .42);
-      final opacity = (1 - local) * .20;
+    for (var i = 0; i < 4; i++) {
+      final local = (progress + i / 4) % 1.0;
+      final eased = Curves.easeOutCubic.transform(local);
+      final radius = base * (.19 + eased * .43);
+      final opacity = (1 - local) * .62;
       final pulse = Paint()
         ..color = Colors.white.withOpacity(opacity)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.4 - (local * 1.2);
+        ..strokeWidth = 4.2 - (local * 2.1);
       canvas.drawCircle(center, radius, pulse);
     }
+
+    final bluePulse = Paint()
+      ..color = AppColors.blue.withOpacity((1 - progress) * .22)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.2;
+    canvas.drawCircle(
+      center,
+      base * (.24 + progress * .28),
+      bluePulse,
+    );
   }
 
   @override
