@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../models/matching_preferences.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/main_bottom_nav.dart';
-import '../../widgets/primary_button.dart';
 import '../chat/room_chat_screen.dart';
 import '../matches/matches_screen.dart';
 import '../messages/messages_screen.dart';
@@ -68,6 +67,16 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     if (result == null || !mounted) return;
     setState(() => preferences = result);
+  }
+
+  void _enterRoom() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => RoomChatScreen(
+          profileName: widget.profileName,
+        ),
+      ),
+    );
   }
 
   void _openMatches() {
@@ -145,7 +154,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: SafeArea(
                       bottom: false,
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(22, 16, 22, 10),
+                        padding: const EdgeInsets.fromLTRB(22, 16, 22, 8),
                         child: Column(
                           children: [
                             Row(
@@ -187,40 +196,42 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 8),
-                            const Expanded(
-                              flex: 5,
+                            const SizedBox(height: 4),
+                            Expanded(
+                              flex: 6,
                               child: Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 8),
-                                child: RoomRadar(),
+                                padding: const EdgeInsets.symmetric(horizontal: 2),
+                                child: RoomRadar(onTap: _enterRoom),
                               ),
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 2),
                             const Text(
                               '6 kişi. 15 dk.\nGerçek sohbet.',
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 color: AppColors.navy,
-                                fontSize: 37,
+                                fontSize: 34,
                                 height: .98,
                                 fontWeight: FontWeight.w900,
-                                letterSpacing: -1.7,
+                                letterSpacing: -1.5,
                               ),
                             ),
-                            const SizedBox(height: 10),
+                            const SizedBox(height: 8),
                             Text(
                               widget.profileName.isEmpty
-                                  ? '${preferences.locationLabel} çevresindeki kişilerle\nsohbete hemen başla.'
-                                  : '${widget.profileName}, ${preferences.locationLabel} çevresindeki kişilerle\nsohbete hemen başla.',
+                                  ? '${preferences.locationLabel} çevresindeki kişilerle sohbet et.'
+                                  : '${widget.profileName}, ${preferences.locationLabel} çevresindeki kişilerle sohbet et.',
                               textAlign: TextAlign.center,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
                                 color: AppColors.navy,
-                                fontSize: 14.5,
-                                height: 1.3,
-                                fontWeight: FontWeight.w600,
+                                fontSize: 13.2,
+                                height: 1.25,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 9),
                             InkWell(
                               onTap: _openPreferences,
                               borderRadius: BorderRadius.circular(999),
@@ -263,20 +274,71 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 12),
-                            PrimaryButton(
-                              label: 'Odaya gir',
-                              dark: true,
-                              height: 58,
-                              onPressed: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => RoomChatScreen(
-                                      profileName: widget.profileName,
-                                    ),
+                            const SizedBox(height: 9),
+                            InkWell(
+                              onTap: _enterRoom,
+                              borderRadius: BorderRadius.circular(18),
+                              child: Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 10,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(.30),
+                                  borderRadius: BorderRadius.circular(18),
+                                  border: Border.all(
+                                    color: AppColors.navy.withOpacity(.08),
                                   ),
-                                );
-                              },
+                                ),
+                                child: const Row(
+                                  children: [
+                                    Container(
+                                      width: 36,
+                                      height: 36,
+                                      decoration: BoxDecoration(
+                                        color: AppColors.navy,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Icon(
+                                        Icons.touch_app_rounded,
+                                        color: AppColors.lime,
+                                        size: 19,
+                                      ),
+                                    ),
+                                    SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Odaya girmek için 6’ya dokun',
+                                            style: TextStyle(
+                                              color: AppColors.navy,
+                                              fontSize: 12.5,
+                                              fontWeight: FontWeight.w900,
+                                            ),
+                                          ),
+                                          SizedBox(height: 2),
+                                          Text(
+                                            'Sana uygun 5 kişiyle sohbet başlar.',
+                                            style: TextStyle(
+                                              color: AppColors.navy,
+                                              fontSize: 10.5,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Icon(
+                                      Icons.arrow_forward_rounded,
+                                      color: AppColors.navy,
+                                      size: 20,
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
                           ],
                         ),
