@@ -12,6 +12,8 @@ import { RoomService } from './room.service';
 import { RoomsGateway } from './rooms.gateway';
 import { SocialController } from './social.controller';
 import { SocialService } from './social.service';
+import { SupportController } from './support.controller';
+import { SupportService } from './support.service';
 
 @Module({
   imports: [
@@ -26,6 +28,7 @@ import { SocialService } from './social.service';
     ProfileController,
     RoomController,
     SocialController,
+    SupportController,
   ],
   providers: [
     InfrastructureService,
@@ -33,6 +36,7 @@ import { SocialService } from './social.service';
     ProfileService,
     RoomService,
     SocialService,
+    SupportService,
     RoomsGateway,
   ],
 })
