@@ -146,9 +146,10 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                         animation: _controller,
                         builder: (context, child) {
                           final p = Curves.easeOutCubic.transform(
-                            _controller.value.clamp(0.0, 1.0),
+                            _controller.value.clamp(0.0, 1.0).toDouble(),
                           );
-                          final avatarCount = (p * 5).ceil().clamp(1, 5);
+                          final avatarCount =
+                              (p * 5).ceil().clamp(1, 5).toInt();
 
                           return SizedBox(
                             width: 310,
@@ -294,7 +295,7 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                                   borderRadius: BorderRadius.circular(999),
                                   child: LinearProgressIndicator(
                                     minHeight: 7,
-                                    value: found ? 1 : _controller.value * .90,
+                                    value: found ? 1.0 : _controller.value * .90,
                                     backgroundColor: Colors.white.withOpacity(.12),
                                     valueColor: const AlwaysStoppedAnimation<Color>(
                                       AppColors.lime,
@@ -347,7 +348,7 @@ class _OrbitFoundAvatar extends StatelessWidget {
       Alignment(.68, .78),
     ];
     final pos = positions[index];
-    final radius = 118.0;
+    const radius = 118.0;
 
     return Transform.translate(
       offset: Offset(pos.x * radius, pos.y * radius),
