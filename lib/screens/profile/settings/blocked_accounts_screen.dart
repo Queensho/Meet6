@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../../services/blocked_accounts_service.dart';
+import '../../../services/api_service.dart';
+import '../../../services/live_service.dart';
 import '../../../theme/app_colors.dart';
 import 'widgets/settings_page_shell.dart';
 
@@ -12,190 +13,139 @@ class BlockedAccountsScreen extends StatefulWidget {
 }
 
 class _BlockedAccountsScreenState extends State<BlockedAccountsScreen> {
-  final blocked = <BlockedAccount>[];
+  List<Map<String, dynamic>> blocked = const [];
   bool loading = true;
+  String? error;
 
   @override
   void initState() {
     super.initState();
-    _loadBlocked();
+    _load();
   }
 
-  Future<void> _loadBlocked() async {
-    final saved = await BlockedAccountsService.load();
-    if (!mounted) return;
-    setState(() {
-      blocked
-        ..clear()
-        ..addAll(saved);
-      loading = false;
-    });
+  Future<void> _load() async {
+    try {
+      final data = await LiveService.blocks();
+      if (!mounted) return;
+      setState(() {
+        blocked = data;
+        loading = false;
+        error = null;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        error = e.message;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return SettingsPageShell(
       title: 'Engellenen hesaplar',
       child: loading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.blue),
-            )
-          : blocked.isEmpty
-              ? const _EmptyState()
-              : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 30),
-                  physics: const BouncingScrollPhysics(),
-                  itemCount: blocked.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
-                  itemBuilder: (context, index) {
-                    final user = blocked[index];
-                    return Container(
-                      padding: const EdgeInsets.all(13),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(.92),
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: AppColors.border),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 48,
-                            height: 48,
-                            decoration: const BoxDecoration(
-                              color: AppColors.navy,
-                              shape: BoxShape.circle,
+          ? const Center(child: CircularProgressIndicator(color: AppColors.blue))
+          : error != null
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(error!, style: TextStyle(color: scheme.onSurfaceVariant)),
+                      const SizedBox(height: 12),
+                      FilledButton(onPressed: _load, child: const Text('Tekrar dene')),
+                    ],
+                  ),
+                )
+              : blocked.isEmpty
+                  ? const _EmptyState()
+                  : RefreshIndicator(
+                      onRefresh: _load,
+                      child: ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(18, 18, 18, 30),
+                        itemCount: blocked.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 10),
+                        itemBuilder: (context, index) {
+                          final user = blocked[index];
+                          final name = user['display_name']?.toString() ?? 'Meet6';
+                          final photos = user['photo_urls'];
+                          final photo = photos is List && photos.isNotEmpty ? photos.first.toString() : '';
+                          return Container(
+                            padding: const EdgeInsets.all(13),
+                            decoration: BoxDecoration(
+                              color: scheme.surface,
+                              borderRadius: BorderRadius.circular(18),
+                              border: Border.all(color: scheme.outlineVariant),
                             ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              user.initial.isEmpty
-                                  ? user.name.characters.first.toUpperCase()
-                                  : user.initial,
-                              style: const TextStyle(
-                                color: AppColors.lime,
-                                fontSize: 18,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            child: Row(
                               children: [
-                                Text(
-                                  user.name,
-                                  style: const TextStyle(
-                                    color: AppColors.navy,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w900,
+                                Container(
+                                  width: 48,
+                                  height: 48,
+                                  clipBehavior: Clip.antiAlias,
+                                  decoration: const BoxDecoration(color: AppColors.navy, shape: BoxShape.circle),
+                                  child: photo.isEmpty
+                                      ? Center(
+                                          child: Text(
+                                            name.characters.first.toUpperCase(),
+                                            style: const TextStyle(color: AppColors.lime, fontSize: 18, fontWeight: FontWeight.w900),
+                                          ),
+                                        )
+                                      : Image.network(
+                                          ApiService.absoluteMediaUrl(photo),
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, __, ___) => const Icon(Icons.person_rounded, color: AppColors.lime),
+                                        ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(name, style: TextStyle(color: scheme.onSurface, fontSize: 14, fontWeight: FontWeight.w900)),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        'Odalar ve mesajlaşmadan engellendi',
+                                        style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 11, fontWeight: FontWeight.w600),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                                const SizedBox(height: 3),
-                                const Text(
-                                  'Profil, odalar ve mesajlardan engellendi',
-                                  style: TextStyle(
-                                    color: AppColors.muted,
-                                    fontSize: 11.2,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                                TextButton(
+                                  onPressed: () => _unblock(user),
+                                  child: const Text('Engeli kaldır', style: TextStyle(fontWeight: FontWeight.w900)),
                                 ),
                               ],
                             ),
-                          ),
-                          TextButton(
-                            onPressed: () => _unblock(index),
-                            child: const Text(
-                              'Engeli kaldır',
-                              style: TextStyle(fontWeight: FontWeight.w900),
-                            ),
-                          ),
-                        ],
+                          );
+                        },
                       ),
-                    );
-                  },
-                ),
+                    ),
     );
   }
 
-  Future<void> _unblock(int index) async {
-    final user = blocked[index];
-    final approved = await showModalBottomSheet<bool>(
+  Future<void> _unblock(Map<String, dynamic> user) async {
+    final name = user['display_name']?.toString() ?? 'Bu kullanıcı';
+    final id = user['user_id']?.toString() ?? '';
+    if (id.isEmpty) return;
+    final approved = await showDialog<bool>(
       context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => SafeArea(
-        child: Container(
-          margin: const EdgeInsets.all(12),
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.lock_open_rounded, color: AppColors.blue, size: 34),
-              const SizedBox(height: 10),
-              Text(
-                '${user.name} için engeli kaldır?',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: AppColors.navy,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 7),
-              const Text(
-                'Engeli kaldırırsan tekrar aynı odalarda karşılaşabilir ve eşleşme sonrası mesajlaşabilirsiniz.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppColors.muted,
-                  fontSize: 12,
-                  height: 1.4,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: const Text('Vazgeç'),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.navy,
-                        foregroundColor: Colors.white,
-                      ),
-                      child: const Text(
-                        'Engeli kaldır',
-                        style: TextStyle(fontWeight: FontWeight.w900),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
+      builder: (dialogContext) => AlertDialog(
+        title: Text('$name için engeli kaldır?'),
+        content: const Text('Engeli kaldırırsan gelecekte tekrar aynı odada karşılaşabilirsiniz.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Vazgeç')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Engeli kaldır')),
+        ],
       ),
     );
-
-    if (approved == true && mounted) {
-      await BlockedAccountsService.unblock(user.name);
+    if (approved == true) {
+      await LiveService.unblockUser(id);
       if (!mounted) return;
-      setState(() => blocked.removeAt(index));
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${user.name} için engel kaldırıldı.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      await _load();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$name için engel kaldırıldı.')));
     }
   }
 }
@@ -205,6 +155,7 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(34),
@@ -214,31 +165,16 @@ class _EmptyState extends StatelessWidget {
             Container(
               width: 78,
               height: 78,
-              decoration: const BoxDecoration(
-                color: AppColors.lime,
-                shape: BoxShape.circle,
-              ),
+              decoration: const BoxDecoration(color: AppColors.lime, shape: BoxShape.circle),
               child: const Icon(Icons.block_rounded, color: AppColors.navy, size: 34),
             ),
             const SizedBox(height: 16),
-            const Text(
-              'Engellenen hesap yok',
-              style: TextStyle(
-                color: AppColors.navy,
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
+            Text('Engellenen hesap yok', style: TextStyle(color: scheme.onSurface, fontSize: 18, fontWeight: FontWeight.w900)),
             const SizedBox(height: 7),
-            const Text(
-              'Birini engellediğinde burada görünecek. Engellediğin kişiler sana mesaj gönderemez ve odalarda sana gösterilmez.',
+            Text(
+              'Engellediğin kişiler sana mesaj gönderemez ve eşleştirme motoru sizi aynı odaya koymaz.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: AppColors.muted,
-                fontSize: 12,
-                height: 1.4,
-                fontWeight: FontWeight.w600,
-              ),
+              style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12, height: 1.4),
             ),
           ],
         ),
