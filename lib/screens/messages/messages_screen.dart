@@ -119,219 +119,228 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: PhoneFrame(
-        child: Column(
-          children: [
-            Expanded(
-              child: CustomScrollView(
-                physics: const BouncingScrollPhysics(),
-                slivers: [
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
-                      child: Row(
-                        children: [
-                          const Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Mesajlar',
-                                  style: TextStyle(
-                                    color: AppColors.navy,
-                                    fontSize: 30,
-                                    height: 1,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: -1.1,
+        child: ColoredBox(
+          color: theme.scaffoldBackgroundColor,
+          child: Column(
+            children: [
+              Expanded(
+                child: CustomScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Mesajlar',
+                                    style: TextStyle(
+                                      color: scheme.onSurface,
+                                      fontSize: 30,
+                                      height: 1,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: -1.1,
+                                    ),
                                   ),
+                                  const SizedBox(height: 5),
+                                  Text(
+                                    'Özel sohbetlerin',
+                                    style: TextStyle(
+                                      color: scheme.onSurfaceVariant,
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              width: 43,
+                              height: 43,
+                              decoration: const BoxDecoration(
+                                color: AppColors.lime,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.chat_bubble_rounded,
+                                color: AppColors.navy,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
+                        child: Text(
+                          'Sohbetler',
+                          style: TextStyle(
+                            color: scheme.onSurface,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ),
+                    SliverList.separated(
+                      itemCount: chats.length,
+                      separatorBuilder: (_, __) => Divider(
+                        height: 1,
+                        indent: 88,
+                        endIndent: 20,
+                        color: scheme.outlineVariant,
+                      ),
+                      itemBuilder: (context, index) {
+                        final item = chats[index];
+                        return InkWell(
+                          onTap: () => _openChat(item),
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                            child: Row(
+                              children: [
+                                Stack(
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    Container(
+                                      width: 56,
+                                      height: 56,
+                                      decoration: const BoxDecoration(
+                                        color: AppColors.navy,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      alignment: Alignment.center,
+                                      child: Text(
+                                        item.initial,
+                                        style: const TextStyle(
+                                          color: AppColors.lime,
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                    ),
+                                    if (item.isOnline)
+                                      Positioned(
+                                        right: 0,
+                                        bottom: 0,
+                                        child: Container(
+                                          width: 13,
+                                          height: 13,
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFF36C76C),
+                                            shape: BoxShape.circle,
+                                            border: Border.all(
+                                              color: scheme.surface,
+                                              width: 2,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
-                                SizedBox(height: 5),
-                                Text(
-                                  'Özel sohbetlerin',
-                                  style: TextStyle(
-                                    color: AppColors.muted,
-                                    fontSize: 12.5,
-                                    fontWeight: FontWeight.w700,
+                                const SizedBox(width: 13),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              item.name,
+                                              style: TextStyle(
+                                                color: scheme.onSurface,
+                                                fontSize: 14.5,
+                                                fontWeight: FontWeight.w900,
+                                              ),
+                                            ),
+                                          ),
+                                          Text(
+                                            item.timeLabel,
+                                            style: TextStyle(
+                                              color: scheme.onSurfaceVariant,
+                                              fontSize: 10.5,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 5),
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              item.lastMessage,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                color: item.unreadCount > 0
+                                                    ? scheme.onSurface
+                                                    : scheme.onSurfaceVariant,
+                                                fontSize: 12,
+                                                fontWeight: item.unreadCount > 0
+                                                    ? FontWeight.w800
+                                                    : FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                          if (item.unreadCount > 0) ...[
+                                            const SizedBox(width: 9),
+                                            Container(
+                                              constraints: const BoxConstraints(minWidth: 21),
+                                              height: 21,
+                                              padding: const EdgeInsets.symmetric(horizontal: 6),
+                                              decoration: BoxDecoration(
+                                                color: scheme.primary,
+                                                borderRadius: BorderRadius.circular(999),
+                                              ),
+                                              alignment: Alignment.center,
+                                              child: Text(
+                                                '${item.unreadCount}',
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 9,
+                                                  fontWeight: FontWeight.w900,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                          Container(
-                            width: 43,
-                            height: 43,
-                            decoration: const BoxDecoration(
-                              color: AppColors.lime,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.chat_bubble_rounded,
-                              color: AppColors.navy,
-                            ),
-                          ),
-                        ],
-                      ),
+                        );
+                      },
                     ),
-                  ),
-                  const SliverToBoxAdapter(
-                    child: Padding(
-                      padding: EdgeInsets.fromLTRB(20, 14, 20, 8),
-                      child: Text(
-                        'Sohbetler',
-                        style: TextStyle(
-                          color: AppColors.navy,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                  ),
-                  SliverList.separated(
-                    itemCount: chats.length,
-                    separatorBuilder: (_, __) => const Divider(
-                      height: 1,
-                      indent: 88,
-                      endIndent: 20,
-                      color: AppColors.border,
-                    ),
-                    itemBuilder: (context, index) {
-                      final item = chats[index];
-                      return InkWell(
-                        onTap: () => _openChat(item),
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-                          child: Row(
-                            children: [
-                              Stack(
-                                clipBehavior: Clip.none,
-                                children: [
-                                  Container(
-                                    width: 56,
-                                    height: 56,
-                                    decoration: const BoxDecoration(
-                                      color: AppColors.navy,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: Text(
-                                      item.initial,
-                                      style: const TextStyle(
-                                        color: AppColors.lime,
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.w900,
-                                      ),
-                                    ),
-                                  ),
-                                  if (item.isOnline)
-                                    Positioned(
-                                      right: 0,
-                                      bottom: 0,
-                                      child: Container(
-                                        width: 13,
-                                        height: 13,
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFF36C76C),
-                                          shape: BoxShape.circle,
-                                          border: Border.all(color: Colors.white, width: 2),
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                              const SizedBox(width: 13),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            item.name,
-                                            style: const TextStyle(
-                                              color: AppColors.navy,
-                                              fontSize: 14.5,
-                                              fontWeight: FontWeight.w900,
-                                            ),
-                                          ),
-                                        ),
-                                        Text(
-                                          item.timeLabel,
-                                          style: const TextStyle(
-                                            color: AppColors.muted,
-                                            fontSize: 10.5,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 5),
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            item.lastMessage,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              color: item.unreadCount > 0
-                                                  ? AppColors.navy
-                                                  : AppColors.muted,
-                                              fontSize: 12,
-                                              fontWeight: item.unreadCount > 0
-                                                  ? FontWeight.w800
-                                                  : FontWeight.w600,
-                                            ),
-                                          ),
-                                        ),
-                                        if (item.unreadCount > 0) ...[
-                                          const SizedBox(width: 9),
-                                          Container(
-                                            constraints: const BoxConstraints(minWidth: 21),
-                                            height: 21,
-                                            padding: const EdgeInsets.symmetric(horizontal: 6),
-                                            decoration: BoxDecoration(
-                                              color: AppColors.blue,
-                                              borderRadius: BorderRadius.circular(999),
-                                            ),
-                                            alignment: Alignment.center,
-                                            child: Text(
-                                              '${item.unreadCount}',
-                                              style: const TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 9,
-                                                fontWeight: FontWeight.w900,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  const SliverToBoxAdapter(child: SizedBox(height: 20)),
-                ],
+                    const SliverToBoxAdapter(child: SizedBox(height: 20)),
+                  ],
+                ),
               ),
-            ),
-            MainBottomNav(
-              selectedIndex: 2,
-              unreadMessages: 2,
-              onTap: (index) {
-                if (index == 0) _goHome();
-                if (index == 1) _goMatches();
-                if (index == 3) _goProfile();
-              },
-            ),
-          ],
+              MainBottomNav(
+                selectedIndex: 2,
+                unreadMessages: 2,
+                onTap: (index) {
+                  if (index == 0) _goHome();
+                  if (index == 1) _goMatches();
+                  if (index == 3) _goProfile();
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
