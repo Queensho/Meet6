@@ -216,6 +216,20 @@ class ApiService {
     _decode(response);
   }
 
+  static Future<void> deleteAccount() async {
+    final token = await SessionService.loadAuthSessionId();
+    if (token == null || token.isEmpty) {
+      throw const ApiException('Oturum bulunamadı.');
+    }
+    final response = await http
+        .delete(
+          _uri('/api/me'),
+          headers: _headers(sessionId: token),
+        )
+        .timeout(const Duration(seconds: 20));
+    _decode(response);
+  }
+
   static Future<void> logout() async {
     final token = await SessionService.loadAuthSessionId();
     if (token == null) return;
