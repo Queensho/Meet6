@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import * as path from 'node:path';
 
 import { InfrastructureService } from './infrastructure.service';
@@ -220,5 +220,12 @@ export class ProfileService {
       ],
     );
     return this.getMe(userId);
+  }
+
+  async deleteAccount(userId: string) {
+    const root = process.env.UPLOAD_ROOT ?? '/var/www/meet6/uploads';
+    await this.infra.db.query('delete from users where id = $1', [userId]);
+    await rm(path.join(root, 'profile', userId), { recursive: true, force: true });
+    return { ok: true };
   }
 }
