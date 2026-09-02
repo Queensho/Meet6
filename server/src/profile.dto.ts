@@ -1,4 +1,6 @@
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
   IsArray,
   IsBoolean,
   IsDateString,
@@ -18,12 +20,21 @@ export class UpdateProfileDto {
   @IsOptional() @IsString() @MaxLength(240) bio?: string;
   @IsOptional() @IsString() @MaxLength(100) city?: string;
   @IsOptional() @IsString() @MaxLength(100) country?: string;
-  @IsOptional() @IsNumber() latitude?: number;
-  @IsOptional() @IsNumber() longitude?: number;
+  @IsOptional() @IsNumber() @Min(-90) @Max(90) latitude?: number;
+  @IsOptional() @IsNumber() @Min(-180) @Max(180) longitude?: number;
   @IsOptional() @IsString() @MaxLength(160) profilePrompt?: string;
   @IsOptional() @IsString() @MaxLength(240) profileAnswer?: string;
-  @IsOptional() @IsArray() @IsString({ each: true }) interests?: string[];
-  @IsOptional() @IsArray() @IsString({ each: true }) photoUrls?: string[];
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(5)
+  @IsString({ each: true })
+  interests?: string[];
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(4)
+  @IsString({ each: true })
+  photoUrls?: string[];
   @IsOptional() @IsBoolean() profileCompleted?: boolean;
 }
 
