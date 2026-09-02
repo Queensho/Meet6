@@ -67,17 +67,19 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => preferences = result);
   }
 
-  Future<void> _openProfile() async {
-    final result = await Navigator.of(context).push<MatchingPreferences>(
+  void _openProfile() {
+    Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ProfileScreen(
           profileName: widget.profileName,
           initialPreferences: preferences,
+          onPreferencesChanged: (value) {
+            if (!mounted) return;
+            setState(() => preferences = value);
+          },
         ),
       ),
     );
-    if (result == null || !mounted) return;
-    setState(() => preferences = result);
   }
 
   @override
