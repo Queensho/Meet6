@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../services/api_service.dart';
+import '../../services/live_service.dart';
 import '../../services/session_service.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/theme_controller.dart';
@@ -24,7 +25,79 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool showOnline = true;
   bool preciseLocation = false;
   bool vibration = true;
+  bool loading = true;
+  bool saving = false;
   bool accountActionRunning = false;
+  String? error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final data = await LiveService.settings();
+      final raw = data['settings'];
+      final values = raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+      if (!mounted) return;
+      setState(() {
+        notifications = values['notifications_enabled'] != false;
+        roomReminders = values['room_reminders'] != false;
+        showOnline = values['show_online'] != false;
+        preciseLocation = values['precise_location'] == true;
+        vibration = values['vibration'] != false;
+        loading = false;
+        error = null;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        error = e.message;
+      });
+    }
+  }
+
+  Future<void> _save({
+    bool? notificationsEnabled,
+    bool? roomRemindersValue,
+    bool? showOnlineValue,
+    bool? preciseLocationValue,
+    bool? vibrationValue,
+  }) async {
+    if (saving) return;
+    setState(() => saving = true);
+    try {
+      final data = await LiveService.updateSettings(
+        notificationsEnabled: notificationsEnabled,
+        roomReminders: roomRemindersValue,
+        showOnline: showOnlineValue,
+        preciseLocation: preciseLocationValue,
+        vibration: vibrationValue,
+      );
+      final raw = data['settings'];
+      if (!mounted || raw is! Map) return;
+      final values = Map<String, dynamic>.from(raw);
+      setState(() {
+        notifications = values['notifications_enabled'] != false;
+        roomReminders = values['room_reminders'] != false;
+        showOnline = values['show_online'] != false;
+        preciseLocation = values['precise_location'] == true;
+        vibration = values['vibration'] != false;
+        error = null;
+      });
+    } on ApiException catch (e) {
+      if (mounted) {
+        setState(() => error = e.message);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+        _load();
+      }
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -38,210 +111,219 @@ class _SettingsScreenState extends State<SettingsScreen> {
           color: theme.scaffoldBackgroundColor,
           child: Column(
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 14, 8),
-                child: Row(
-                  children: [
-                    IconButton(
-                      onPressed: accountActionRunning
-                          ? null
-                          : () => Navigator.of(context).pop(),
-                      style: IconButton.styleFrom(backgroundColor: scheme.surface),
-                      icon: Icon(
-                        Icons.arrow_back_rounded,
-                        color: scheme.onSurface,
+              SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 10, 14, 8),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        onPressed: accountActionRunning ? null : () => Navigator.of(context).pop(),
+                        style: IconButton.styleFrom(backgroundColor: scheme.surface),
+                        icon: Icon(Icons.arrow_back_rounded, color: scheme.onSurface),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Ayarlar',
-                        style: TextStyle(
-                          color: scheme.onSurface,
-                          fontSize: 21,
-                          fontWeight: FontWeight.w900,
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Ayarlar',
+                          style: TextStyle(color: scheme.onSurface, fontSize: 21, fontWeight: FontWeight.w900),
                         ),
                       ),
-                    ),
-                    if (accountActionRunning)
-                      SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.2,
-                          color: scheme.primary,
+                      if (saving || accountActionRunning)
+                        SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2.2, color: scheme.primary),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
               Divider(height: 1, color: scheme.outlineVariant),
               Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 30),
-                  physics: const BouncingScrollPhysics(),
-                  children: [
-                    const _SectionTitle('Görünüm'),
-                    ValueListenableBuilder<ThemeMode>(
-                      valueListenable: ThemeController.instance,
-                      builder: (context, mode, _) {
-                        return _SettingsCard(
-                          child: Padding(
-                            padding: const EdgeInsets.all(10),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: _ThemeChoice(
-                                    icon: Icons.light_mode_rounded,
-                                    title: 'Aydınlık',
-                                    selected: mode == ThemeMode.light,
-                                    onTap: () => ThemeController.instance
-                                        .setMode(ThemeMode.light),
-                                  ),
+                child: loading
+                    ? const Center(child: CircularProgressIndicator(color: AppColors.lime))
+                    : ListView(
+                        padding: const EdgeInsets.fromLTRB(18, 18, 18, 30),
+                        physics: const BouncingScrollPhysics(),
+                        children: [
+                          if (error != null) ...[
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: const Color(0x22E76A60),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Text(error!, style: const TextStyle(color: Color(0xFFE76A60), fontSize: 11.5)),
+                            ),
+                            const SizedBox(height: 14),
+                          ],
+                          const _SectionTitle('Görünüm'),
+                          ValueListenableBuilder<ThemeMode>(
+                            valueListenable: ThemeController.instance,
+                            builder: (context, mode, _) => _SettingsCard(
+                              child: Padding(
+                                padding: const EdgeInsets.all(10),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: _ThemeChoice(
+                                        icon: Icons.light_mode_rounded,
+                                        title: 'Aydınlık',
+                                        selected: mode == ThemeMode.light,
+                                        onTap: () => ThemeController.instance.setMode(ThemeMode.light),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: _ThemeChoice(
+                                        icon: Icons.dark_mode_rounded,
+                                        title: 'Karanlık',
+                                        selected: mode == ThemeMode.dark,
+                                        onTap: () => ThemeController.instance.setMode(ThemeMode.dark),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: _ThemeChoice(
-                                    icon: Icons.dark_mode_rounded,
-                                    title: 'Karanlık',
-                                    selected: mode == ThemeMode.dark,
-                                    onTap: () => ThemeController.instance
-                                        .setMode(ThemeMode.dark),
-                                  ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          const _SectionTitle('Bildirimler'),
+                          _SettingsCard(
+                            children: [
+                              _SwitchTile(
+                                icon: Icons.notifications_none_rounded,
+                                title: 'Bildirimler',
+                                subtitle: 'Eşleşme ve mesaj bildirimlerini al',
+                                value: notifications,
+                                onChanged: saving
+                                    ? null
+                                    : (v) {
+                                        setState(() => notifications = v);
+                                        _save(notificationsEnabled: v);
+                                      },
+                              ),
+                              _SwitchTile(
+                                icon: Icons.schedule_rounded,
+                                title: 'Oda hatırlatmaları',
+                                subtitle: 'Oda bildirimlerini kullan',
+                                value: roomReminders,
+                                onChanged: saving
+                                    ? null
+                                    : (v) {
+                                        setState(() => roomReminders = v);
+                                        _save(roomRemindersValue: v);
+                                      },
+                              ),
+                              _SwitchTile(
+                                icon: Icons.vibration_rounded,
+                                title: 'Titreşim',
+                                subtitle: 'Mesaj ve seçimlerde titreşim kullan',
+                                value: vibration,
+                                onChanged: saving
+                                    ? null
+                                    : (v) {
+                                        setState(() => vibration = v);
+                                        _save(vibrationValue: v);
+                                      },
+                                last: true,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          const _SectionTitle('Gizlilik ve konum'),
+                          _SettingsCard(
+                            children: [
+                              _SwitchTile(
+                                icon: Icons.circle_outlined,
+                                title: 'Çevrimiçi durumumu göster',
+                                subtitle: 'Eşleşmelerin aktif olduğunu görebilir',
+                                value: showOnline,
+                                onChanged: saving
+                                    ? null
+                                    : (v) {
+                                        setState(() => showOnline = v);
+                                        _save(showOnlineValue: v);
+                                      },
+                              ),
+                              _SwitchTile(
+                                icon: Icons.my_location_rounded,
+                                title: 'Hassas konum',
+                                subtitle: 'Eşleştirme için cihaz konumunu kullan',
+                                value: preciseLocation,
+                                onChanged: saving
+                                    ? null
+                                    : (v) {
+                                        setState(() => preciseLocation = v);
+                                        _save(preciseLocationValue: v);
+                                      },
+                                last: true,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          const _SectionTitle('Hesap'),
+                          _SettingsCard(
+                            children: [
+                              _LinkTile(
+                                icon: Icons.shield_outlined,
+                                title: 'Gizlilik ve güvenlik',
+                                onTap: () => Navigator.of(context).push(
+                                  MaterialPageRoute(builder: (_) => const PrivacySecurityScreen()),
                                 ),
-                              ],
+                              ),
+                              _LinkTile(
+                                icon: Icons.block_rounded,
+                                title: 'Engellenen hesaplar',
+                                onTap: () => Navigator.of(context).push(
+                                  MaterialPageRoute(builder: (_) => const BlockedAccountsScreen()),
+                                ),
+                              ),
+                              _LinkTile(
+                                icon: Icons.help_outline_rounded,
+                                title: 'Yardım ve destek',
+                                onTap: () => Navigator.of(context).push(
+                                  MaterialPageRoute(builder: (_) => const HelpSupportScreen()),
+                                ),
+                              ),
+                              _LinkTile(
+                                icon: Icons.description_outlined,
+                                title: 'Koşullar ve gizlilik',
+                                onTap: () => Navigator.of(context).push(
+                                  MaterialPageRoute(builder: (_) => const LegalScreen()),
+                                ),
+                                last: true,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          _SettingsCard(
+                            children: [
+                              _LinkTile(
+                                icon: Icons.logout_rounded,
+                                title: 'Çıkış yap',
+                                danger: true,
+                                onTap: accountActionRunning ? () {} : _showLogoutConfirm,
+                              ),
+                              _LinkTile(
+                                icon: Icons.delete_outline_rounded,
+                                title: 'Hesabımı sil',
+                                danger: true,
+                                onTap: accountActionRunning ? () {} : _showDeleteConfirm,
+                                last: true,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          Center(
+                            child: Text(
+                              'Meet6 · v0.2.0',
+                              style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 11.5, fontWeight: FontWeight.w700),
                             ),
                           ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 20),
-                    const _SectionTitle('Bildirimler'),
-                    _SettingsCard(
-                      children: [
-                        _SwitchTile(
-                          icon: Icons.notifications_none_rounded,
-                          title: 'Bildirimler',
-                          subtitle: 'Eşleşme ve mesaj bildirimlerini al',
-                          value: notifications,
-                          onChanged: (v) => setState(() => notifications = v),
-                        ),
-                        _SwitchTile(
-                          icon: Icons.schedule_rounded,
-                          title: 'Oda hatırlatmaları',
-                          subtitle: 'Yeni oda açılmadan önce haber ver',
-                          value: roomReminders,
-                          onChanged: (v) => setState(() => roomReminders = v),
-                        ),
-                        _SwitchTile(
-                          icon: Icons.vibration_rounded,
-                          title: 'Titreşim',
-                          subtitle: 'Mesaj ve seçimlerde titreşim kullan',
-                          value: vibration,
-                          onChanged: (v) => setState(() => vibration = v),
-                          last: true,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    const _SectionTitle('Gizlilik ve konum'),
-                    _SettingsCard(
-                      children: [
-                        _SwitchTile(
-                          icon: Icons.circle_outlined,
-                          title: 'Çevrimiçi durumumu göster',
-                          subtitle: 'Diğer kişiler aktif olduğunu görebilir',
-                          value: showOnline,
-                          onChanged: (v) => setState(() => showOnline = v),
-                        ),
-                        _SwitchTile(
-                          icon: Icons.my_location_rounded,
-                          title: 'Hassas konum',
-                          subtitle: 'Yakın oda önerilerini daha doğru göster',
-                          value: preciseLocation,
-                          onChanged: (v) => setState(() => preciseLocation = v),
-                          last: true,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    const _SectionTitle('Hesap'),
-                    _SettingsCard(
-                      children: [
-                        _LinkTile(
-                          icon: Icons.shield_outlined,
-                          title: 'Gizlilik ve güvenlik',
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const PrivacySecurityScreen(),
-                            ),
-                          ),
-                        ),
-                        _LinkTile(
-                          icon: Icons.block_rounded,
-                          title: 'Engellenen hesaplar',
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const BlockedAccountsScreen(),
-                            ),
-                          ),
-                        ),
-                        _LinkTile(
-                          icon: Icons.help_outline_rounded,
-                          title: 'Yardım ve destek',
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const HelpSupportScreen(),
-                            ),
-                          ),
-                        ),
-                        _LinkTile(
-                          icon: Icons.description_outlined,
-                          title: 'Koşullar ve gizlilik',
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const LegalScreen(),
-                            ),
-                          ),
-                          last: true,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    _SettingsCard(
-                      children: [
-                        _LinkTile(
-                          icon: Icons.logout_rounded,
-                          title: 'Çıkış yap',
-                          danger: true,
-                          onTap: accountActionRunning
-                              ? () {}
-                              : _showLogoutConfirm,
-                        ),
-                        _LinkTile(
-                          icon: Icons.delete_outline_rounded,
-                          title: 'Hesabımı sil',
-                          danger: true,
-                          onTap: accountActionRunning
-                              ? () {}
-                              : _showDeleteConfirm,
-                          last: true,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    Center(
-                      child: Text(
-                        'Meet6 · v0.1.0',
-                        style: TextStyle(
-                          color: scheme.onSurfaceVariant,
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w700,
-                        ),
+                        ],
                       ),
-                    ),
-                  ],
-                ),
               ),
             ],
           ),
@@ -254,11 +336,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final approved = await _showConfirmSheet(
       icon: Icons.logout_rounded,
       title: 'Çıkış yapmak istiyor musun?',
-      description:
-          'Bu cihazdaki Meet6 oturumun sunucuda kapatılacak ve giriş ekranına döneceksin.',
+      description: 'Bu cihazdaki oturum sunucuda kapatılır.',
       confirmLabel: 'Çıkış yap',
     );
-
     if (approved != true || !mounted) return;
     setState(() => accountActionRunning = true);
     await ApiService.logout();
@@ -274,11 +354,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final approved = await _showConfirmSheet(
       icon: Icons.warning_amber_rounded,
       title: 'Hesabını kalıcı olarak sil?',
-      description:
-          'Profilin, fotoğrafların, eşleşmelerin ve mesajların sunucudan kalıcı olarak silinir. Bu işlem geri alınamaz.',
+      description: 'Profilin, fotoğrafların, eşleşmelerin ve mesajların kalıcı olarak silinir. Bu işlem geri alınamaz.',
       confirmLabel: 'Hesabı kalıcı sil',
     );
-
     if (approved != true || !mounted) return;
     setState(() => accountActionRunning = true);
     try {
@@ -289,20 +367,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         MaterialPageRoute(builder: (_) => const LoginScreen()),
         (route) => false,
       );
-    } on ApiException catch (error) {
+    } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => accountActionRunning = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message)),
-      );
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => accountActionRunning = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Hesap silinemedi. Bağlantını kontrol edip tekrar dene.'),
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
     }
   }
 
@@ -331,48 +399,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 Icon(icon, color: const Color(0xFFE24A4A), size: 36),
                 const SizedBox(height: 10),
-                Text(
-                  title,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: scheme.onSurface,
-                    fontSize: 19,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
+                Text(title, textAlign: TextAlign.center, style: TextStyle(color: scheme.onSurface, fontSize: 19, fontWeight: FontWeight.w900)),
                 const SizedBox(height: 7),
-                Text(
-                  description,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: scheme.onSurfaceVariant,
-                    fontSize: 12.5,
-                    height: 1.4,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                Text(description, textAlign: TextAlign.center, style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12.5, height: 1.4)),
                 const SizedBox(height: 16),
                 Row(
                   children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(sheetContext, false),
-                        child: const Text('Vazgeç'),
-                      ),
-                    ),
+                    Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(sheetContext, false), child: const Text('Vazgeç'))),
                     const SizedBox(width: 10),
                     Expanded(
                       child: FilledButton(
                         onPressed: () => Navigator.pop(sheetContext, true),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFFE24A4A),
-                          foregroundColor: Colors.white,
-                        ),
-                        child: Text(
-                          confirmLabel,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontWeight: FontWeight.w900),
-                        ),
+                        style: FilledButton.styleFrom(backgroundColor: const Color(0xFFE24A4A), foregroundColor: Colors.white),
+                        child: Text(confirmLabel, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w900)),
                       ),
                     ),
                   ],
@@ -389,30 +428,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
 class _SectionTitle extends StatelessWidget {
   const _SectionTitle(this.text);
   final String text;
-
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 4, bottom: 8),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-          fontSize: 11.5,
-          fontWeight: FontWeight.w900,
-          letterSpacing: .3,
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(left: 4, bottom: 8),
+        child: Text(
+          text,
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            fontSize: 11.5,
+            fontWeight: FontWeight.w900,
+            letterSpacing: .3,
+          ),
         ),
-      ),
-    );
-  }
+      );
 }
 
 class _SettingsCard extends StatelessWidget {
   const _SettingsCard({this.children, this.child});
-
   final List<Widget>? children;
   final Widget? child;
-
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -428,18 +462,11 @@ class _SettingsCard extends StatelessWidget {
 }
 
 class _ThemeChoice extends StatelessWidget {
-  const _ThemeChoice({
-    required this.icon,
-    required this.title,
-    required this.selected,
-    required this.onTap,
-  });
-
+  const _ThemeChoice({required this.icon, required this.title, required this.selected, required this.onTap});
   final IconData icon;
   final String title;
   final bool selected;
   final VoidCallback onTap;
-
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -450,32 +477,16 @@ class _ThemeChoice extends StatelessWidget {
         duration: const Duration(milliseconds: 180),
         height: 82,
         decoration: BoxDecoration(
-          color: selected
-              ? AppColors.lime
-              : scheme.surfaceContainerHigh.withOpacity(.72),
+          color: selected ? AppColors.lime : scheme.surfaceContainerHigh,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: selected ? AppColors.navy : scheme.outlineVariant,
-            width: selected ? 2 : 1,
-          ),
+          border: Border.all(color: selected ? AppColors.navy : scheme.outlineVariant, width: selected ? 2 : 1),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              color: selected ? AppColors.navy : scheme.onSurface,
-              size: 25,
-            ),
+            Icon(icon, color: selected ? AppColors.navy : scheme.onSurface, size: 25),
             const SizedBox(height: 7),
-            Text(
-              title,
-              style: TextStyle(
-                color: selected ? AppColors.navy : scheme.onSurface,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
+            Text(title, style: TextStyle(color: selected ? AppColors.navy : scheme.onSurface, fontSize: 12.5, fontWeight: FontWeight.w900)),
           ],
         ),
       ),
@@ -492,14 +503,12 @@ class _SwitchTile extends StatelessWidget {
     required this.onChanged,
     this.last = false,
   });
-
   final IconData icon;
   final String title;
   final String subtitle;
   final bool value;
-  final ValueChanged<bool> onChanged;
+  final ValueChanged<bool>? onChanged;
   final bool last;
-
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -510,47 +519,23 @@ class _SwitchTile extends StatelessWidget {
           onChanged: onChanged,
           activeColor: AppColors.blue,
           secondary: _IconBox(icon),
-          title: Text(
-            title,
-            style: TextStyle(
-              color: scheme.onSurface,
-              fontSize: 13.5,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          subtitle: Text(
-            subtitle,
-            style: TextStyle(
-              color: scheme.onSurfaceVariant,
-              fontSize: 11.5,
-              height: 1.3,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+          title: Text(title, style: TextStyle(color: scheme.onSurface, fontSize: 13.5, fontWeight: FontWeight.w900)),
+          subtitle: Text(subtitle, style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 11.5, height: 1.3)),
           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
         ),
-        if (!last)
-          Divider(height: 1, indent: 62, color: scheme.outlineVariant),
+        if (!last) Divider(height: 1, indent: 62, color: scheme.outlineVariant),
       ],
     );
   }
 }
 
 class _LinkTile extends StatelessWidget {
-  const _LinkTile({
-    required this.icon,
-    required this.title,
-    required this.onTap,
-    this.danger = false,
-    this.last = false,
-  });
-
+  const _LinkTile({required this.icon, required this.title, required this.onTap, this.danger = false, this.last = false});
   final IconData icon;
   final String title;
   final VoidCallback onTap;
   final bool danger;
   final bool last;
-
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -561,21 +546,10 @@ class _LinkTile extends StatelessWidget {
           onTap: onTap,
           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
           leading: _IconBox(icon, danger: danger),
-          title: Text(
-            title,
-            style: TextStyle(
-              color: color,
-              fontSize: 13.5,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          trailing: Icon(
-            Icons.chevron_right_rounded,
-            color: danger ? const Color(0xFFE24A4A) : scheme.onSurfaceVariant,
-          ),
+          title: Text(title, style: TextStyle(color: color, fontSize: 13.5, fontWeight: FontWeight.w900)),
+          trailing: Icon(Icons.chevron_right_rounded, color: danger ? const Color(0xFFE24A4A) : scheme.onSurfaceVariant),
         ),
-        if (!last)
-          Divider(height: 1, indent: 62, color: scheme.outlineVariant),
+        if (!last) Divider(height: 1, indent: 62, color: scheme.outlineVariant),
       ],
     );
   }
@@ -585,7 +559,6 @@ class _IconBox extends StatelessWidget {
   const _IconBox(this.icon, {this.danger = false});
   final IconData icon;
   final bool danger;
-
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -593,16 +566,10 @@ class _IconBox extends StatelessWidget {
       width: 38,
       height: 38,
       decoration: BoxDecoration(
-        color: danger
-            ? const Color(0x33E24A4A)
-            : scheme.primary.withOpacity(.10),
+        color: danger ? const Color(0x33E24A4A) : scheme.primary.withOpacity(.10),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Icon(
-        icon,
-        color: danger ? const Color(0xFFE24A4A) : scheme.primary,
-        size: 20,
-      ),
+      child: Icon(icon, color: danger ? const Color(0xFFE24A4A) : scheme.primary, size: 20),
     );
   }
 }
