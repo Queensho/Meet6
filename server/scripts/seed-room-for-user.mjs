@@ -156,13 +156,30 @@ async function main() {
   if (!target) throw new Error(`Completed target profile not found for ${TARGET_PHONE}`);
   if (target.latitude == null || target.longitude == null) throw new Error('Target profile has no coordinates.');
 
-  const queued = await pool.query('select 1 from matchmaking_queue where user_id=$1', [target.user_id]);
-  if (!queued.rowCount) {
-    throw new Error('Target user is not in matchmaking_queue. Open Meet6 and start room search first.');
+  const openRoom = await pool.query(
+    `select r.id::text, r.status
+     from room_members rm
+     join rooms r on r.id = rm.room_id
+     where rm.user_id = $1 and rm.left_at is null
+       and r.status in ('active','selection')
+     order by r.id desc
+     limit 1`,
+    [target.user_id],
+  );
+  if (openRoom.rows[0]?.id) {
+    console.log(`✅ TARGET ALREADY IN ROOM roomId=${openRoom.rows[0].id} status=${openRoom.rows[0].status}`);
+    console.log('Return to the Meet6 browser tab; the app should reopen the room on the next poll/refresh.');
+    return;
   }
 
+  await pool.query(
+    `insert into matchmaking_queue(user_id) values($1)
+     on conflict(user_id) do nothing`,
+    [target.user_id],
+  );
+  console.log(`Target queued automatically: ${target.display_name} (${TARGET_PHONE})`);
+
   await clearHelperUsers();
-  console.log(`Target: ${target.display_name} (${TARGET_PHONE})`);
 
   for (let i = 0; i < helpers.length; i++) {
     await createHelper(helpers[i], i, target);
