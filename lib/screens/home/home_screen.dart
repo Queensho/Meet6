@@ -291,23 +291,23 @@ class _HomeScreenState extends State<HomeScreen> {
                                     color: AppColors.navy.withOpacity(.08),
                                   ),
                                 ),
-                                child: const Row(
+                                child: Row(
                                   children: [
                                     Container(
                                       width: 36,
                                       height: 36,
-                                      decoration: BoxDecoration(
+                                      decoration: const BoxDecoration(
                                         color: AppColors.navy,
                                         shape: BoxShape.circle,
                                       ),
-                                      child: Icon(
+                                      child: const Icon(
                                         Icons.touch_app_rounded,
                                         color: AppColors.lime,
                                         size: 19,
                                       ),
                                     ),
-                                    SizedBox(width: 10),
-                                    Expanded(
+                                    const SizedBox(width: 10),
+                                    const Expanded(
                                       child: Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
@@ -331,7 +331,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                         ],
                                       ),
                                     ),
-                                    Icon(
+                                    const Icon(
                                       Icons.arrow_forward_rounded,
                                       color: AppColors.navy,
                                       size: 20,
