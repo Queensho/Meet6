@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:forceDarkAllowed">false</item>
+        <item name="android:windowFullscreen">false</item>
+        <item name="android:windowBackground">#F8F9FD</item>
+    </style>
+
+    <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:statusBarColor">#F8F9FD</item>
+        <item name="android:navigationBarColor">#F8F9FD</item>
+        <item name="android:windowBackground">#F8F9FD</item>
+    </style>
+</resources>
