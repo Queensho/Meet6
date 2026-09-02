@@ -3,11 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../services/api_service.dart';
+import '../services/session_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/back_button.dart';
 import '../widgets/brand.dart';
 import '../widgets/phone_frame.dart';
 import '../widgets/primary_button.dart';
+import 'home/home_screen.dart';
 import 'profile/profile_setup_screen.dart';
 
 class OtpScreen extends StatefulWidget {
@@ -24,8 +27,12 @@ class _OtpScreenState extends State<OtpScreen> {
   final focusNodes = List.generate(6, (_) => FocusNode());
   Timer? timer;
   int secondsLeft = 45;
+  bool verifying = false;
+  bool resending = false;
 
   bool get complete => controllers.every((c) => c.text.length == 1);
+
+  String get code => controllers.map((c) => c.text).join();
 
   String get formattedPhone {
     final digits = widget.phoneNumber.replaceAll(RegExp(r'[^0-9]'), '');
@@ -81,11 +88,137 @@ class _OtpScreenState extends State<OtpScreen> {
     if (complete) FocusScope.of(context).unfocus();
   }
 
-  void _verify() {
+  Future<void> _verify() async {
+    if (!complete || verifying) return;
     FocusScope.of(context).unfocus();
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const ProfileSetupScreen()),
-    );
+    setState(() => verifying = true);
+
+    try {
+      final result = await ApiService.verifyOtp(widget.phoneNumber, code);
+      await SessionService.saveAuth(
+        sessionId: result.sessionId,
+        userId: result.userId,
+      );
+      if (!mounted) return;
+
+      if (result.profileCompleted) {
+        final restored = await _restoreProfile(result.sessionId);
+        if (restored) return;
+      }
+
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const ProfileSetupScreen()),
+        (route) => false,
+      );
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Doğrulama yapılamadı. Tekrar dene.')),
+      );
+    } finally {
+      if (mounted) setState(() => verifying = false);
+    }
+  }
+
+  Future<bool> _restoreProfile(String sessionId) async {
+    try {
+      final response = await ApiService.getMe(sessionId: sessionId);
+      final raw = response['user'];
+      if (raw is! Map) return false;
+      final user = Map<String, dynamic>.from(raw);
+      final name = (user['display_name'] as String?)?.trim() ?? '';
+      if (name.isEmpty) return false;
+
+      double toDouble(dynamic value, double fallback) {
+        if (value is num) return value.toDouble();
+        return double.tryParse(value?.toString() ?? '') ?? fallback;
+      }
+
+      final city = user['city']?.toString() ?? '';
+      final country = user['country']?.toString() ?? '';
+      final latitude = user['latitude'] == null
+          ? null
+          : toDouble(user['latitude'], 0);
+      final longitude = user['longitude'] == null
+          ? null
+          : toDouble(user['longitude'], 0);
+      final distance = toDouble(user['distance_km'], 25).round();
+      final lookingFor = user['looking_for']?.toString() ?? 'Herkes';
+      final minAge = toDouble(user['min_age'], 20);
+      final maxAge = toDouble(user['max_age'], 35);
+      final purpose =
+          user['purpose']?.toString() ?? 'Yeni insanlarla tanışma';
+
+      await SessionService.saveProfile(
+        profileName: name,
+        city: city,
+        country: country,
+        latitude: latitude,
+        longitude: longitude,
+        distanceKm: distance,
+        lookingFor: lookingFor,
+        minAge: minAge,
+        maxAge: maxAge,
+        purpose: purpose,
+      );
+
+      if (!mounted) return true;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (_) => HomeScreen(
+            profileName: name,
+            city: city,
+            country: country,
+            latitude: latitude,
+            longitude: longitude,
+            distanceKm: distance,
+            lookingFor: lookingFor,
+            minAge: minAge,
+            maxAge: maxAge,
+            purpose: purpose,
+          ),
+        ),
+        (route) => false,
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _resend() async {
+    if (resending) return;
+    setState(() => resending = true);
+    try {
+      await ApiService.requestOtp(widget.phoneNumber);
+      if (!mounted) return;
+      for (final controller in controllers) {
+        controller.clear();
+      }
+      focusNodes.first.requestFocus();
+      _restartTimer();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Yeni doğrulama kodu gönderildi.')),
+      );
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Kod tekrar gönderilemedi.')),
+      );
+    } finally {
+      if (mounted) setState(() => resending = false);
+    }
   }
 
   @override
@@ -114,7 +247,7 @@ class _OtpScreenState extends State<OtpScreen> {
                     Row(
                       children: [
                         Meet6BackButton(
-                          onTap: () => Navigator.of(context).pop(),
+                          onTap: verifying ? null : () => Navigator.of(context).pop(),
                         ),
                         const Spacer(),
                         const Meet6MiniBrand(),
@@ -157,7 +290,7 @@ class _OtpScreenState extends State<OtpScreen> {
                       ),
                     ),
                     TextButton(
-                      onPressed: () => Navigator.of(context).pop(),
+                      onPressed: verifying ? null : () => Navigator.of(context).pop(),
                       style: TextButton.styleFrom(
                         padding: EdgeInsets.zero,
                         minimumSize: const Size(0, 38),
@@ -182,6 +315,7 @@ class _OtpScreenState extends State<OtpScreen> {
                           child: TextField(
                             controller: controllers[index],
                             focusNode: focusNodes[index],
+                            enabled: !verifying,
                             maxLength: 1,
                             keyboardType: TextInputType.number,
                             textAlign: TextAlign.center,
@@ -228,10 +362,10 @@ class _OtpScreenState extends State<OtpScreen> {
                               ),
                             )
                           : TextButton(
-                              onPressed: _restartTimer,
-                              child: const Text(
-                                'Kodu tekrar gönder',
-                                style: TextStyle(
+                              onPressed: resending ? null : _resend,
+                              child: Text(
+                                resending ? 'Gönderiliyor...' : 'Kodu tekrar gönder',
+                                style: const TextStyle(
                                   color: AppColors.blue,
                                   fontWeight: FontWeight.w900,
                                 ),
@@ -240,8 +374,8 @@ class _OtpScreenState extends State<OtpScreen> {
                     ),
                     const SizedBox(height: 34),
                     PrimaryButton(
-                      label: 'Doğrula',
-                      onPressed: complete ? _verify : null,
+                      label: verifying ? 'Doğrulanıyor...' : 'Doğrula',
+                      onPressed: complete && !verifying ? _verify : null,
                     ),
                   ],
                 ),
