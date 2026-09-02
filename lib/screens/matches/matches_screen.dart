@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../models/match_profile.dart';
 import '../../models/matching_preferences.dart';
-import '../../services/blocked_accounts_service.dart';
+import '../../services/api_service.dart';
+import '../../services/live_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/main_bottom_nav.dart';
 import '../../widgets/phone_frame.dart';
@@ -27,89 +27,38 @@ class MatchesScreen extends StatefulWidget {
 
 class _MatchesScreenState extends State<MatchesScreen> {
   late MatchingPreferences preferences;
-
-  static const _seedMatches = [
-    MatchProfile(
-      name: 'Ece',
-      age: 26,
-      city: 'İstanbul, Türkiye',
-      initial: 'E',
-      bio: 'Kahve, sahil yürüyüşleri ve yeni yerler keşfetmeyi seviyorum. İyi bir sohbet her şeyi değiştirir.',
-      interests: ['Kahve', 'Seyahat', 'Müzik', 'Sinema'],
-      prompt: 'Benimle iyi anlaşmanın yolu...',
-      promptAnswer: 'Doğal ol, bol bol gül ve kahve konusunda iddialı ol.',
-      matchedAt: 'Bugün',
-      isOnline: true,
-    ),
-    MatchProfile(
-      name: 'Selin',
-      age: 25,
-      city: 'İstanbul, Türkiye',
-      initial: 'S',
-      bio: 'Hafta sonu planlarını son anda yapanlardanım. Konser, yemek ve uzun sohbet üçlüsünü severim.',
-      interests: ['Müzik', 'Yemek', 'Dans', 'Seyahat'],
-      prompt: 'İlk buluşmada ideal planım...',
-      promptAnswer: 'Sessiz olmayan bir mekân, iyi müzik ve saatlere bakmayı unuttuğumuz bir sohbet.',
-      matchedAt: '12 dk önce',
-      isOnline: true,
-    ),
-    MatchProfile(
-      name: 'Mert',
-      age: 29,
-      city: 'Tekirdağ, Türkiye',
-      initial: 'M',
-      bio: 'Spor, teknoloji ve yolculuk. Gereksiz küçük konuşmalardan çok gerçekten tanımayı seviyorum.',
-      interests: ['Spor', 'Teknoloji', 'Doğa', 'Oyun'],
-      prompt: 'Beni en çok güldüren şey...',
-      promptAnswer: 'Kötü yapılan ama özgüvenle anlatılan şakalar.',
-      matchedAt: '1 saat önce',
-    ),
-    MatchProfile(
-      name: 'Deniz',
-      age: 27,
-      city: 'Tekirdağ, Türkiye',
-      initial: 'D',
-      bio: 'Kitapçıda saatler geçirebilirim. Yeni insanlarda en çok merak duygusunu seviyorum.',
-      interests: ['Kitap', 'Kahve', 'Doğa', 'Fotoğraf'],
-      prompt: 'Birlikte kesin yapmalıyız...',
-      promptAnswer: 'Daha önce ikimizin de gitmediği bir yere günübirlik kaçmalıyız.',
-      matchedAt: 'Dün',
-    ),
-  ];
-
-  final matches = <MatchProfile>[];
+  List<Map<String, dynamic>> matches = const [];
+  int unreadTotal = 0;
+  bool loading = true;
+  String? error;
 
   @override
   void initState() {
     super.initState();
     preferences = widget.preferences;
-    matches.addAll(_seedMatches);
-    _filterBlockedMatches();
+    _load();
   }
 
-  Future<void> _filterBlockedMatches() async {
-    final blocked = await BlockedAccountsService.load();
-    if (!mounted) return;
-    final names = blocked.map((account) => account.name.toLowerCase()).toSet();
-    setState(() {
-      matches.removeWhere((profile) => names.contains(profile.name.toLowerCase()));
-    });
-  }
-
-  Future<void> _openProfile(MatchProfile profile) async {
-    final blocked = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (_) => MatchProfileDetailScreen(profile: profile),
-      ),
-    );
-    if (blocked != true || !mounted) return;
-    setState(() => matches.removeWhere((item) => item.name == profile.name));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${profile.name} engellendi ve eşleşmelerden kaldırıldı.'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+  Future<void> _load() async {
+    try {
+      final data = await LiveService.matches();
+      final raw = data['matches'];
+      if (!mounted) return;
+      setState(() {
+        matches = raw is List
+            ? raw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
+            : const [];
+        unreadTotal = (data['unreadTotal'] as num?)?.toInt() ?? 0;
+        loading = false;
+        error = null;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        error = e.message;
+      });
+    }
   }
 
   void _goHome() {
@@ -150,12 +99,26 @@ class _MatchesScreenState extends State<MatchesScreen> {
           initialPreferences: preferences,
           asRootTab: true,
           onPreferencesChanged: (value) {
-            if (!mounted) return;
-            setState(() => preferences = value);
+            if (mounted) setState(() => preferences = value);
           },
         ),
       ),
     );
+  }
+
+  Future<void> _open(Map<String, dynamic> item) async {
+    final matchId = item['match_id']?.toString() ?? '';
+    if (matchId.isEmpty) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => MatchProfileDetailScreen(
+          matchId: matchId,
+          profileName: widget.profileName,
+          preferences: preferences,
+        ),
+      ),
+    );
+    if (mounted) _load();
   }
 
   @override
@@ -169,253 +132,170 @@ class _MatchesScreenState extends State<MatchesScreen> {
         child: Column(
           children: [
             Expanded(
-              child: CustomScrollView(
-                physics: const BouncingScrollPhysics(),
-                slivers: [
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Eşleşmeler',
-                                  style: TextStyle(
-                                    color: scheme.onSurface,
-                                    fontSize: 30,
-                                    height: 1,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: -1.1,
-                                  ),
-                                ),
-                                const SizedBox(height: 5),
-                                Text(
-                                  'Karşılıklı seçim yaptığın kişiler',
-                                  style: TextStyle(
-                                    color: scheme.onSurfaceVariant,
-                                    fontSize: 12.5,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Container(
-                            width: 43,
-                            height: 43,
-                            decoration: const BoxDecoration(
-                              color: AppColors.lime,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.favorite_rounded,
-                              color: AppColors.navy,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-                      child: Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: AppColors.lime.withOpacity(.32),
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: scheme.outlineVariant),
-                        ),
+              child: RefreshIndicator(
+                onRefresh: _load,
+                child: CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
                         child: Row(
                           children: [
-                            const Icon(
-                              Icons.lock_outline_rounded,
-                              color: AppColors.blue,
-                              size: 19,
-                            ),
-                            const SizedBox(width: 9),
                             Expanded(
-                              child: Text(
-                                '${matches.length} eşleşmen var. Bir kişiye dokunarak profilini açabilirsin.',
-                                style: TextStyle(
-                                  color: scheme.onSurface,
-                                  fontSize: 11.8,
-                                  height: 1.35,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (matches.isEmpty)
-                    const SliverFillRemaining(
-                      hasScrollBody: false,
-                      child: _EmptyMatches(),
-                    )
-                  else
-                    SliverList.separated(
-                      itemCount: matches.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
-                      itemBuilder: (context, index) {
-                        final profile = matches[index];
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          child: InkWell(
-                            onTap: () => _openProfile(profile),
-                            borderRadius: BorderRadius.circular(22),
-                            child: Container(
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: scheme.surface.withOpacity(.94),
-                                borderRadius: BorderRadius.circular(22),
-                                border: Border.all(color: scheme.outlineVariant),
-                              ),
-                              child: Row(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Stack(
-                                    clipBehavior: Clip.none,
-                                    children: [
-                                      Container(
-                                        width: 66,
-                                        height: 66,
-                                        decoration: const BoxDecoration(
-                                          color: AppColors.navy,
-                                          shape: BoxShape.circle,
-                                        ),
-                                        alignment: Alignment.center,
-                                        child: Text(
-                                          profile.initial,
-                                          style: const TextStyle(
-                                            color: AppColors.lime,
-                                            fontSize: 25,
-                                            fontWeight: FontWeight.w900,
-                                          ),
-                                        ),
-                                      ),
-                                      if (profile.isOnline)
-                                        Positioned(
-                                          right: 1,
-                                          bottom: 1,
-                                          child: Container(
-                                            width: 15,
-                                            height: 15,
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFF36C76C),
-                                              shape: BoxShape.circle,
-                                              border: Border.all(
-                                                color: scheme.surface,
-                                                width: 2,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                    ],
+                                  Text(
+                                    'Eşleşmeler',
+                                    style: TextStyle(
+                                      color: scheme.onSurface,
+                                      fontSize: 30,
+                                      height: 1,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: -1.1,
+                                    ),
                                   ),
-                                  const SizedBox(width: 13),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: Text(
-                                                '${profile.name}, ${profile.age}',
-                                                style: TextStyle(
-                                                  color: scheme.onSurface,
-                                                  fontSize: 15,
-                                                  fontWeight: FontWeight.w900,
-                                                ),
-                                              ),
-                                            ),
-                                            Text(
-                                              profile.matchedAt,
-                                              style: TextStyle(
-                                                color: scheme.onSurfaceVariant,
-                                                fontSize: 10.5,
-                                                fontWeight: FontWeight.w700,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 5),
-                                        Row(
-                                          children: [
-                                            Icon(
-                                              Icons.location_on_outlined,
-                                              color: scheme.primary,
-                                              size: 14,
-                                            ),
-                                            const SizedBox(width: 3),
-                                            Expanded(
-                                              child: Text(
-                                                profile.city,
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                  color: scheme.onSurfaceVariant,
-                                                  fontSize: 11.5,
-                                                  fontWeight: FontWeight.w700,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 7),
-                                        Text(
-                                          profile.bio,
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            color: scheme.onSurface,
-                                            fontSize: 11.5,
-                                            height: 1.3,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 8),
-                                        Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text(
-                                              'Profili gör',
-                                              style: TextStyle(
-                                                color: scheme.primary,
-                                                fontSize: 11.5,
-                                                fontWeight: FontWeight.w900,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 2),
-                                            Icon(
-                                              Icons.chevron_right_rounded,
-                                              color: scheme.primary,
-                                              size: 17,
-                                            ),
-                                          ],
-                                        ),
-                                      ],
+                                  const SizedBox(height: 5),
+                                  Text(
+                                    'Karşılıklı seçim yaptığın kişiler',
+                                    style: TextStyle(
+                                      color: scheme.onSurfaceVariant,
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w700,
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                          ),
-                        );
-                      },
+                            Container(
+                              width: 43,
+                              height: 43,
+                              decoration: const BoxDecoration(color: AppColors.lime, shape: BoxShape.circle),
+                              child: const Icon(Icons.favorite_rounded, color: AppColors.navy),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  const SliverToBoxAdapter(child: SizedBox(height: 20)),
-                ],
+                    if (loading)
+                      const SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: Center(child: CircularProgressIndicator(color: AppColors.lime)),
+                      )
+                    else if (error != null)
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(error!, textAlign: TextAlign.center, style: TextStyle(color: scheme.onSurfaceVariant)),
+                                const SizedBox(height: 12),
+                                FilledButton(onPressed: _load, child: const Text('Tekrar dene')),
+                              ],
+                            ),
+                          ),
+                        ),
+                      )
+                    else if (matches.isEmpty)
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(30),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 78,
+                                  height: 78,
+                                  decoration: const BoxDecoration(color: AppColors.lime, shape: BoxShape.circle),
+                                  child: const Icon(Icons.favorite_border_rounded, color: AppColors.navy, size: 34),
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'Henüz eşleşmen yok',
+                                  style: TextStyle(color: scheme.onSurface, fontSize: 19, fontWeight: FontWeight.w900),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Oda sonunda karşılıklı seçim yaptığınızda burada görünecek.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12, height: 1.4),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      )
+                    else
+                      SliverList.separated(
+                        itemCount: matches.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 9),
+                        itemBuilder: (context, index) {
+                          final item = matches[index];
+                          final photos = item['photo_urls'];
+                          final photo = photos is List && photos.isNotEmpty ? photos.first.toString() : '';
+                          final name = item['display_name']?.toString() ?? 'Meet6';
+                          final age = (item['age'] as num?)?.toInt();
+                          final city = item['city']?.toString() ?? '';
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 18),
+                            child: InkWell(
+                              onTap: () => _open(item),
+                              borderRadius: BorderRadius.circular(21),
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: scheme.surface,
+                                  borderRadius: BorderRadius.circular(21),
+                                  border: Border.all(color: scheme.outlineVariant),
+                                ),
+                                child: Row(
+                                  children: [
+                                    _Avatar(photo: photo, name: name, size: 68),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            age == null ? name : '$name, $age',
+                                            style: TextStyle(color: scheme.onSurface, fontSize: 15.5, fontWeight: FontWeight.w900),
+                                          ),
+                                          if (city.isNotEmpty) ...[
+                                            const SizedBox(height: 3),
+                                            Text(city, style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 11.5, fontWeight: FontWeight.w700)),
+                                          ],
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            item['last_message']?.toString() ?? 'Yeni eşleşme — ilk mesajı gönder.',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 11.5),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    const SliverToBoxAdapter(child: SizedBox(height: 22)),
+                  ],
+                ),
               ),
             ),
             MainBottomNav(
               selectedIndex: 1,
-              unreadMessages: 2,
+              unreadMessages: unreadTotal,
               onTap: (index) {
                 if (index == 0) _goHome();
                 if (index == 2) _goMessages();
@@ -429,55 +309,31 @@ class _MatchesScreenState extends State<MatchesScreen> {
   }
 }
 
-class _EmptyMatches extends StatelessWidget {
-  const _EmptyMatches();
+class _Avatar extends StatelessWidget {
+  const _Avatar({required this.photo, required this.name, required this.size});
+  final String photo;
+  final String name;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 74,
-              height: 74,
-              decoration: const BoxDecoration(
-                color: AppColors.lime,
-                shape: BoxShape.circle,
+    return Container(
+      width: size,
+      height: size,
+      clipBehavior: Clip.antiAlias,
+      decoration: const BoxDecoration(color: AppColors.navy, shape: BoxShape.circle),
+      child: photo.isEmpty
+          ? Center(
+              child: Text(
+                name.characters.first.toUpperCase(),
+                style: const TextStyle(color: AppColors.lime, fontSize: 24, fontWeight: FontWeight.w900),
               ),
-              child: const Icon(
-                Icons.favorite_border_rounded,
-                color: AppColors.navy,
-                size: 32,
-              ),
+            )
+          : Image.network(
+              ApiService.absoluteMediaUrl(photo),
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => const Icon(Icons.person_rounded, color: AppColors.lime),
             ),
-            const SizedBox(height: 14),
-            Text(
-              'Görüntülenecek eşleşme yok',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: scheme.onSurface,
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Yeni bir odada karşılıklı seçim yaptığında eşleşmen burada görünür.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: scheme.onSurfaceVariant,
-                fontSize: 12,
-                height: 1.4,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
