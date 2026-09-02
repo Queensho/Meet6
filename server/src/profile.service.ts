@@ -109,8 +109,6 @@ export class ProfileService {
       [body.birthDate, 'Doğum tarihi'],
       [body.gender, 'Cinsiyet'],
       [body.bio, 'Bio'],
-      [body.city, 'Şehir'],
-      [body.country, 'Ülke'],
       [body.profilePrompt, 'Profil sorusu'],
       [body.profileAnswer, 'Profil cevabı'],
     ];
