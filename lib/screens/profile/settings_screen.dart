@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../services/session_service.dart';
 import '../../theme/app_colors.dart';
+import '../../theme/theme_controller.dart';
 import '../../widgets/phone_frame.dart';
 import '../login_screen.dart';
 import 'settings/blocked_accounts_screen.dart';
@@ -24,245 +26,224 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: PhoneFrame(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 14, 8),
-              child: Row(
-                children: [
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    style: IconButton.styleFrom(backgroundColor: Colors.white),
-                    icon: const Icon(
-                      Icons.arrow_back_rounded,
-                      color: AppColors.navy,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Expanded(
-                    child: Text(
-                      'Ayarlar',
-                      style: TextStyle(
-                        color: AppColors.navy,
-                        fontSize: 21,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1, color: AppColors.border),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(18, 18, 18, 30),
-                physics: const BouncingScrollPhysics(),
-                children: [
-                  const _SectionTitle('Bildirimler'),
-                  _SettingsCard(
-                    children: [
-                      _SwitchTile(
-                        icon: Icons.notifications_none_rounded,
-                        title: 'Bildirimler',
-                        subtitle: 'Eşleşme ve mesaj bildirimlerini al',
-                        value: notifications,
-                        onChanged: (v) => setState(() => notifications = v),
-                      ),
-                      _SwitchTile(
-                        icon: Icons.schedule_rounded,
-                        title: 'Oda hatırlatmaları',
-                        subtitle: 'Yeni oda açılmadan önce haber ver',
-                        value: roomReminders,
-                        onChanged: (v) => setState(() => roomReminders = v),
-                      ),
-                      _SwitchTile(
-                        icon: Icons.vibration_rounded,
-                        title: 'Titreşim',
-                        subtitle: 'Mesaj ve seçimlerde titreşim kullan',
-                        value: vibration,
-                        onChanged: (v) => setState(() => vibration = v),
-                        last: true,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  const _SectionTitle('Gizlilik ve konum'),
-                  _SettingsCard(
-                    children: [
-                      _SwitchTile(
-                        icon: Icons.circle_outlined,
-                        title: 'Çevrimiçi durumumu göster',
-                        subtitle: 'Diğer kişiler aktif olduğunu görebilir',
-                        value: showOnline,
-                        onChanged: (v) => setState(() => showOnline = v),
-                      ),
-                      _SwitchTile(
-                        icon: Icons.my_location_rounded,
-                        title: 'Hassas konum',
-                        subtitle: 'Yakın oda önerilerini daha doğru göster',
-                        value: preciseLocation,
-                        onChanged: (v) => setState(() => preciseLocation = v),
-                        last: true,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  const _SectionTitle('Hesap'),
-                  _SettingsCard(
-                    children: [
-                      _LinkTile(
-                        icon: Icons.shield_outlined,
-                        title: 'Gizlilik ve güvenlik',
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const PrivacySecurityScreen(),
-                          ),
-                        ),
-                      ),
-                      _LinkTile(
-                        icon: Icons.block_rounded,
-                        title: 'Engellenen hesaplar',
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const BlockedAccountsScreen(),
-                          ),
-                        ),
-                      ),
-                      _LinkTile(
-                        icon: Icons.help_outline_rounded,
-                        title: 'Yardım ve destek',
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const HelpSupportScreen(),
-                          ),
-                        ),
-                      ),
-                      _LinkTile(
-                        icon: Icons.description_outlined,
-                        title: 'Koşullar ve gizlilik',
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const LegalScreen(),
-                          ),
-                        ),
-                        last: true,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  _SettingsCard(
-                    children: [
-                      _LinkTile(
-                        icon: Icons.logout_rounded,
-                        title: 'Çıkış yap',
-                        danger: true,
-                        onTap: _showLogoutConfirm,
-                      ),
-                      _LinkTile(
-                        icon: Icons.delete_outline_rounded,
-                        title: 'Hesabımı sil',
-                        danger: true,
-                        onTap: _showDeleteConfirm,
-                        last: true,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  const Center(
-                    child: Text(
-                      'Meet6 · v0.1.0',
-                      style: TextStyle(
-                        color: AppColors.muted,
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
 
-  Future<void> _showLogoutConfirm() async {
-    final approved = await showModalBottomSheet<bool>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => SafeArea(
-        child: Container(
-          margin: const EdgeInsets.all(12),
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-          ),
+    return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
+      body: PhoneFrame(
+        child: ColoredBox(
+          color: theme.scaffoldBackgroundColor,
           child: Column(
-            mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
-                Icons.logout_rounded,
-                color: Color(0xFFE24A4A),
-                size: 34,
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'Çıkış yapmak istiyor musun?',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppColors.navy,
-                  fontSize: 19,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 7),
-              const Text(
-                'Bu prototipte çıkış yaptığında giriş ekranına dönersin.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppColors.muted,
-                  fontSize: 12.5,
-                  height: 1.4,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: const Text('Vazgeç'),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: const Color(0xFFE24A4A),
-                        foregroundColor: Colors.white,
-                      ),
-                      child: const Text(
-                        'Çıkış yap',
-                        style: TextStyle(fontWeight: FontWeight.w900),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 14, 8),
+                child: Row(
+                  children: [
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: IconButton.styleFrom(backgroundColor: scheme.surface),
+                      icon: Icon(
+                        Icons.arrow_back_rounded,
+                        color: scheme.onSurface,
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Ayarlar',
+                        style: TextStyle(
+                          color: scheme.onSurface,
+                          fontSize: 21,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Divider(height: 1, color: scheme.outlineVariant),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 30),
+                  physics: const BouncingScrollPhysics(),
+                  children: [
+                    const _SectionTitle('Görünüm'),
+                    ValueListenableBuilder<ThemeMode>(
+                      valueListenable: ThemeController.instance,
+                      builder: (context, mode, _) {
+                        return _SettingsCard(
+                          child: Padding(
+                            padding: const EdgeInsets.all(10),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: _ThemeChoice(
+                                    icon: Icons.light_mode_rounded,
+                                    title: 'Aydınlık',
+                                    selected: mode == ThemeMode.light,
+                                    onTap: () => ThemeController.instance
+                                        .setMode(ThemeMode.light),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: _ThemeChoice(
+                                    icon: Icons.dark_mode_rounded,
+                                    title: 'Karanlık',
+                                    selected: mode == ThemeMode.dark,
+                                    onTap: () => ThemeController.instance
+                                        .setMode(ThemeMode.dark),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                    const _SectionTitle('Bildirimler'),
+                    _SettingsCard(
+                      children: [
+                        _SwitchTile(
+                          icon: Icons.notifications_none_rounded,
+                          title: 'Bildirimler',
+                          subtitle: 'Eşleşme ve mesaj bildirimlerini al',
+                          value: notifications,
+                          onChanged: (v) => setState(() => notifications = v),
+                        ),
+                        _SwitchTile(
+                          icon: Icons.schedule_rounded,
+                          title: 'Oda hatırlatmaları',
+                          subtitle: 'Yeni oda açılmadan önce haber ver',
+                          value: roomReminders,
+                          onChanged: (v) => setState(() => roomReminders = v),
+                        ),
+                        _SwitchTile(
+                          icon: Icons.vibration_rounded,
+                          title: 'Titreşim',
+                          subtitle: 'Mesaj ve seçimlerde titreşim kullan',
+                          value: vibration,
+                          onChanged: (v) => setState(() => vibration = v),
+                          last: true,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    const _SectionTitle('Gizlilik ve konum'),
+                    _SettingsCard(
+                      children: [
+                        _SwitchTile(
+                          icon: Icons.circle_outlined,
+                          title: 'Çevrimiçi durumumu göster',
+                          subtitle: 'Diğer kişiler aktif olduğunu görebilir',
+                          value: showOnline,
+                          onChanged: (v) => setState(() => showOnline = v),
+                        ),
+                        _SwitchTile(
+                          icon: Icons.my_location_rounded,
+                          title: 'Hassas konum',
+                          subtitle: 'Yakın oda önerilerini daha doğru göster',
+                          value: preciseLocation,
+                          onChanged: (v) => setState(() => preciseLocation = v),
+                          last: true,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    const _SectionTitle('Hesap'),
+                    _SettingsCard(
+                      children: [
+                        _LinkTile(
+                          icon: Icons.shield_outlined,
+                          title: 'Gizlilik ve güvenlik',
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const PrivacySecurityScreen(),
+                            ),
+                          ),
+                        ),
+                        _LinkTile(
+                          icon: Icons.block_rounded,
+                          title: 'Engellenen hesaplar',
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const BlockedAccountsScreen(),
+                            ),
+                          ),
+                        ),
+                        _LinkTile(
+                          icon: Icons.help_outline_rounded,
+                          title: 'Yardım ve destek',
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const HelpSupportScreen(),
+                            ),
+                          ),
+                        ),
+                        _LinkTile(
+                          icon: Icons.description_outlined,
+                          title: 'Koşullar ve gizlilik',
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const LegalScreen(),
+                            ),
+                          ),
+                          last: true,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    _SettingsCard(
+                      children: [
+                        _LinkTile(
+                          icon: Icons.logout_rounded,
+                          title: 'Çıkış yap',
+                          danger: true,
+                          onTap: _showLogoutConfirm,
+                        ),
+                        _LinkTile(
+                          icon: Icons.delete_outline_rounded,
+                          title: 'Hesabımı sil',
+                          danger: true,
+                          onTap: _showDeleteConfirm,
+                          last: true,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    Center(
+                      child: Text(
+                        'Meet6 · v0.1.0',
+                        style: TextStyle(
+                          color: scheme.onSurfaceVariant,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _showLogoutConfirm() async {
+    final approved = await _showConfirmSheet(
+      icon: Icons.logout_rounded,
+      title: 'Çıkış yapmak istiyor musun?',
+      description: 'Çıkış yaptığında giriş ekranına dönersin.',
+      confirmLabel: 'Çıkış yap',
+    );
 
     if (approved == true && mounted) {
+      await SessionService.clear();
+      if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const LoginScreen()),
         (route) => false,
@@ -271,86 +252,101 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _showDeleteConfirm() async {
-    final approved = await showModalBottomSheet<bool>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) => SafeArea(
-        child: Container(
-          margin: const EdgeInsets.all(12),
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.warning_amber_rounded,
-                color: Color(0xFFE24A4A),
-                size: 38,
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'Hesabını silmek istiyor musun?',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppColors.navy,
-                  fontSize: 19,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 7),
-              const Text(
-                'Gerçek hesap backend’i henüz bağlı olmadığı için bu işlem şu an yalnızca prototip akışını test eder. Sunucuda veri silmez.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppColors.muted,
-                  fontSize: 12.5,
-                  height: 1.4,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: FilledButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.navy,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text(
-                    'Vazgeç',
-                    style: TextStyle(fontWeight: FontWeight.w900),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 6),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text(
-                  'Prototip hesabı sil ve çık',
-                  style: TextStyle(
-                    color: Color(0xFFE24A4A),
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    final approved = await _showConfirmSheet(
+      icon: Icons.warning_amber_rounded,
+      title: 'Hesabını silmek istiyor musun?',
+      description:
+          'Gerçek hesap backend’i henüz bağlı olmadığı için bu işlem prototip verilerini temizler ve giriş ekranına döner.',
+      confirmLabel: 'Prototip hesabı sil',
     );
 
     if (approved == true && mounted) {
+      await SessionService.clear();
+      if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(builder: (_) => const LoginScreen()),
         (route) => false,
       );
     }
+  }
+
+  Future<bool?> _showConfirmSheet({
+    required IconData icon,
+    required String title,
+    required String description,
+    required String confirmLabel,
+  }) {
+    return showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        final scheme = Theme.of(sheetContext).colorScheme;
+        return SafeArea(
+          child: Container(
+            margin: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: scheme.surface,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: scheme.outlineVariant),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: const Color(0xFFE24A4A), size: 36),
+                const SizedBox(height: 10),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: scheme.onSurface,
+                    fontSize: 19,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 7),
+                Text(
+                  description,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: scheme.onSurfaceVariant,
+                    fontSize: 12.5,
+                    height: 1.4,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(sheetContext, false),
+                        child: const Text('Vazgeç'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () => Navigator.pop(sheetContext, true),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFFE24A4A),
+                          foregroundColor: Colors.white,
+                        ),
+                        child: Text(
+                          confirmLabel,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 }
 
@@ -364,8 +360,8 @@ class _SectionTitle extends StatelessWidget {
       padding: const EdgeInsets.only(left: 4, bottom: 8),
       child: Text(
         text,
-        style: const TextStyle(
-          color: AppColors.muted,
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
           fontSize: 11.5,
           fontWeight: FontWeight.w900,
           letterSpacing: .3,
@@ -376,18 +372,77 @@ class _SectionTitle extends StatelessWidget {
 }
 
 class _SettingsCard extends StatelessWidget {
-  const _SettingsCard({required this.children});
-  final List<Widget> children;
+  const _SettingsCard({this.children, this.child});
+
+  final List<Widget>? children;
+  final Widget? child;
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(.9),
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: scheme.outlineVariant),
       ),
-      child: Column(children: children),
+      child: child ?? Column(children: children ?? const []),
+    );
+  }
+}
+
+class _ThemeChoice extends StatelessWidget {
+  const _ThemeChoice({
+    required this.icon,
+    required this.title,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        height: 82,
+        decoration: BoxDecoration(
+          color: selected
+              ? AppColors.lime
+              : scheme.surfaceContainerHigh.withOpacity(.72),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: selected ? AppColors.navy : scheme.outlineVariant,
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              color: selected ? AppColors.navy : scheme.onSurface,
+              size: 25,
+            ),
+            const SizedBox(height: 7),
+            Text(
+              title,
+              style: TextStyle(
+                color: selected ? AppColors.navy : scheme.onSurface,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -411,6 +466,7 @@ class _SwitchTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Column(
       children: [
         SwitchListTile.adaptive(
@@ -420,16 +476,16 @@ class _SwitchTile extends StatelessWidget {
           secondary: _IconBox(icon),
           title: Text(
             title,
-            style: const TextStyle(
-              color: AppColors.navy,
+            style: TextStyle(
+              color: scheme.onSurface,
               fontSize: 13.5,
               fontWeight: FontWeight.w900,
             ),
           ),
           subtitle: Text(
             subtitle,
-            style: const TextStyle(
-              color: AppColors.muted,
+            style: TextStyle(
+              color: scheme.onSurfaceVariant,
               fontSize: 11.5,
               height: 1.3,
               fontWeight: FontWeight.w600,
@@ -437,7 +493,8 @@ class _SwitchTile extends StatelessWidget {
           ),
           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
         ),
-        if (!last) const Divider(height: 1, indent: 62, color: AppColors.border),
+        if (!last)
+          Divider(height: 1, indent: 62, color: scheme.outlineVariant),
       ],
     );
   }
@@ -460,7 +517,8 @@ class _LinkTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = danger ? const Color(0xFFE24A4A) : AppColors.navy;
+    final scheme = Theme.of(context).colorScheme;
+    final color = danger ? const Color(0xFFE24A4A) : scheme.onSurface;
     return Column(
       children: [
         ListTile(
@@ -477,10 +535,11 @@ class _LinkTile extends StatelessWidget {
           ),
           trailing: Icon(
             Icons.chevron_right_rounded,
-            color: danger ? const Color(0xFFE24A4A) : AppColors.muted,
+            color: danger ? const Color(0xFFE24A4A) : scheme.onSurfaceVariant,
           ),
         ),
-        if (!last) const Divider(height: 1, indent: 62, color: AppColors.border),
+        if (!last)
+          Divider(height: 1, indent: 62, color: scheme.outlineVariant),
       ],
     );
   }
@@ -493,16 +552,19 @@ class _IconBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       width: 38,
       height: 38,
       decoration: BoxDecoration(
-        color: danger ? const Color(0xFFFFEEEE) : AppColors.softSurface,
+        color: danger
+            ? const Color(0x33E24A4A)
+            : scheme.primary.withOpacity(.10),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Icon(
         icon,
-        color: danger ? const Color(0xFFE24A4A) : AppColors.blue,
+        color: danger ? const Color(0xFFE24A4A) : scheme.primary,
         size: 20,
       ),
     );
