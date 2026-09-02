@@ -458,8 +458,8 @@ export class RoomService {
         await this.infra.db.query(
           `insert into notifications(user_id,type,title,body,data)
            values
-             ($1,'match','Yeni eşleşme!','Karşılıklı seçim yaptınız.',jsonb_build_object('matchId',$3)),
-             ($2,'match','Yeni eşleşme!','Karşılıklı seçim yaptınız.',jsonb_build_object('matchId',$3))`,
+             ($1,'match','Yeni eşleşme!','Karşılıklı seçim yaptınız.',jsonb_build_object('matchId',$3::text)),
+             ($2,'match','Yeni eşleşme!','Karşılıklı seçim yaptınız.',jsonb_build_object('matchId',$3::text))`,
           [userId, selectedUserId, matchId],
         );
       } else {
