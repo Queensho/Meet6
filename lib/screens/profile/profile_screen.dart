@@ -2,15 +2,85 @@ import 'package:flutter/material.dart';
 
 import '../../theme/app_colors.dart';
 import '../../widgets/phone_frame.dart';
+import 'edit_profile_screen.dart';
+import 'settings_screen.dart';
 import 'widgets/profile_hero.dart';
 import 'widgets/profile_info_section.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key, this.profileName = ''});
 
   final String profileName;
 
-  String get displayName => profileName.trim().isEmpty ? 'Tayfun' : profileName.trim();
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  late String name;
+  int age = 28;
+  String city = 'İstanbul';
+  String bio = 'Yeni insanlarla tanışmayı, güzel sohbetleri ve spontane planları seviyorum.';
+  List<String> interests = ['Kahve', 'Seyahat', 'Müzik', 'Spor'];
+  String prompt = 'Benimle iyi anlaşmanın yolu...';
+  String promptAnswer = 'İyi kahve, bol kahkaha ve açık iletişim.';
+  String lookingFor = 'Herkes';
+  int distanceKm = 25;
+  String purpose = 'Yeni insanlarla tanışma';
+
+  @override
+  void initState() {
+    super.initState();
+    name = widget.profileName.trim().isEmpty ? 'Tayfun' : widget.profileName.trim();
+  }
+
+  EditProfileResult get currentProfile => EditProfileResult(
+        name: name,
+        age: age,
+        city: city,
+        bio: bio,
+        interests: interests,
+        prompt: prompt,
+        promptAnswer: promptAnswer,
+        lookingFor: lookingFor,
+        distanceKm: distanceKm,
+        purpose: purpose,
+      );
+
+  Future<void> _openEditProfile() async {
+    final result = await Navigator.of(context).push<EditProfileResult>(
+      MaterialPageRoute(
+        builder: (_) => EditProfileScreen(initial: currentProfile),
+      ),
+    );
+
+    if (result == null || !mounted) return;
+    setState(() {
+      name = result.name;
+      age = result.age;
+      city = result.city;
+      bio = result.bio;
+      interests = result.interests;
+      prompt = result.prompt;
+      promptAnswer = result.promptAnswer;
+      lookingFor = result.lookingFor;
+      distanceKm = result.distanceKm;
+      purpose = result.purpose;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Profilin güncellendi.'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _openSettings() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,7 +95,7 @@ class ProfileScreen extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 28),
                 child: Column(
                   children: [
-                    ProfileHero(name: displayName),
+                    ProfileHero(name: name),
                     const SizedBox(height: 72),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 18),
@@ -41,40 +111,37 @@ class ProfileScreen extends StatelessWidget {
                                 letterSpacing: -1,
                               ),
                               children: [
-                                TextSpan(text: displayName),
-                                const TextSpan(
-                                  text: ', 28',
-                                  style: TextStyle(fontWeight: FontWeight.w700),
+                                TextSpan(text: name),
+                                TextSpan(
+                                  text: ', $age',
+                                  style: const TextStyle(fontWeight: FontWeight.w700),
                                 ),
                               ],
                             ),
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 7),
-                          const Row(
+                          Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(
+                              const Icon(
                                 Icons.location_on_outlined,
                                 color: AppColors.blue,
                                 size: 17,
                               ),
-                              SizedBox(width: 4),
+                              const SizedBox(width: 4),
                               Text(
-                                'İstanbul',
-                                style: TextStyle(
+                                city,
+                                style: const TextStyle(
                                   color: AppColors.muted,
                                   fontSize: 12.5,
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
-                              SizedBox(width: 8),
-                              Text(
-                                '•',
-                                style: TextStyle(color: AppColors.border),
-                              ),
-                              SizedBox(width: 8),
-                              Text(
+                              const SizedBox(width: 8),
+                              const Text('•', style: TextStyle(color: AppColors.border)),
+                              const SizedBox(width: 8),
+                              const Text(
                                 'Şimdi aktif',
                                 style: TextStyle(
                                   color: Color(0xFF28A745),
@@ -89,14 +156,7 @@ class ProfileScreen extends StatelessWidget {
                             width: double.infinity,
                             height: 52,
                             child: FilledButton.icon(
-                              onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Profil düzenleme ekranı sonraki adımda bağlanacak.'),
-                                    behavior: SnackBarBehavior.floating,
-                                  ),
-                                );
-                              },
+                              onPressed: _openEditProfile,
                               style: FilledButton.styleFrom(
                                 backgroundColor: AppColors.navy,
                                 foregroundColor: Colors.white,
@@ -117,9 +177,9 @@ class ProfileScreen extends StatelessWidget {
                           const SizedBox(height: 14),
                           ProfileSection(
                             title: 'Hakkımda',
-                            child: const Text(
-                              'Yeni insanlarla tanışmayı, güzel sohbetleri ve spontane planları seviyorum.',
-                              style: TextStyle(
+                            child: Text(
+                              bio,
+                              style: const TextStyle(
                                 color: AppColors.navy,
                                 fontSize: 13.5,
                                 height: 1.45,
@@ -130,14 +190,12 @@ class ProfileScreen extends StatelessWidget {
                           const SizedBox(height: 12),
                           ProfileSection(
                             title: 'İlgi alanlarım',
-                            child: const Wrap(
+                            child: Wrap(
                               spacing: 8,
                               runSpacing: 8,
                               children: [
-                                ProfileInterestChip(label: 'Kahve'),
-                                ProfileInterestChip(label: 'Seyahat'),
-                                ProfileInterestChip(label: 'Müzik'),
-                                ProfileInterestChip(label: 'Spor'),
+                                for (final interest in interests)
+                                  ProfileInterestChip(label: interest),
                               ],
                             ),
                           ),
@@ -147,18 +205,18 @@ class ProfileScreen extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
-                                  'Benimle iyi anlaşmanın yolu...',
-                                  style: TextStyle(
+                                Text(
+                                  prompt,
+                                  style: const TextStyle(
                                     color: AppColors.blue,
                                     fontSize: 12,
                                     fontWeight: FontWeight.w900,
                                   ),
                                 ),
                                 const SizedBox(height: 6),
-                                const Text(
-                                  'İyi kahve, bol kahkaha ve açık iletişim.',
-                                  style: TextStyle(
+                                Text(
+                                  promptAnswer,
+                                  style: const TextStyle(
                                     color: AppColors.navy,
                                     fontSize: 14,
                                     height: 1.35,
@@ -171,25 +229,25 @@ class ProfileScreen extends StatelessWidget {
                           const SizedBox(height: 12),
                           ProfileSection(
                             title: 'Bilgilerim',
-                            child: const Wrap(
+                            child: Wrap(
                               spacing: 18,
                               runSpacing: 13,
                               children: [
                                 ProfileMiniInfo(
                                   icon: Icons.cake_outlined,
-                                  text: '28 yaş',
+                                  text: '$age yaş',
                                 ),
                                 ProfileMiniInfo(
                                   icon: Icons.people_outline_rounded,
-                                  text: 'Herkes',
+                                  text: lookingFor,
                                 ),
                                 ProfileMiniInfo(
                                   icon: Icons.explore_outlined,
-                                  text: '25 km',
+                                  text: '$distanceKm km',
                                 ),
                                 ProfileMiniInfo(
                                   icon: Icons.favorite_border_rounded,
-                                  text: 'Yeni insanlarla tanışma',
+                                  text: purpose,
                                 ),
                               ],
                             ),
@@ -247,14 +305,7 @@ class ProfileScreen extends StatelessWidget {
               right: 12,
               child: _CircleAction(
                 icon: Icons.settings_outlined,
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Ayarlar ekranını daha sonra bağlayacağız.'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                },
+                onTap: _openSettings,
               ),
             ),
           ],
