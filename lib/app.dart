@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'screens/login_screen.dart';
+import 'screens/session_gate.dart';
 import 'theme/app_colors.dart';
 
 class Meet6App extends StatelessWidget {
@@ -17,7 +17,7 @@ class Meet6App extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: AppColors.blue),
         fontFamily: 'Arial',
       ),
-      home: const LoginScreen(),
+      home: const SessionGate(),
     );
   }
 }
