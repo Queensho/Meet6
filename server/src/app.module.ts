@@ -7,6 +7,7 @@ import { HealthController } from './health.controller';
 import { InfrastructureService } from './infrastructure.service';
 import { ProfileController } from './profile.controller';
 import { ProfileService } from './profile.service';
+import { RoomControlController } from './room-control.controller';
 import { RoomController } from './room.controller';
 import { RoomService } from './room.service';
 import { RoomsGateway } from './rooms.gateway';
@@ -27,6 +28,7 @@ import { SupportService } from './support.service';
     AuthController,
     ProfileController,
     RoomController,
+    RoomControlController,
     SocialController,
     SupportController,
   ],
