@@ -46,6 +46,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   late MatchingPreferences preferences;
+  bool _pushDiagnosing = false;
 
   @override
   void initState() {
@@ -69,6 +70,35 @@ class _HomeScreenState extends State<HomeScreen> {
     unawaited(
       PushNotificationService.initializeForAuthenticatedUser()
           .catchError((_) {}),
+    );
+  }
+
+  Future<void> _diagnosePush() async {
+    if (_pushDiagnosing) return;
+    setState(() => _pushDiagnosing = true);
+
+    String result;
+    try {
+      result = await PushNotificationService.diagnoseAndRegister();
+    } catch (error) {
+      result = '❌ Push teşhisi çalıştırılamadı\n$error';
+    }
+
+    if (!mounted) return;
+    setState(() => _pushDiagnosing = false);
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Push bildirimi teşhisi'),
+        content: SelectableText(result),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Tamam'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -187,7 +217,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         onTap: _openPreferences,
                       ),
                       const SizedBox(width: 9),
-                      const _TopButton(icon: Icons.notifications_none_rounded),
+                      _TopButton(
+                        icon: _pushDiagnosing
+                            ? Icons.sync_rounded
+                            : Icons.notifications_none_rounded,
+                        onTap: _diagnosePush,
+                      ),
                     ],
                   ),
                   const SizedBox(height: 18),
