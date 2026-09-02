@@ -207,7 +207,7 @@ class ProfileStepThree extends StatelessWidget {
                         ),
                         child: selected
                             ? Image.memory(
-                                bytes,
+                                bytes!,
                                 fit: BoxFit.cover,
                               )
                             : Icon(
