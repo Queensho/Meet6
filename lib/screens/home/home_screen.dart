@@ -3,11 +3,11 @@ import 'package:flutter/material.dart';
 import '../../models/matching_preferences.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/main_bottom_nav.dart';
-import '../chat/room_chat_screen.dart';
 import '../matches/matches_screen.dart';
 import '../messages/messages_screen.dart';
 import '../preferences/matching_preferences_screen.dart';
 import '../profile/profile_screen.dart';
+import '../room/room_rules_screen.dart';
 import 'widgets/room_radar.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -72,9 +72,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _enterRoom() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => RoomChatScreen(
-          profileName: widget.profileName,
-        ),
+        builder: (_) => RoomRulesScreen(profileName: widget.profileName),
       ),
     );
   }
@@ -198,7 +196,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                             const SizedBox(height: 4),
                             Expanded(
-                              flex: 6,
+                              flex: 7,
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(horizontal: 2),
                                 child: RoomRadar(onTap: _enterRoom),
@@ -227,47 +225,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
-                            const SizedBox(height: 9),
-                            InkWell(
-                              onTap: _openPreferences,
-                              borderRadius: BorderRadius.circular(999),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 8,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(.42),
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(
-                                      Icons.radar_rounded,
-                                      color: AppColors.blue,
-                                      size: 17,
-                                    ),
-                                    const SizedBox(width: 7),
-                                    Text(
-                                      preferences.distanceLabel,
-                                      style: const TextStyle(
-                                        color: AppColors.navy,
-                                        fontSize: 11.8,
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    const Icon(
-                                      Icons.tune_rounded,
-                                      color: AppColors.navy,
-                                      size: 14,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 9),
+                            const SizedBox(height: 12),
                             InkWell(
                               onTap: _enterRoom,
                               borderRadius: BorderRadius.circular(18),
@@ -275,7 +233,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 width: double.infinity,
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 14,
-                                  vertical: 10,
+                                  vertical: 11,
                                 ),
                                 decoration: BoxDecoration(
                                   color: Colors.white.withOpacity(.30),
@@ -314,7 +272,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                           ),
                                           SizedBox(height: 2),
                                           Text(
-                                            'Sana uygun 5 kişiyle sohbet başlar.',
+                                            'Kuralları kabul et, uygun oda bulunsun.',
                                             style: TextStyle(
                                               color: AppColors.navy,
                                               fontSize: 10.5,
