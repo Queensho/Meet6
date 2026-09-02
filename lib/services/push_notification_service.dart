@@ -54,6 +54,12 @@ class PushNotificationService {
     _initializing = true;
 
     try {
+      try {
+        await PushApiService.status();
+      } catch (_) {
+        // Status ping is diagnostic only; Firebase setup can still continue.
+      }
+
       await Firebase.initializeApp();
       FirebaseMessaging.onBackgroundMessage(meet6FirebaseBackgroundHandler);
 
@@ -105,6 +111,18 @@ class PushNotificationService {
       return '❌ Backend oturum tokenı yok.\nÇıkış yapıp yeniden giriş yap.';
     }
     lines.add('✅ Backend oturumu var');
+
+    try {
+      final status = await PushApiService.status();
+      lines.add('✅ Meet6 API erişimi var');
+      lines.add(
+        'Backend cihaz sayısı: ${status['registeredDevices'] ?? 0}',
+      );
+    } catch (error) {
+      lines.add('❌ Meet6 API erişimi başarısız');
+      lines.add(error.toString());
+      return lines.join('\n');
+    }
 
     try {
       await Firebase.initializeApp();
