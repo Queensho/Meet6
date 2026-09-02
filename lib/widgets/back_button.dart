@@ -5,7 +5,7 @@ import '../theme/app_colors.dart';
 class Meet6BackButton extends StatelessWidget {
   const Meet6BackButton({super.key, required this.onTap});
 
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
