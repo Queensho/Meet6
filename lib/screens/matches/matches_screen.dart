@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/match_profile.dart';
 import '../../models/matching_preferences.dart';
+import '../../services/blocked_accounts_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/main_bottom_nav.dart';
 import '../../widgets/phone_frame.dart';
@@ -27,7 +28,7 @@ class MatchesScreen extends StatefulWidget {
 class _MatchesScreenState extends State<MatchesScreen> {
   late MatchingPreferences preferences;
 
-  final matches = const [
+  static const _seedMatches = [
     MatchProfile(
       name: 'Ece',
       age: 26,
@@ -76,16 +77,38 @@ class _MatchesScreenState extends State<MatchesScreen> {
     ),
   ];
 
+  final matches = <MatchProfile>[];
+
   @override
   void initState() {
     super.initState();
     preferences = widget.preferences;
+    matches.addAll(_seedMatches);
+    _filterBlockedMatches();
   }
 
-  void _openProfile(MatchProfile profile) {
-    Navigator.of(context).push(
+  Future<void> _filterBlockedMatches() async {
+    final blocked = await BlockedAccountsService.load();
+    if (!mounted) return;
+    final names = blocked.map((account) => account.name.toLowerCase()).toSet();
+    setState(() {
+      matches.removeWhere((profile) => names.contains(profile.name.toLowerCase()));
+    });
+  }
+
+  Future<void> _openProfile(MatchProfile profile) async {
+    final blocked = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => MatchProfileDetailScreen(profile: profile),
+      ),
+    );
+    if (blocked != true || !mounted) return;
+
+    setState(() => matches.removeWhere((item) => item.name == profile.name));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${profile.name} engellendi ve eşleşmelerden kaldırıldı.'),
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
@@ -227,153 +250,159 @@ class _MatchesScreenState extends State<MatchesScreen> {
                       ),
                     ),
                   ),
-                  SliverList.separated(
-                    itemCount: matches.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
-                    itemBuilder: (context, index) {
-                      final profile = matches[index];
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: InkWell(
-                          onTap: () => _openProfile(profile),
-                          borderRadius: BorderRadius.circular(22),
-                          child: Container(
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(.94),
-                              borderRadius: BorderRadius.circular(22),
-                              border: Border.all(color: AppColors.border),
-                            ),
-                            child: Row(
-                              children: [
-                                Stack(
-                                  clipBehavior: Clip.none,
-                                  children: [
-                                    Container(
-                                      width: 66,
-                                      height: 66,
-                                      decoration: const BoxDecoration(
-                                        color: AppColors.navy,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      alignment: Alignment.center,
-                                      child: Text(
-                                        profile.initial,
-                                        style: const TextStyle(
-                                          color: AppColors.lime,
-                                          fontSize: 25,
-                                          fontWeight: FontWeight.w900,
+                  if (matches.isEmpty)
+                    const SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: _EmptyMatches(),
+                    )
+                  else
+                    SliverList.separated(
+                      itemCount: matches.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (context, index) {
+                        final profile = matches[index];
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: InkWell(
+                            onTap: () => _openProfile(profile),
+                            borderRadius: BorderRadius.circular(22),
+                            child: Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(.94),
+                                borderRadius: BorderRadius.circular(22),
+                                border: Border.all(color: AppColors.border),
+                              ),
+                              child: Row(
+                                children: [
+                                  Stack(
+                                    clipBehavior: Clip.none,
+                                    children: [
+                                      Container(
+                                        width: 66,
+                                        height: 66,
+                                        decoration: const BoxDecoration(
+                                          color: AppColors.navy,
+                                          shape: BoxShape.circle,
                                         ),
-                                      ),
-                                    ),
-                                    if (profile.isOnline)
-                                      Positioned(
-                                        right: 1,
-                                        bottom: 1,
-                                        child: Container(
-                                          width: 15,
-                                          height: 15,
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFF36C76C),
-                                            shape: BoxShape.circle,
-                                            border: Border.all(color: Colors.white, width: 2),
+                                        alignment: Alignment.center,
+                                        child: Text(
+                                          profile.initial,
+                                          style: const TextStyle(
+                                            color: AppColors.lime,
+                                            fontSize: 25,
+                                            fontWeight: FontWeight.w900,
                                           ),
                                         ),
                                       ),
-                                  ],
-                                ),
-                                const SizedBox(width: 13),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              '${profile.name}, ${profile.age}',
-                                              style: const TextStyle(
-                                                color: AppColors.navy,
-                                                fontSize: 15,
-                                                fontWeight: FontWeight.w900,
+                                      if (profile.isOnline)
+                                        Positioned(
+                                          right: 1,
+                                          bottom: 1,
+                                          child: Container(
+                                            width: 15,
+                                            height: 15,
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF36C76C),
+                                              shape: BoxShape.circle,
+                                              border: Border.all(color: Colors.white, width: 2),
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                  const SizedBox(width: 13),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                '${profile.name}, ${profile.age}',
+                                                style: const TextStyle(
+                                                  color: AppColors.navy,
+                                                  fontSize: 15,
+                                                  fontWeight: FontWeight.w900,
+                                                ),
                                               ),
                                             ),
-                                          ),
-                                          Text(
-                                            profile.matchedAt,
-                                            style: const TextStyle(
-                                              color: AppColors.muted,
-                                              fontSize: 10.5,
-                                              fontWeight: FontWeight.w700,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 5),
-                                      Row(
-                                        children: [
-                                          const Icon(
-                                            Icons.location_on_outlined,
-                                            color: AppColors.blue,
-                                            size: 14,
-                                          ),
-                                          const SizedBox(width: 3),
-                                          Expanded(
-                                            child: Text(
-                                              profile.city,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
+                                            Text(
+                                              profile.matchedAt,
                                               style: const TextStyle(
                                                 color: AppColors.muted,
-                                                fontSize: 11.5,
+                                                fontSize: 10.5,
                                                 fontWeight: FontWeight.w700,
                                               ),
                                             ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 7),
-                                      Text(
-                                        profile.bio,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          color: AppColors.navy,
-                                          fontSize: 11.5,
-                                          height: 1.3,
-                                          fontWeight: FontWeight.w600,
+                                          ],
                                         ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      const Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(
-                                            'Profili gör',
-                                            style: TextStyle(
+                                        const SizedBox(height: 5),
+                                        Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.location_on_outlined,
                                               color: AppColors.blue,
-                                              fontSize: 11.5,
-                                              fontWeight: FontWeight.w900,
+                                              size: 14,
                                             ),
+                                            const SizedBox(width: 3),
+                                            Expanded(
+                                              child: Text(
+                                                profile.city,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(
+                                                  color: AppColors.muted,
+                                                  fontSize: 11.5,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 7),
+                                        Text(
+                                          profile.bio,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            color: AppColors.navy,
+                                            fontSize: 11.5,
+                                            height: 1.3,
+                                            fontWeight: FontWeight.w600,
                                           ),
-                                          SizedBox(width: 2),
-                                          Icon(
-                                            Icons.chevron_right_rounded,
-                                            color: AppColors.blue,
-                                            size: 17,
-                                          ),
-                                        ],
-                                      ),
-                                    ],
+                                        ),
+                                        const SizedBox(height: 8),
+                                        const Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              'Profili gör',
+                                              style: TextStyle(
+                                                color: AppColors.blue,
+                                                fontSize: 11.5,
+                                                fontWeight: FontWeight.w900,
+                                              ),
+                                            ),
+                                            SizedBox(width: 2),
+                                            Icon(
+                                              Icons.chevron_right_rounded,
+                                              color: AppColors.blue,
+                                              size: 17,
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                    },
-                  ),
+                        );
+                      },
+                    ),
                   const SliverToBoxAdapter(child: SizedBox(height: 20)),
                 ],
               ),
@@ -386,6 +415,58 @@ class _MatchesScreenState extends State<MatchesScreen> {
                 if (index == 2) _goMessages();
                 if (index == 3) _goProfile();
               },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptyMatches extends StatelessWidget {
+  const _EmptyMatches();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 74,
+              height: 74,
+              decoration: const BoxDecoration(
+                color: AppColors.lime,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.favorite_border_rounded,
+                color: AppColors.navy,
+                size: 32,
+              ),
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              'Görüntülenecek eşleşme yok',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.navy,
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Yeni bir odada karşılıklı seçim yaptığında eşleşmen burada görünür.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: AppColors.muted,
+                fontSize: 12,
+                height: 1.4,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),
