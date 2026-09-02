@@ -71,7 +71,10 @@ class LiveService {
 
   static Future<Map<String, dynamic>> joinRoomQueue() => _send('POST', '/api/rooms/queue');
   static Future<Map<String, dynamic>> roomQueueStatus() => _get('/api/rooms/queue');
-  static Future<void> cancelRoomQueue() async => _send('DELETE', '/api/rooms/queue');
+
+  static Future<void> cancelRoomQueue() async {
+    await _send('DELETE', '/api/rooms/queue');
+  }
 
   static Future<Map<String, dynamic>> room(String roomId) => _get('/api/rooms/$roomId');
 
@@ -120,10 +123,13 @@ class LiveService {
   static Future<Map<String, dynamic>> sendPrivateMessage(String matchId, String body) =>
       _send('POST', '/api/matches/$matchId/messages', body: {'body': body});
 
-  static Future<void> markMatchRead(String matchId) async =>
-      _send('POST', '/api/matches/$matchId/read');
+  static Future<void> markMatchRead(String matchId) async {
+    await _send('POST', '/api/matches/$matchId/read');
+  }
 
-  static Future<void> unmatch(String matchId) async => _send('DELETE', '/api/matches/$matchId');
+  static Future<void> unmatch(String matchId) async {
+    await _send('DELETE', '/api/matches/$matchId');
+  }
 
   static Future<List<Map<String, dynamic>>> blocks() async {
     final data = await _get('/api/blocks');
@@ -132,24 +138,30 @@ class LiveService {
     return raw.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList();
   }
 
-  static Future<void> blockUser(String userId) async => _send('POST', '/api/users/$userId/block');
-  static Future<void> unblockUser(String userId) async => _send('DELETE', '/api/users/$userId/block');
+  static Future<void> blockUser(String userId) async {
+    await _send('POST', '/api/users/$userId/block');
+  }
+
+  static Future<void> unblockUser(String userId) async {
+    await _send('DELETE', '/api/users/$userId/block');
+  }
 
   static Future<void> reportUser(
     String userId, {
     required String reason,
     String? detail,
     String? roomId,
-  }) async =>
-      _send(
-        'POST',
-        '/api/users/$userId/report',
-        body: {
-          'reason': reason,
-          if (detail != null && detail.trim().isNotEmpty) 'detail': detail.trim(),
-          if (roomId != null && roomId.isNotEmpty) 'roomId': roomId,
-        },
-      );
+  }) async {
+    await _send(
+      'POST',
+      '/api/users/$userId/report',
+      body: {
+        'reason': reason,
+        if (detail != null && detail.trim().isNotEmpty) 'detail': detail.trim(),
+        if (roomId != null && roomId.isNotEmpty) 'roomId': roomId,
+      },
+    );
+  }
 
   static Future<Map<String, dynamic>> settings() => _get('/api/me/settings');
 
@@ -173,5 +185,8 @@ class LiveService {
       );
 
   static Future<Map<String, dynamic>> notifications() => _get('/api/notifications');
-  static Future<void> markNotificationsRead() async => _send('POST', '/api/notifications/read');
+
+  static Future<void> markNotificationsRead() async {
+    await _send('POST', '/api/notifications/read');
+  }
 }
