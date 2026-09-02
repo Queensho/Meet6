@@ -10,6 +10,10 @@ class ChatMessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final dark = theme.brightness == Brightness.dark;
+
     if (message.isSystem) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
@@ -17,15 +21,17 @@ class ChatMessageBubble extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
             decoration: BoxDecoration(
-              color: AppColors.softSurface,
+              color: dark
+                  ? scheme.surfaceContainerHigh.withOpacity(.92)
+                  : AppColors.softSurface,
               borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: scheme.outlineVariant),
             ),
             child: Text(
               message.text,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: AppColors.muted,
+              style: TextStyle(
+                color: scheme.onSurfaceVariant,
                 fontSize: 11.5,
                 fontWeight: FontWeight.w700,
               ),
@@ -34,6 +40,10 @@ class ChatMessageBubble extends StatelessWidget {
         ),
       );
     }
+
+    final incomingColor = dark ? scheme.surface : Colors.white;
+    final incomingText = scheme.onSurface;
+    final mineColor = dark ? const Color(0xFF24366F) : AppColors.navy;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 13),
@@ -47,15 +57,15 @@ class ChatMessageBubble extends StatelessWidget {
               width: 34,
               height: 34,
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: scheme.surfaceContainerHigh,
                 shape: BoxShape.circle,
-                border: Border.all(color: AppColors.border),
+                border: Border.all(color: scheme.outlineVariant),
               ),
               alignment: Alignment.center,
               child: Text(
                 message.avatarLabel,
-                style: const TextStyle(
-                  color: AppColors.navy,
+                style: TextStyle(
+                  color: scheme.onSurface,
                   fontSize: 12,
                   fontWeight: FontWeight.w900,
                 ),
@@ -74,8 +84,8 @@ class ChatMessageBubble extends StatelessWidget {
                     padding: const EdgeInsets.only(left: 4, bottom: 4),
                     child: Text(
                       message.sender,
-                      style: const TextStyle(
-                        color: AppColors.muted,
+                      style: TextStyle(
+                        color: scheme.onSurfaceVariant,
                         fontSize: 10.5,
                         fontWeight: FontWeight.w800,
                       ),
@@ -83,10 +93,9 @@ class ChatMessageBubble extends StatelessWidget {
                   ),
                 Container(
                   constraints: const BoxConstraints(maxWidth: 270),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
                   decoration: BoxDecoration(
-                    color: message.isMine ? AppColors.navy : Colors.white,
+                    color: message.isMine ? mineColor : incomingColor,
                     borderRadius: BorderRadius.only(
                       topLeft: const Radius.circular(18),
                       topRight: const Radius.circular(18),
@@ -95,12 +104,12 @@ class ChatMessageBubble extends StatelessWidget {
                     ),
                     border: message.isMine
                         ? null
-                        : Border.all(color: AppColors.border),
+                        : Border.all(color: scheme.outlineVariant),
                   ),
                   child: Text(
                     message.text,
                     style: TextStyle(
-                      color: message.isMine ? Colors.white : AppColors.navy,
+                      color: message.isMine ? Colors.white : incomingText,
                       fontSize: 14,
                       height: 1.35,
                       fontWeight: FontWeight.w600,
@@ -112,8 +121,8 @@ class ChatMessageBubble extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   child: Text(
                     message.time,
-                    style: const TextStyle(
-                      color: AppColors.muted,
+                    style: TextStyle(
+                      color: scheme.onSurfaceVariant,
                       fontSize: 9.5,
                       fontWeight: FontWeight.w600,
                     ),
