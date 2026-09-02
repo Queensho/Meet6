@@ -78,6 +78,12 @@ class LiveService {
 
   static Future<Map<String, dynamic>> room(String roomId) => _get('/api/rooms/$roomId');
 
+  static Future<Map<String, dynamic>> roomForceSelectionCapability(String roomId) =>
+      _get('/api/rooms/$roomId/force-selection-capability');
+
+  static Future<Map<String, dynamic>> forceRoomSelection(String roomId) =>
+      _send('PUT', '/api/rooms/$roomId/force-selection');
+
   static Future<List<Map<String, dynamic>>> roomMessages(
     String roomId, {
     int after = 0,
