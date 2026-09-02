@@ -7,6 +7,7 @@ import '../widgets/brand.dart';
 import '../widgets/login_form.dart';
 import '../widgets/login_hero.dart';
 import '../widgets/phone_frame.dart';
+import '../widgets/theme_mode_switch.dart';
 import 'otp_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -65,6 +66,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final dark = theme.brightness == Brightness.dark;
+
     return Scaffold(
       resizeToAvoidBottomInset: false,
       body: PhoneFrame(
@@ -85,7 +90,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Meet6Brand(width: w),
+                    Row(
+                      children: [
+                        Expanded(child: Meet6Brand(width: w)),
+                        const ThemeModeSwitch(),
+                      ],
+                    ),
                     const SizedBox(height: 10),
                     Text.rich(
                       TextSpan(
@@ -95,14 +105,16 @@ class _LoginScreenState extends State<LoginScreen> {
                           fontWeight: FontWeight.w900,
                           letterSpacing: -.5,
                         ),
-                        children: const [
+                        children: [
                           TextSpan(
                             text: 'Yeni insanlarla\n',
-                            style: TextStyle(color: AppColors.navy),
+                            style: TextStyle(color: scheme.onSurface),
                           ),
                           TextSpan(
                             text: 'gerçek bağlantılar kur',
-                            style: TextStyle(color: AppColors.blue),
+                            style: TextStyle(
+                              color: dark ? AppColors.lime : AppColors.blue,
+                            ),
                           ),
                         ],
                       ),
@@ -111,7 +123,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     Text(
                       '6 kişilik çevrende yeni insanlarla\nsohbet etmeye başla.',
                       style: TextStyle(
-                        color: AppColors.muted,
+                        color: scheme.onSurfaceVariant,
                         fontSize: (w * .033).clamp(11.8, 13.5),
                         height: 1.28,
                         fontWeight: FontWeight.w600,
@@ -128,13 +140,13 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     if (submitting) ...[
                       const SizedBox(height: 10),
-                      const Center(
+                      Center(
                         child: SizedBox(
                           width: 22,
                           height: 22,
                           child: CircularProgressIndicator(
                             strokeWidth: 2.4,
-                            color: AppColors.navy,
+                            color: dark ? AppColors.lime : AppColors.navy,
                           ),
                         ),
                       ),
