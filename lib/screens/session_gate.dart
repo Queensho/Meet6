@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
+import '../services/realtime_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_colors.dart';
 import 'home/home_screen.dart';
@@ -26,9 +29,8 @@ class _SessionGateState extends State<SessionGate> {
     final authSession = await SessionService.loadAuthSessionId();
     final local = await SessionService.loadProfile();
 
-    // A local cache is not authentication. Once the real backend is enabled,
-    // users without a server session must sign in again.
     if (authSession == null) {
+      RealtimeService.disconnect();
       if (local != null) await SessionService.clearProfile();
       return const LoginScreen();
     }
@@ -37,6 +39,7 @@ class _SessionGateState extends State<SessionGate> {
       final response = await ApiService.getMe(sessionId: authSession);
       final raw = response['user'];
       if (raw is! Map) {
+        RealtimeService.disconnect();
         await SessionService.clear();
         return const LoginScreen();
       }
@@ -45,26 +48,32 @@ class _SessionGateState extends State<SessionGate> {
       final completed = user['profile_completed'] == true;
       final name = user['display_name']?.toString().trim() ?? '';
 
-      // Never resume a half-finished registration from the app launch gate.
-      // A completed profile goes home; everything else starts from login.
       if (!completed || name.isEmpty) {
+        RealtimeService.disconnect();
         await SessionService.clear();
         return const LoginScreen();
       }
 
       final saved = _savedSessionFromUser(user);
       await _cache(saved);
+      unawaited(RealtimeService.connect().catchError((_) {}));
       return _home(saved);
     } on ApiException catch (error) {
       if (error.statusCode == 401) {
+        RealtimeService.disconnect();
         await SessionService.clear();
         return const LoginScreen();
       }
-      // Network/server trouble may use the last server-synced cache.
-      if (local != null) return _home(local);
+      if (local != null) {
+        unawaited(RealtimeService.connect().catchError((_) {}));
+        return _home(local);
+      }
       return const LoginScreen();
     } catch (_) {
-      if (local != null) return _home(local);
+      if (local != null) {
+        unawaited(RealtimeService.connect().catchError((_) {}));
+        return _home(local);
+      }
       return const LoginScreen();
     }
   }
@@ -79,12 +88,8 @@ class _SessionGateState extends State<SessionGate> {
       profileName: user['display_name']?.toString().trim() ?? '',
       city: user['city']?.toString() ?? '',
       country: user['country']?.toString() ?? '',
-      latitude: user['latitude'] == null
-          ? null
-          : toDouble(user['latitude'], 0),
-      longitude: user['longitude'] == null
-          ? null
-          : toDouble(user['longitude'], 0),
+      latitude: user['latitude'] == null ? null : toDouble(user['latitude'], 0),
+      longitude: user['longitude'] == null ? null : toDouble(user['longitude'], 0),
       distanceKm: toDouble(user['distance_km'], 25).round(),
       lookingFor: user['looking_for']?.toString() ?? 'Herkes',
       minAge: toDouble(user['min_age'], 20),
