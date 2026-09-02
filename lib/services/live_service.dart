@@ -189,4 +189,21 @@ class LiveService {
   static Future<void> markNotificationsRead() async {
     await _send('POST', '/api/notifications/read');
   }
+
+  static Future<Map<String, dynamic>> createSupportRequest({
+    required String topic,
+    required String message,
+  }) =>
+      _send(
+        'POST',
+        '/api/support',
+        body: {'topic': topic, 'message': message},
+      );
+
+  static Future<List<Map<String, dynamic>>> supportRequests() async {
+    final data = await _get('/api/support');
+    final raw = data['requests'];
+    if (raw is! List) return const [];
+    return raw.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList();
+  }
 }
