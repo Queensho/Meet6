@@ -26,6 +26,15 @@ class LoginForm extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final dark = theme.brightness == Brightness.dark;
+    final fieldColor = dark
+        ? scheme.surfaceContainerHigh.withOpacity(.94)
+        : Colors.white.withOpacity(.86);
+    final borderColor = scheme.outlineVariant;
+    final accent = dark ? AppColors.lime : AppColors.blue;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -35,26 +44,26 @@ class LoginForm extends StatelessWidget {
               height: 52,
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(.86),
+                color: fieldColor,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.border),
+                border: Border.all(color: borderColor),
               ),
-              child: const Row(
+              child: Row(
                 children: [
-                  Text('🇹🇷', style: TextStyle(fontSize: 16)),
-                  SizedBox(width: 6),
+                  const Text('🇹🇷', style: TextStyle(fontSize: 16)),
+                  const SizedBox(width: 6),
                   Text(
                     '+90',
                     style: TextStyle(
-                      color: AppColors.navy,
+                      color: scheme.onSurface,
                       fontSize: 15,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
-                  SizedBox(width: 2),
+                  const SizedBox(width: 2),
                   Icon(
                     Icons.keyboard_arrow_down_rounded,
-                    color: AppColors.muted,
+                    color: scheme.onSurfaceVariant,
                     size: 18,
                   ),
                 ],
@@ -69,24 +78,23 @@ class LoginForm extends StatelessWidget {
                   keyboardType: TextInputType.phone,
                   textInputAction: TextInputAction.done,
                   onChanged: (_) => onChanged(),
-                  style: const TextStyle(
-                    color: AppColors.navy,
+                  style: TextStyle(
+                    color: scheme.onSurface,
                     fontSize: 15,
                     fontWeight: FontWeight.w800,
                   ),
                   decoration: InputDecoration(
                     hintText: '5XX XXX XX XX',
-                    hintStyle: const TextStyle(
-                      color: Color(0xFFADB1C3),
+                    hintStyle: TextStyle(
+                      color: scheme.onSurfaceVariant,
                       fontWeight: FontWeight.w600,
                     ),
                     filled: true,
-                    fillColor: Colors.white.withOpacity(.86),
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 14),
-                    border: _border(AppColors.border),
-                    enabledBorder: _border(AppColors.border),
-                    focusedBorder: _border(AppColors.blue, width: 1.5),
+                    fillColor: fieldColor,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14),
+                    border: _border(borderColor),
+                    enabledBorder: _border(borderColor),
+                    focusedBorder: _border(accent, width: 1.5),
                   ),
                 ),
               ),
@@ -94,14 +102,14 @@ class LoginForm extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 8),
-        const Row(
+        Row(
           children: [
-            Icon(Icons.lock_outline_rounded, color: AppColors.blue, size: 16),
-            SizedBox(width: 6),
+            Icon(Icons.lock_outline_rounded, color: accent, size: 16),
+            const SizedBox(width: 6),
             Text(
               'Numaran diğer kullanıcılara gösterilmez.',
               style: TextStyle(
-                color: AppColors.muted,
+                color: scheme.onSurfaceVariant,
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
               ),
@@ -122,8 +130,11 @@ class LoginForm extends StatelessWidget {
             Expanded(
               child: _ProviderButton(
                 label: 'Google',
-                background: AppColors.softSurface,
-                foreground: AppColors.navy,
+                background: dark
+                    ? scheme.surfaceContainerHigh
+                    : AppColors.softSurface,
+                foreground: scheme.onSurface,
+                border: borderColor,
                 icon: const Text(
                   'G',
                   style: TextStyle(
@@ -138,39 +149,43 @@ class LoginForm extends StatelessWidget {
             Expanded(
               child: _ProviderButton(
                 label: 'Apple',
-                background: AppColors.navy,
-                foreground: Colors.white,
-                icon: const Icon(Icons.apple_rounded, color: Colors.white),
+                background: dark ? AppColors.lime : AppColors.navy,
+                foreground: dark ? AppColors.navy : Colors.white,
+                border: dark ? AppColors.lime : AppColors.navy,
+                icon: Icon(
+                  Icons.apple_rounded,
+                  color: dark ? AppColors.navy : Colors.white,
+                ),
               ),
             ),
           ],
         ),
         const SizedBox(height: 7),
-        const Text.rich(
+        Text.rich(
           TextSpan(
             style: TextStyle(
-              color: AppColors.muted,
+              color: scheme.onSurfaceVariant,
               fontSize: 9.8,
               height: 1.25,
             ),
             children: [
-              TextSpan(text: 'Devam ederek '),
+              const TextSpan(text: 'Devam ederek '),
               TextSpan(
                 text: 'Kullanım Koşulları',
                 style: TextStyle(
-                  color: AppColors.blue,
+                  color: accent,
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              TextSpan(text: ' ve '),
+              const TextSpan(text: ' ve '),
               TextSpan(
                 text: 'Gizlilik Politikası',
                 style: TextStyle(
-                  color: AppColors.blue,
+                  color: accent,
                   fontWeight: FontWeight.w800,
                 ),
               ),
-              TextSpan(text: '’nı kabul etmiş olursun.'),
+              const TextSpan(text: '’nı kabul etmiş olursun.'),
             ],
           ),
           textAlign: TextAlign.center,
@@ -185,21 +200,22 @@ class _OrDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Row(
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
       children: [
-        Expanded(child: Divider(color: AppColors.border)),
+        Expanded(child: Divider(color: scheme.outlineVariant)),
         Padding(
-          padding: EdgeInsets.symmetric(horizontal: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 10),
           child: Text(
             'veya',
             style: TextStyle(
-              color: AppColors.muted,
+              color: scheme.onSurfaceVariant,
               fontSize: 11.5,
               fontWeight: FontWeight.w700,
             ),
           ),
         ),
-        Expanded(child: Divider(color: AppColors.border)),
+        Expanded(child: Divider(color: scheme.outlineVariant)),
       ],
     );
   }
@@ -210,12 +226,14 @@ class _ProviderButton extends StatelessWidget {
     required this.label,
     required this.background,
     required this.foreground,
+    required this.border,
     required this.icon,
   });
 
   final String label;
   final Color background;
   final Color foreground;
+  final Color border;
   final Widget icon;
 
   @override
@@ -227,11 +245,7 @@ class _ProviderButton extends StatelessWidget {
         style: OutlinedButton.styleFrom(
           backgroundColor: background,
           foregroundColor: foreground,
-          side: BorderSide(
-            color: background == AppColors.navy
-                ? AppColors.navy
-                : AppColors.border,
-          ),
+          side: BorderSide(color: border),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
