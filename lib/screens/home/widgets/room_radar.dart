@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../theme/app_colors.dart';
+import '../../../widgets/meet6_3d_avatar.dart';
 
 class RoomRadar extends StatefulWidget {
   const RoomRadar({
@@ -21,11 +22,11 @@ class _RoomRadarState extends State<RoomRadar>
   late final AnimationController _controller;
 
   static const _profiles = [
-    _OrbitProfile('E', 'Ece'),
-    _OrbitProfile('S', 'Selin'),
-    _OrbitProfile('D', 'Deniz'),
-    _OrbitProfile('B', 'Bora'),
-    _OrbitProfile('M', 'Mert'),
+    _OrbitProfile('Deniz', Alignment(0, -1)),
+    _OrbitProfile('Selin', Alignment(-1, -.30)),
+    _OrbitProfile('Bora', Alignment(1, -.30)),
+    _OrbitProfile('Ece', Alignment(-1, .60)),
+    _OrbitProfile('Mert', Alignment(1, .60)),
   ];
 
   @override
@@ -33,7 +34,7 @@ class _RoomRadarState extends State<RoomRadar>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 12),
+      duration: const Duration(seconds: 14),
     )..repeat();
   }
 
@@ -50,8 +51,8 @@ class _RoomRadarState extends State<RoomRadar>
       child: LayoutBuilder(
         builder: (context, constraints) {
           final size = math.min(constraints.maxWidth, constraints.maxHeight);
-          final avatarSize = (size * .14).clamp(42.0, 56.0).toDouble();
-          final orbitRadius = size * .365;
+          final avatarSize = (size * .17).clamp(48.0, 64.0).toDouble();
+          final orbitRadius = size * .355;
           final center = size / 2;
 
           return AnimatedBuilder(
@@ -98,12 +99,12 @@ class _RoomRadarState extends State<RoomRadar>
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.white.withOpacity(.68),
-                                blurRadius: 22,
-                                spreadRadius: 5,
+                                color: Colors.white.withOpacity(.74),
+                                blurRadius: 24,
+                                spreadRadius: 6,
                               ),
                               BoxShadow(
-                                color: AppColors.blue.withOpacity(.18),
+                                color: AppColors.blue.withOpacity(.17),
                                 blurRadius: 34,
                                 spreadRadius: 10,
                               ),
@@ -125,7 +126,7 @@ class _RoomRadarState extends State<RoomRadar>
                     ),
                   ),
                   Positioned(
-                    bottom: size * .09,
+                    bottom: size * .075,
                     child: IgnorePointer(
                       child: Container(
                         padding: const EdgeInsets.symmetric(
@@ -186,38 +187,9 @@ class _RoomRadarState extends State<RoomRadar>
       height: avatarSize,
       child: Tooltip(
         message: profile.name,
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: AppColors.navy.withOpacity(.16),
-              width: 1.5,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.navy.withOpacity(.14),
-                blurRadius: 12,
-                offset: const Offset(0, 5),
-              ),
-            ],
-          ),
-          padding: const EdgeInsets.all(3),
-          child: Container(
-            decoration: const BoxDecoration(
-              color: AppColors.navy,
-              shape: BoxShape.circle,
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              profile.initial,
-              style: TextStyle(
-                color: AppColors.lime,
-                fontSize: avatarSize * .38,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
+        child: Meet63DAvatar(
+          alignment: profile.alignment,
+          size: avatarSize,
         ),
       ),
     );
@@ -225,10 +197,10 @@ class _RoomRadarState extends State<RoomRadar>
 }
 
 class _OrbitProfile {
-  const _OrbitProfile(this.initial, this.name);
+  const _OrbitProfile(this.name, this.alignment);
 
-  final String initial;
   final String name;
+  final Alignment alignment;
 }
 
 class _RadarPainter extends CustomPainter {
@@ -242,23 +214,23 @@ class _RadarPainter extends CustomPainter {
     final base = math.min(size.width, size.height);
 
     final fixedPaint = Paint()
-      ..color = AppColors.navy.withOpacity(.20)
+      ..color = AppColors.navy.withOpacity(.18)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.65;
+      ..strokeWidth = 1.7;
 
     for (final factor in [.27, .39, .51]) {
       canvas.drawCircle(center, base * factor, fixedPaint);
     }
 
-    for (var i = 0; i < 4; i++) {
-      final local = (progress + i / 4) % 1.0;
+    for (var i = 0; i < 5; i++) {
+      final local = (progress + i / 5) % 1.0;
       final eased = Curves.easeOutCubic.transform(local);
-      final radius = base * (.19 + eased * .43);
-      final opacity = (1 - local) * .62;
+      final radius = base * (.18 + eased * .46);
+      final opacity = (1 - local) * .70;
       final pulse = Paint()
         ..color = Colors.white.withOpacity(opacity)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 4.2 - (local * 2.1);
+        ..strokeWidth = 4.8 - (local * 2.3);
       canvas.drawCircle(center, radius, pulse);
     }
 
@@ -268,7 +240,7 @@ class _RadarPainter extends CustomPainter {
       ..strokeWidth = 2.2;
     canvas.drawCircle(
       center,
-      base * (.24 + progress * .28),
+      base * (.24 + progress * .30),
       bluePulse,
     );
   }
