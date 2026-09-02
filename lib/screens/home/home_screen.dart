@@ -128,6 +128,22 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _handleBottomNavTap(int index) {
+    switch (index) {
+      case 0:
+        return;
+      case 1:
+        _openMatches();
+        return;
+      case 2:
+        _openMessages();
+        return;
+      case 3:
+        _openProfile();
+        return;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -303,10 +319,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 10),
                   MainBottomNav(
                     selectedIndex: 0,
-                    onHomeTap: () {},
-                    onMatchesTap: _openMatches,
-                    onMessagesTap: _openMessages,
-                    onProfileTap: _openProfile,
+                    onTap: _handleBottomNavTap,
                   ),
                 ],
               ),
