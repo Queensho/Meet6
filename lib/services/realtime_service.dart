@@ -29,6 +29,14 @@ class RealtimeService {
     return <String, dynamic>{};
   }
 
+  static List<Map<String, dynamic>> _listOfMaps(dynamic raw) {
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+  }
+
   static void _push(String type, dynamic raw) {
     final data = _map(raw);
     _events.add(RealtimeEvent(type, data));
@@ -58,6 +66,7 @@ class RealtimeService {
       'room:message',
       'room:sync-messages',
       'room:selection-status',
+      'matches:update',
       'match:created',
       'match:message',
       'user:message',
@@ -165,6 +174,17 @@ class RealtimeService {
   static Future<Map<String, dynamic>> joinRoom(String roomId) =>
       _ack('room:join', {'roomId': roomId});
 
+  static Future<List<Map<String, dynamic>>> roomMessages(
+    String roomId, {
+    int after = 0,
+  }) async {
+    final result = await _ack('room:messages', {
+      'roomId': roomId,
+      'after': after,
+    });
+    return _listOfMaps(result['messages']);
+  }
+
   static Future<void> leaveRoom(String roomId) async {
     try {
       await _ack('room:leave', {'roomId': roomId});
@@ -186,8 +206,21 @@ class RealtimeService {
         {'roomId': roomId, 'selectedUserId': int.parse(selectedUserId)},
       );
 
+  static Future<Map<String, dynamic>> listMatches() => _ack('matches:list');
+
   static Future<Map<String, dynamic>> joinMatch(String matchId) =>
       _ack('match:join', {'matchId': matchId});
+
+  static Future<List<Map<String, dynamic>>> privateMessages(
+    String matchId, {
+    int after = 0,
+  }) async {
+    final result = await _ack('match:messages', {
+      'matchId': matchId,
+      'after': after,
+    });
+    return _listOfMaps(result['messages']);
+  }
 
   static Future<void> leaveMatch(String matchId) async {
     try {
