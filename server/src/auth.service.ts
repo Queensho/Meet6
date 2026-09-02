@@ -99,7 +99,15 @@ export class AuthService {
       await client.query('commit');
 
       const sessionId = randomBytes(32).toString('base64url');
-      await this.infra.redis.set(`session:${sessionId}`, userId, 'EX', 60 * 60 * 24 * 30);
+      const ttlSeconds = 60 * 60 * 24 * 30;
+      const sessionsKey = `user-sessions:${userId}`;
+      await this.infra.redis
+        .multi()
+        .set(`session:${sessionId}`, userId, 'EX', ttlSeconds)
+        .sadd(sessionsKey, sessionId)
+        .expire(sessionsKey, ttlSeconds)
+        .exec();
+
       const profile = await this.infra.db.query<{ profile_completed: boolean }>(
         'select profile_completed from profiles where user_id = $1',
         [userId],
@@ -128,8 +136,21 @@ export class AuthService {
   }
 
   async logout(header?: string) {
-    const { sessionId } = await this.userIdFromAuthorization(header);
-    await this.infra.redis.del(`session:${sessionId}`);
+    const { userId, sessionId } = await this.userIdFromAuthorization(header);
+    await this.infra.redis
+      .multi()
+      .del(`session:${sessionId}`)
+      .srem(`user-sessions:${userId}`, sessionId)
+      .exec();
     return { ok: true };
+  }
+
+  async revokeAllSessions(userId: string) {
+    const key = `user-sessions:${userId}`;
+    const sessionIds = await this.infra.redis.smembers(key);
+    if (sessionIds.length) {
+      await this.infra.redis.del(...sessionIds.map((id) => `session:${id}`));
+    }
+    await this.infra.redis.del(key);
   }
 }
