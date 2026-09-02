@@ -24,11 +24,15 @@ class _SessionGateState extends State<SessionGate> {
   }
 
   Future<Widget> _resolveScreen() async {
-    final local = await SessionService.loadProfile();
-    if (local != null) return _home(local);
-
     final authSession = await SessionService.loadAuthSessionId();
-    if (authSession == null) return const LoginScreen();
+    final local = await SessionService.loadProfile();
+
+    // A local cache is not authentication. Once the real backend is enabled,
+    // users without a server session must sign in again.
+    if (authSession == null) {
+      if (local != null) await SessionService.clearProfile();
+      return const LoginScreen();
+    }
 
     try {
       final response = await ApiService.getMe(sessionId: authSession);
@@ -37,47 +41,65 @@ class _SessionGateState extends State<SessionGate> {
       final user = Map<String, dynamic>.from(raw);
       final completed = user['profile_completed'] == true;
       final name = user['display_name']?.toString().trim() ?? '';
-      if (!completed || name.isEmpty) return const ProfileSetupScreen();
-
-      double toDouble(dynamic value, double fallback) {
-        if (value is num) return value.toDouble();
-        return double.tryParse(value?.toString() ?? '') ?? fallback;
+      if (!completed || name.isEmpty) {
+        await SessionService.clearProfile();
+        return const ProfileSetupScreen();
       }
 
-      final saved = SavedSession(
-        profileName: name,
-        city: user['city']?.toString() ?? '',
-        country: user['country']?.toString() ?? '',
-        latitude: user['latitude'] == null
-            ? null
-            : toDouble(user['latitude'], 0),
-        longitude: user['longitude'] == null
-            ? null
-            : toDouble(user['longitude'], 0),
-        distanceKm: toDouble(user['distance_km'], 25).round(),
-        lookingFor: user['looking_for']?.toString() ?? 'Herkes',
-        minAge: toDouble(user['min_age'], 20),
-        maxAge: toDouble(user['max_age'], 35),
-        purpose: user['purpose']?.toString() ?? 'Yeni insanlarla tanışma',
-      );
-
-      await SessionService.saveProfile(
-        profileName: saved.profileName,
-        city: saved.city,
-        country: saved.country,
-        latitude: saved.latitude,
-        longitude: saved.longitude,
-        distanceKm: saved.distanceKm,
-        lookingFor: saved.lookingFor,
-        minAge: saved.minAge,
-        maxAge: saved.maxAge,
-        purpose: saved.purpose,
-      );
+      final saved = _savedSessionFromUser(user);
+      await _cache(saved);
       return _home(saved);
+    } on ApiException catch (error) {
+      if (error.statusCode == 401) {
+        await SessionService.clear();
+        return const LoginScreen();
+      }
+      // Network/server trouble may use the last server-synced cache.
+      if (local != null) return _home(local);
+      return const LoginScreen();
     } catch (_) {
-      await SessionService.clearAuth();
+      if (local != null) return _home(local);
       return const LoginScreen();
     }
+  }
+
+  SavedSession _savedSessionFromUser(Map<String, dynamic> user) {
+    double toDouble(dynamic value, double fallback) {
+      if (value is num) return value.toDouble();
+      return double.tryParse(value?.toString() ?? '') ?? fallback;
+    }
+
+    return SavedSession(
+      profileName: user['display_name']?.toString().trim() ?? '',
+      city: user['city']?.toString() ?? '',
+      country: user['country']?.toString() ?? '',
+      latitude: user['latitude'] == null
+          ? null
+          : toDouble(user['latitude'], 0),
+      longitude: user['longitude'] == null
+          ? null
+          : toDouble(user['longitude'], 0),
+      distanceKm: toDouble(user['distance_km'], 25).round(),
+      lookingFor: user['looking_for']?.toString() ?? 'Herkes',
+      minAge: toDouble(user['min_age'], 20),
+      maxAge: toDouble(user['max_age'], 35),
+      purpose: user['purpose']?.toString() ?? 'Yeni insanlarla tanışma',
+    );
+  }
+
+  Future<void> _cache(SavedSession saved) {
+    return SessionService.saveProfile(
+      profileName: saved.profileName,
+      city: saved.city,
+      country: saved.country,
+      latitude: saved.latitude,
+      longitude: saved.longitude,
+      distanceKm: saved.distanceKm,
+      lookingFor: saved.lookingFor,
+      minAge: saved.minAge,
+      maxAge: saved.maxAge,
+      purpose: saved.purpose,
+    );
   }
 
   Widget _home(SavedSession session) {
