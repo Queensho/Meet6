@@ -418,7 +418,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                         if (item.unreadCount > 0) ...[
                                           const SizedBox(width: 9),
                                           Container(
-                                            minWidth: 21,
+                                            constraints: const BoxConstraints(minWidth: 21),
                                             height: 21,
                                             padding: const EdgeInsets.symmetric(horizontal: 6),
                                             decoration: BoxDecoration(
