@@ -30,22 +30,26 @@ export class ProfileService {
          latitude, longitude, profile_prompt, profile_answer, interests,
          photo_urls, profile_completed, updated_at
        ) values (
-         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,now()
+         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,
+         coalesce($12, '{}'::text[]),
+         coalesce($13, '{}'::text[]),
+         coalesce($14, false),
+         now()
        )
        on conflict (user_id) do update set
-         display_name = coalesce(excluded.display_name, profiles.display_name),
-         birth_date = coalesce(excluded.birth_date, profiles.birth_date),
-         gender = coalesce(excluded.gender, profiles.gender),
-         bio = coalesce(excluded.bio, profiles.bio),
-         city = coalesce(excluded.city, profiles.city),
-         country = coalesce(excluded.country, profiles.country),
-         latitude = coalesce(excluded.latitude, profiles.latitude),
-         longitude = coalesce(excluded.longitude, profiles.longitude),
-         profile_prompt = coalesce(excluded.profile_prompt, profiles.profile_prompt),
-         profile_answer = coalesce(excluded.profile_answer, profiles.profile_answer),
-         interests = coalesce(excluded.interests, profiles.interests),
-         photo_urls = coalesce(excluded.photo_urls, profiles.photo_urls),
-         profile_completed = coalesce(excluded.profile_completed, profiles.profile_completed),
+         display_name = coalesce($2, profiles.display_name),
+         birth_date = coalesce($3, profiles.birth_date),
+         gender = coalesce($4, profiles.gender),
+         bio = coalesce($5, profiles.bio),
+         city = coalesce($6, profiles.city),
+         country = coalesce($7, profiles.country),
+         latitude = coalesce($8, profiles.latitude),
+         longitude = coalesce($9, profiles.longitude),
+         profile_prompt = coalesce($10, profiles.profile_prompt),
+         profile_answer = coalesce($11, profiles.profile_answer),
+         interests = coalesce($12, profiles.interests),
+         photo_urls = coalesce($13, profiles.photo_urls),
+         profile_completed = coalesce($14, profiles.profile_completed),
          updated_at = now()`,
       [
         userId,
