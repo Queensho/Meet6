@@ -9,10 +9,11 @@ class FieldLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Text(
       text,
-      style: const TextStyle(
-        color: AppColors.navy,
+      style: TextStyle(
+        color: scheme.onSurface,
         fontSize: 13,
         fontWeight: FontWeight.w900,
       ),
@@ -34,6 +35,8 @@ class SelectChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
@@ -41,10 +44,10 @@ class SelectChip extends StatelessWidget {
         duration: const Duration(milliseconds: 160),
         padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
         decoration: BoxDecoration(
-          color: selected ? AppColors.lime : Colors.white.withOpacity(.82),
+          color: selected ? AppColors.lime : scheme.surfaceContainerHigh,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: selected ? AppColors.navy : AppColors.border,
+            color: selected ? AppColors.lime : scheme.outlineVariant,
             width: selected ? 1.5 : 1,
           ),
         ),
@@ -62,7 +65,7 @@ class SelectChip extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                color: AppColors.navy,
+                color: selected ? AppColors.navy : scheme.onSurface,
                 fontSize: 12.5,
                 fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
               ),
@@ -79,29 +82,10 @@ InputDecoration meet6InputDecoration({
   required IconData icon,
   IconData? suffix,
 }) {
-  OutlineInputBorder border(Color color, {double width = 1}) {
-    return OutlineInputBorder(
-      borderRadius: BorderRadius.circular(16),
-      borderSide: BorderSide(color: color, width: width),
-    );
-  }
-
   return InputDecoration(
     hintText: hint,
-    hintStyle: const TextStyle(
-      color: Color(0xFFA8ADC1),
-      fontWeight: FontWeight.w600,
-      fontSize: 14,
-    ),
-    prefixIcon: Icon(icon, color: AppColors.muted, size: 20),
-    suffixIcon: suffix == null
-        ? null
-        : Icon(suffix, color: AppColors.muted, size: 21),
-    filled: true,
-    fillColor: Colors.white.withOpacity(.86),
+    prefixIcon: Icon(icon, size: 20),
+    suffixIcon: suffix == null ? null : Icon(suffix, size: 21),
     contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
-    enabledBorder: border(AppColors.border),
-    focusedBorder: border(AppColors.blue, width: 1.5),
-    border: border(AppColors.border),
   );
 }
