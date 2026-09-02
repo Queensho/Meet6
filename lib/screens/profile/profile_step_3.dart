@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import '../../theme/app_colors.dart';
@@ -8,25 +10,27 @@ class ProfileStepThree extends StatelessWidget {
     super.key,
     required this.bioController,
     required this.promptAnswerController,
-    required this.extraPhotoCount,
+    required this.extraPhotoBytes,
     required this.interests,
     required this.selectedPrompt,
     required this.onBioChanged,
     required this.onPromptChanged,
     required this.onPromptSelected,
-    required this.onExtraPhotoCountChanged,
+    required this.onPickExtraPhoto,
+    required this.onRemoveExtraPhoto,
     required this.onInterestToggle,
   });
 
   final TextEditingController bioController;
   final TextEditingController promptAnswerController;
-  final int extraPhotoCount;
+  final List<Uint8List?> extraPhotoBytes;
   final Set<String> interests;
   final String selectedPrompt;
   final VoidCallback onBioChanged;
   final VoidCallback onPromptChanged;
   final ValueChanged<String> onPromptSelected;
-  final ValueChanged<int> onExtraPhotoCountChanged;
+  final ValueChanged<int> onPickExtraPhoto;
+  final ValueChanged<int> onRemoveExtraPhoto;
   final ValueChanged<String> onInterestToggle;
 
   static const promptOptions = [
@@ -40,14 +44,16 @@ class ProfileStepThree extends StatelessWidget {
 
   Future<void> _selectPrompt(BuildContext context) async {
     FocusScope.of(context).unfocus();
+    final scheme = Theme.of(context).colorScheme;
     final value = await showModalBottomSheet<String>(
       context: context,
-      backgroundColor: AppColors.background,
+      backgroundColor: scheme.surface,
       showDragHandle: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
       ),
       builder: (context) {
+        final localScheme = Theme.of(context).colorScheme;
         return SafeArea(
           top: false,
           child: Padding(
@@ -56,10 +62,10 @@ class ProfileStepThree extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
+                Text(
                   'Profil sorusu seç',
                   style: TextStyle(
-                    color: AppColors.navy,
+                    color: localScheme.onSurface,
                     fontSize: 22,
                     fontWeight: FontWeight.w900,
                     letterSpacing: -.5,
@@ -81,12 +87,12 @@ class ProfileStepThree extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: prompt == selectedPrompt
                               ? AppColors.lime
-                              : Colors.white,
+                              : localScheme.surfaceContainerHigh,
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
                             color: prompt == selectedPrompt
                                 ? AppColors.navy
-                                : AppColors.border,
+                                : localScheme.outlineVariant,
                             width: prompt == selectedPrompt ? 1.5 : 1,
                           ),
                         ),
@@ -95,8 +101,10 @@ class ProfileStepThree extends StatelessWidget {
                             Expanded(
                               child: Text(
                                 prompt,
-                                style: const TextStyle(
-                                  color: AppColors.navy,
+                                style: TextStyle(
+                                  color: prompt == selectedPrompt
+                                      ? AppColors.navy
+                                      : localScheme.onSurface,
                                   fontSize: 13.5,
                                   fontWeight: FontWeight.w800,
                                 ),
@@ -125,6 +133,7 @@ class ProfileStepThree extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     const interestOptions = [
       'Kahve',
       'Spor',
@@ -142,10 +151,10 @@ class ProfileStepThree extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 20),
-        const Text(
+        Text(
           'Profiline\nkarakter kat',
           style: TextStyle(
-            color: AppColors.navy,
+            color: scheme.onSurface,
             fontSize: 33,
             height: 1.02,
             fontWeight: FontWeight.w900,
@@ -153,10 +162,10 @@ class ProfileStepThree extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 9),
-        const Text(
+        Text(
           'Odada ilk izlenimi bu detaylar oluşturacak.',
           style: TextStyle(
-            color: AppColors.muted,
+            color: scheme.onSurfaceVariant,
             fontSize: 13.5,
             height: 1.35,
             fontWeight: FontWeight.w600,
@@ -167,47 +176,81 @@ class ProfileStepThree extends StatelessWidget {
         const SizedBox(height: 9),
         Row(
           children: List.generate(3, (index) {
-            final selected = index < extraPhotoCount;
+            final bytes = index < extraPhotoBytes.length
+                ? extraPhotoBytes[index]
+                : null;
+            final selected = bytes != null;
             return Expanded(
-              child: GestureDetector(
-                onTap: () {
-                  final next = selected && index == extraPhotoCount - 1
-                      ? extraPhotoCount - 1
-                      : index + 1;
-                  final bounded = next < 0 ? 0 : (next > 3 ? 3 : next);
-                  onExtraPhotoCountChanged(bounded);
-                },
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 160),
-                  height: 96,
-                  margin: EdgeInsets.only(right: index < 2 ? 8 : 0),
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? AppColors.lime
-                        : Colors.white.withOpacity(.82),
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                      color: selected ? AppColors.navy : AppColors.border,
-                      width: selected ? 1.5 : 1,
+              child: Padding(
+                padding: EdgeInsets.only(right: index < 2 ? 8 : 0),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    GestureDetector(
+                      onTap: () => onPickExtraPhoto(index),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 160),
+                        height: 106,
+                        width: double.infinity,
+                        clipBehavior: Clip.antiAlias,
+                        decoration: BoxDecoration(
+                          color: selected
+                              ? AppColors.lime
+                              : scheme.surfaceContainerHigh,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: selected
+                                ? AppColors.lime
+                                : scheme.outlineVariant,
+                            width: selected ? 2 : 1,
+                          ),
+                        ),
+                        child: selected
+                            ? Image.memory(
+                                bytes,
+                                fit: BoxFit.cover,
+                              )
+                            : Icon(
+                                Icons.add_a_photo_outlined,
+                                color: scheme.onSurfaceVariant,
+                                size: 30,
+                              ),
+                      ),
                     ),
-                  ),
-                  child: Icon(
-                    selected
-                        ? Icons.person_rounded
-                        : Icons.add_a_photo_outlined,
-                    color: selected ? AppColors.navy : AppColors.muted,
-                    size: 30,
-                  ),
+                    if (selected)
+                      Positioned(
+                        top: -7,
+                        right: -5,
+                        child: InkWell(
+                          onTap: () => onRemoveExtraPhoto(index),
+                          customBorder: const CircleBorder(),
+                          child: Container(
+                            width: 26,
+                            height: 26,
+                            decoration: BoxDecoration(
+                              color: scheme.surface,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: scheme.outlineVariant),
+                            ),
+                            child: Icon(
+                              Icons.close_rounded,
+                              color: scheme.onSurface,
+                              size: 17,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             );
           }),
         ),
-        const SizedBox(height: 6),
-        const Text(
-          'En az 2 ek fotoğraf seç.',
+        const SizedBox(height: 7),
+        Text(
+          'En az 2 ek fotoğraf yükle. Fotoğrafa dokunarak değiştirebilirsin.',
           style: TextStyle(
-            color: AppColors.muted,
+            color: scheme.onSurfaceVariant,
             fontSize: 10.5,
             fontWeight: FontWeight.w600,
           ),
@@ -221,8 +264,8 @@ class ProfileStepThree extends StatelessWidget {
           minLines: 3,
           maxLines: 4,
           onChanged: (_) => onBioChanged(),
-          style: const TextStyle(
-            color: AppColors.navy,
+          style: TextStyle(
+            color: scheme.onSurface,
             fontSize: 14,
             fontWeight: FontWeight.w700,
           ),
@@ -269,25 +312,25 @@ class ProfileStepThree extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
             decoration: BoxDecoration(
-              color: AppColors.softSurface,
+              color: scheme.surfaceContainerHigh,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.border),
+              border: Border.all(color: scheme.outlineVariant),
             ),
             child: Row(
               children: [
                 Expanded(
                   child: Text(
                     selectedPrompt,
-                    style: const TextStyle(
-                      color: AppColors.navy,
+                    style: TextStyle(
+                      color: scheme.onSurface,
                       fontSize: 13.5,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
                 ),
-                const Icon(
+                Icon(
                   Icons.keyboard_arrow_down_rounded,
-                  color: AppColors.muted,
+                  color: scheme.onSurfaceVariant,
                   size: 22,
                 ),
               ],
@@ -299,8 +342,8 @@ class ProfileStepThree extends StatelessWidget {
           controller: promptAnswerController,
           maxLength: 80,
           onChanged: (_) => onPromptChanged(),
-          style: const TextStyle(
-            color: AppColors.navy,
+          style: TextStyle(
+            color: scheme.onSurface,
             fontSize: 14,
             fontWeight: FontWeight.w700,
           ),
