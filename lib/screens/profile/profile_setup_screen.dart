@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/profile_draft.dart';
 import '../../services/location_service.dart';
+import '../../services/session_service.dart';
 import '../../widgets/phone_frame.dart';
 import '../../widgets/primary_button.dart';
 import '../home/home_screen.dart';
@@ -119,7 +120,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     }
   }
 
-  void _continue() {
+  Future<void> _continue() async {
     FocusScope.of(context).unfocus();
     draft.name = nameController.text.trim();
     draft.bio = bioController.text.trim();
@@ -138,6 +139,24 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       return;
     }
 
+    final lookingFor = draft.lookingFor ?? 'Herkes';
+    final purpose = draft.purpose ?? 'Yeni insanlarla tanışma';
+
+    await SessionService.saveProfile(
+      profileName: draft.name,
+      city: draft.city,
+      country: draft.country,
+      latitude: draft.latitude,
+      longitude: draft.longitude,
+      distanceKm: draft.distanceKm,
+      lookingFor: lookingFor,
+      minAge: draft.minAge,
+      maxAge: draft.maxAge,
+      purpose: purpose,
+    );
+
+    if (!mounted) return;
+
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(
         builder: (_) => HomeScreen(
@@ -147,10 +166,10 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
           latitude: draft.latitude,
           longitude: draft.longitude,
           distanceKm: draft.distanceKm,
-          lookingFor: draft.lookingFor ?? 'Herkes',
+          lookingFor: lookingFor,
           minAge: draft.minAge,
           maxAge: draft.maxAge,
-          purpose: draft.purpose ?? 'Yeni insanlarla tanışma',
+          purpose: purpose,
         ),
       ),
       (route) => false,
