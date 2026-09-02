@@ -54,7 +54,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/meet6-upload-keystore.jks
+          CLEANED="$(printf '%s' "$ANDROID_KEYSTORE_BASE64" | sed 's/^ANDROID_KEYSTORE_BASE64=//' | tr -d '[:space:]')"
+          printf '%s' "$CLEANED" | base64 --decode > android/app/meet6-upload-keystore.jks
           test -s android/app/meet6-upload-keystore.jks
 
       - name: Get dependencies
