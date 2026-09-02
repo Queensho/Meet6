@@ -150,6 +150,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _profileContent() {
+    final scheme = Theme.of(context).colorScheme;
+
     return Stack(
       children: [
         Positioned.fill(
@@ -166,8 +168,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     children: [
                       Text.rich(
                         TextSpan(
-                          style: const TextStyle(
-                            color: AppColors.navy,
+                          style: TextStyle(
+                            color: scheme.onSurface,
                             fontSize: 28,
                             height: 1,
                             fontWeight: FontWeight.w900,
@@ -177,9 +179,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             TextSpan(text: name),
                             TextSpan(
                               text: ', $age',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                              ),
+                              style: const TextStyle(fontWeight: FontWeight.w700),
                             ),
                           ],
                         ),
@@ -192,22 +192,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         spacing: 6,
                         runSpacing: 4,
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.location_on_outlined,
-                            color: AppColors.blue,
+                            color: scheme.primary,
                             size: 17,
                           ),
                           Text(
                             preferences.locationLabel,
-                            style: const TextStyle(
-                              color: AppColors.muted,
+                            style: TextStyle(
+                              color: scheme.onSurfaceVariant,
                               fontSize: 12.5,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
-                          const Text(
+                          Text(
                             '•',
-                            style: TextStyle(color: AppColors.border),
+                            style: TextStyle(color: scheme.outlineVariant),
                           ),
                           const Text(
                             'Şimdi aktif',
@@ -250,9 +250,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           width: double.infinity,
                           padding: const EdgeInsets.all(15),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(.9),
+                            color: scheme.surface,
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: AppColors.border),
+                            border: Border.all(color: scheme.outlineVariant),
                           ),
                           child: Row(
                             children: [
@@ -273,10 +273,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Text(
+                                    Text(
                                       'Eşleşme tercihleri',
                                       style: TextStyle(
-                                        color: AppColors.navy,
+                                        color: scheme.onSurface,
                                         fontSize: 13.5,
                                         fontWeight: FontWeight.w900,
                                       ),
@@ -285,8 +285,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     Text(
                                       preferences.compactSummary,
                                       overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: AppColors.muted,
+                                      style: TextStyle(
+                                        color: scheme.onSurfaceVariant,
                                         fontSize: 11.2,
                                         fontWeight: FontWeight.w700,
                                       ),
@@ -294,9 +294,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   ],
                                 ),
                               ),
-                              const Icon(
+                              Icon(
                                 Icons.chevron_right_rounded,
-                                color: AppColors.muted,
+                                color: scheme.onSurfaceVariant,
                               ),
                             ],
                           ),
@@ -307,8 +307,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         title: 'Hakkımda',
                         child: Text(
                           bio,
-                          style: const TextStyle(
-                            color: AppColors.navy,
+                          style: TextStyle(
+                            color: scheme.onSurface,
                             fontSize: 13.5,
                             height: 1.45,
                             fontWeight: FontWeight.w600,
@@ -335,8 +335,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           children: [
                             Text(
                               prompt,
-                              style: const TextStyle(
-                                color: AppColors.blue,
+                              style: TextStyle(
+                                color: scheme.primary,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w900,
                               ),
@@ -344,8 +344,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             const SizedBox(height: 6),
                             Text(
                               promptAnswer,
-                              style: const TextStyle(
-                                color: AppColors.navy,
+                              style: TextStyle(
+                                color: scheme.onSurface,
                                 fontSize: 14,
                                 height: 1.35,
                                 fontWeight: FontWeight.w800,
@@ -377,25 +377,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: AppColors.lime.withOpacity(.42),
+                          color: AppColors.lime.withOpacity(.28),
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: AppColors.navy.withOpacity(.08),
-                          ),
+                          border: Border.all(color: scheme.outlineVariant),
                         ),
-                        child: const Row(
+                        child: Row(
                           children: [
                             Icon(
                               Icons.shield_outlined,
-                              color: AppColors.blue,
+                              color: scheme.primary,
                               size: 22,
                             ),
-                            SizedBox(width: 10),
+                            const SizedBox(width: 10),
                             Expanded(
                               child: Text(
                                 'Mesafe ve eşleşme tercihlerin profil içeriğinden ayrıdır; oda oluşturulurken kullanılır.',
                                 style: TextStyle(
-                                  color: AppColors.navy,
+                                  color: scheme.onSurface,
                                   fontSize: 12,
                                   height: 1.35,
                                   fontWeight: FontWeight.w700,
@@ -435,25 +433,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: PhoneFrame(
-        child: widget.asRootTab
-            ? Column(
-                children: [
-                  Expanded(child: _profileContent()),
-                  MainBottomNav(
-                    selectedIndex: 3,
-                    unreadMessages: 2,
-                    onTap: (index) {
-                      if (index == 0) _goHome();
-                      if (index == 1) _goMatches();
-                      if (index == 2) _goMessages();
-                    },
-                  ),
-                ],
-              )
-            : _profileContent(),
+        child: ColoredBox(
+          color: theme.scaffoldBackgroundColor,
+          child: widget.asRootTab
+              ? Column(
+                  children: [
+                    Expanded(child: _profileContent()),
+                    MainBottomNav(
+                      selectedIndex: 3,
+                      unreadMessages: 2,
+                      onTap: (index) {
+                        if (index == 0) _goHome();
+                        if (index == 1) _goMatches();
+                        if (index == 2) _goMessages();
+                      },
+                    ),
+                  ],
+                )
+              : _profileContent(),
+        ),
       ),
     );
   }
@@ -467,8 +469,9 @@ class _CircleAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Material(
-      color: Colors.white.withOpacity(.88),
+      color: scheme.surface.withOpacity(.92),
       shape: const CircleBorder(),
       child: InkWell(
         onTap: onTap,
@@ -476,7 +479,7 @@ class _CircleAction extends StatelessWidget {
         child: SizedBox(
           width: 43,
           height: 43,
-          child: Icon(icon, color: AppColors.navy, size: 23),
+          child: Icon(icon, color: scheme.onSurface, size: 23),
         ),
       ),
     );
