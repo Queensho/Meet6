@@ -49,7 +49,8 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
       if (!mounted) return;
       setState(() {
         room = data;
-        selectionSecondsLeft = (data['selectionSecondsLeft'] as num?)?.toInt() ?? 0;
+        selectionSecondsLeft =
+            (data['selectionSecondsLeft'] as num?)?.toInt() ?? 0;
         selectedUserId = data['mySelectionUserId']?.toString();
         submitted = selectedUserId != null &&
             selectedUserId!.isNotEmpty &&
@@ -57,7 +58,8 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
       });
       _startCountdown();
       if (!submitted && data['status'] == 'selection') {
-        WidgetsBinding.instance.addPostFrameCallback((_) => _showTimedSelectionPopup());
+        WidgetsBinding.instance
+            .addPostFrameCallback((_) => _showTimedSelectionPopup());
       }
       if (submitted) _startResultPolling();
     } on ApiException catch (e) {
@@ -89,7 +91,8 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
       if (!mounted) return;
       setState(() {
         room = latest;
-        selectionSecondsLeft = (latest['selectionSecondsLeft'] as num?)?.toInt() ?? 0;
+        selectionSecondsLeft =
+            (latest['selectionSecondsLeft'] as num?)?.toInt() ?? 0;
       });
     } catch (_) {}
   }
@@ -117,7 +120,15 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
                 color: AppColors.lime,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.timer_rounded, color: AppColors.navy),
+              alignment: Alignment.center,
+              child: const Text(
+                '10',
+                style: TextStyle(
+                  color: AppColors.navy,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -133,7 +144,7 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
           ],
         ),
         content: Text(
-          'Bir kişiyi seçmek için toplam 25 saniyen var. Süre dolunca seçim kapanır ve sonradan seçim yapılamaz.',
+          'Bir kişiyi seçmek için 10 saniyen var. Süre dolunca seçim kapanır ve sonradan seçim yapılamaz.',
           style: TextStyle(
             color: theme.colorScheme.onSurfaceVariant,
             height: 1.45,
@@ -153,7 +164,10 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
                   borderRadius: BorderRadius.circular(16),
                 ),
               ),
-              child: const Text('Anladım', style: TextStyle(fontWeight: FontWeight.w900)),
+              child: const Text(
+                'Anladım',
+                style: TextStyle(fontWeight: FontWeight.w900),
+              ),
             ),
           ),
         ],
@@ -178,10 +192,18 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
   }
 
   Future<void> _submit() async {
-    if (selectedUserId == null || submitting || submitted || selectionExpired) return;
+    if (selectedUserId == null ||
+        submitting ||
+        submitted ||
+        selectionExpired) {
+      return;
+    }
     setState(() => submitting = true);
     try {
-      final result = await LiveService.submitRoomSelection(widget.roomId, selectedUserId!);
+      final result = await LiveService.submitRoomSelection(
+        widget.roomId,
+        selectedUserId!,
+      );
       if (!mounted) return;
       setState(() {
         submitted = true;
@@ -203,7 +225,8 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
 
   void _startResultPolling() {
     resultTimer?.cancel();
-    resultTimer = Timer.periodic(const Duration(seconds: 2), (_) => _checkResult());
+    resultTimer =
+        Timer.periodic(const Duration(seconds: 2), (_) => _checkResult());
     _checkResult();
   }
 
@@ -217,7 +240,8 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
       }
       final latestRoom = await LiveService.room(widget.roomId);
       if (!mounted) return;
-      final latestSeconds = (latestRoom['selectionSecondsLeft'] as num?)?.toInt() ?? 0;
+      final latestSeconds =
+          (latestRoom['selectionSecondsLeft'] as num?)?.toInt() ?? 0;
       setState(() {
         room = latestRoom;
         selectionSecondsLeft = latestSeconds;
@@ -255,11 +279,6 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
     }
   }
 
-  String get selectionTimer {
-    final seconds = selectionSecondsLeft.clamp(0, 25);
-    return '${(seconds ~/ 60).toString().padLeft(2, '0')}:${(seconds % 60).toString().padLeft(2, '0')}';
-  }
-
   @override
   void dispose() {
     resultTimer?.cancel();
@@ -273,6 +292,9 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
     final scheme = theme.colorScheme;
     final dark = theme.brightness == Brightness.dark;
     final closed = selectionExpired;
+    final remaining = selectionSecondsLeft.clamp(0, 10);
+    final urgent = remaining <= 3;
+    final progress = remaining / 10;
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -283,69 +305,73 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 46,
-                      height: 46,
-                      decoration: const BoxDecoration(
-                        color: AppColors.lime,
-                        shape: BoxShape.circle,
-                      ),
-                      alignment: Alignment.center,
-                      child: const Text(
-                        '6',
-                        style: TextStyle(
-                          color: AppColors.navy,
-                          fontSize: 27,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                    const Spacer(),
-                    AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                      decoration: BoxDecoration(
-                        color: closed
-                            ? scheme.errorContainer
-                            : selectionSecondsLeft <= 5
-                                ? const Color(0xFFFFE7DF)
-                                : scheme.surface,
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(
-                          color: closed || selectionSecondsLeft <= 5
-                              ? const Color(0xFFE76A60)
-                              : scheme.outlineVariant,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.timer_rounded,
-                            color: closed || selectionSecondsLeft <= 5
+                SizedBox(
+                  width: 58,
+                  height: 58,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      SizedBox.expand(
+                        child: CircularProgressIndicator(
+                          value: closed ? 0 : progress,
+                          strokeWidth: 4,
+                          backgroundColor: dark
+                              ? const Color(0xFF263152)
+                              : const Color(0xFFDCE3F8),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            urgent
                                 ? const Color(0xFFE76A60)
-                                : dark
-                                    ? AppColors.lime
-                                    : AppColors.blue,
-                            size: 16,
+                                : AppColors.blue,
                           ),
-                          const SizedBox(width: 6),
-                          Text(
-                            closed ? 'Süre doldu' : selectionTimer,
-                            style: TextStyle(
-                              color: closed || selectionSecondsLeft <= 5
-                                  ? const Color(0xFFE76A60)
-                                  : scheme.onSurface,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
-                    ),
-                  ],
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 220),
+                        width: 49,
+                        height: 49,
+                        decoration: BoxDecoration(
+                          color: closed
+                              ? const Color(0xFFFFE7DF)
+                              : AppColors.lime,
+                          shape: BoxShape.circle,
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x16000000),
+                              blurRadius: 10,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              '$remaining',
+                              style: TextStyle(
+                                color: closed || urgent
+                                    ? const Color(0xFFE76A60)
+                                    : AppColors.navy,
+                                fontSize: 20,
+                                height: 0.95,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            Text(
+                              'sn',
+                              style: TextStyle(
+                                color: closed || urgent
+                                    ? const Color(0xFFE76A60)
+                                    : AppColors.navy,
+                                fontSize: 8,
+                                height: 1.1,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 24),
                 Text(
@@ -367,8 +393,8 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
                   submitted
                       ? 'Karşı taraf da seni seçerse eşleşme otomatik açılır.'
                       : closed
-                          ? '25 saniyelik gizli seçim penceresi kapandı.'
-                          : '25 saniye içinde sadece bir kişiyi seçebilirsin. Seçimin diğer kişiler tarafından görülmez.',
+                          ? '10 saniyelik gizli seçim penceresi kapandı.'
+                          : '10 saniye içinde sadece bir kişiyi seçebilirsin. Seçimin diğer kişiler tarafından görülmez.',
                   style: TextStyle(
                     color: scheme.onSurfaceVariant,
                     fontSize: 12.5,
@@ -390,16 +416,22 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
                 const SizedBox(height: 18),
                 Expanded(
                   child: candidates.isEmpty
-                      ? const Center(child: CircularProgressIndicator(color: AppColors.lime))
+                      ? const Center(
+                          child: CircularProgressIndicator(
+                            color: AppColors.lime,
+                          ),
+                        )
                       : ListView.separated(
                           physics: const BouncingScrollPhysics(),
                           itemCount: candidates.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 9),
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 9),
                           itemBuilder: (context, index) {
                             final person = candidates[index];
                             final id = person['user_id']?.toString() ?? '';
                             final selected = selectedUserId == id;
-                            final name = person['display_name']?.toString() ?? 'Meet6';
+                            final name =
+                                person['display_name']?.toString() ?? 'Meet6';
                             final age = (person['age'] as num?)?.toInt();
                             final photos = person['photo_urls'];
                             final photo = photos is List && photos.isNotEmpty
@@ -408,16 +440,21 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
                             return InkWell(
                               onTap: submitted || closed
                                   ? null
-                                  : () => setState(() => selectedUserId = id),
+                                  : () =>
+                                      setState(() => selectedUserId = id),
                               borderRadius: BorderRadius.circular(20),
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 180),
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: selected ? AppColors.lime : scheme.surface,
+                                  color: selected
+                                      ? AppColors.lime
+                                      : scheme.surface,
                                   borderRadius: BorderRadius.circular(20),
                                   border: Border.all(
-                                    color: selected ? AppColors.navy : scheme.outlineVariant,
+                                    color: selected
+                                        ? AppColors.navy
+                                        : scheme.outlineVariant,
                                     width: selected ? 2 : 1,
                                   ),
                                 ),
@@ -434,7 +471,8 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
                                       child: photo.isEmpty
                                           ? Center(
                                               child: Text(
-                                                name.characters.first.toUpperCase(),
+                                                name.characters.first
+                                                    .toUpperCase(),
                                                 style: const TextStyle(
                                                   color: AppColors.lime,
                                                   fontSize: 21,
@@ -452,15 +490,21 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
                                       child: Text(
                                         age == null ? name : '$name, $age',
                                         style: TextStyle(
-                                          color: selected ? AppColors.navy : scheme.onSurface,
+                                          color: selected
+                                              ? AppColors.navy
+                                              : scheme.onSurface,
                                           fontSize: 15,
                                           fontWeight: FontWeight.w900,
                                         ),
                                       ),
                                     ),
                                     Icon(
-                                      selected ? Icons.check_circle_rounded : Icons.circle_outlined,
-                                      color: selected ? AppColors.navy : scheme.onSurfaceVariant,
+                                      selected
+                                          ? Icons.check_circle_rounded
+                                          : Icons.circle_outlined,
+                                      color: selected
+                                          ? AppColors.navy
+                                          : scheme.onSurfaceVariant,
                                     ),
                                   ],
                                 ),
@@ -475,10 +519,13 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
                     width: double.infinity,
                     height: 56,
                     child: FilledButton.icon(
-                      onPressed: selectedUserId == null || submitting ? null : _submit,
+                      onPressed:
+                          selectedUserId == null || submitting ? null : _submit,
                       style: FilledButton.styleFrom(
-                        backgroundColor: dark ? AppColors.lime : AppColors.navy,
-                        foregroundColor: dark ? AppColors.navy : Colors.white,
+                        backgroundColor:
+                            dark ? AppColors.lime : AppColors.navy,
+                        foregroundColor:
+                            dark ? AppColors.navy : Colors.white,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(19),
                         ),
@@ -487,7 +534,9 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
                           ? const SizedBox(
                               width: 18,
                               height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2.3),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.3,
+                              ),
                             )
                           : const Icon(Icons.favorite_rounded),
                       label: const Text(
@@ -502,18 +551,25 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
                     height: 56,
                     child: OutlinedButton.icon(
                       onPressed: closed
-                          ? () => Navigator.of(context).popUntil((route) => route.isFirst)
+                          ? () => Navigator.of(context)
+                              .popUntil((route) => route.isFirst)
                           : null,
                       icon: closed
                           ? const Icon(Icons.home_outlined)
                           : const SizedBox(
                               width: 18,
                               height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2.3),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.3,
+                              ),
                             ),
                       label: Text(
-                        closed ? 'Ana ekrana dön' : 'Karşılıklı seçim bekleniyor...',
-                        style: const TextStyle(fontWeight: FontWeight.w900),
+                        closed
+                            ? 'Ana ekrana dön'
+                            : 'Karşılıklı seçim bekleniyor...',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
                     ),
                   ),
