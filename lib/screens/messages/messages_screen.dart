@@ -6,6 +6,7 @@ import '../../theme/app_colors.dart';
 import '../../widgets/main_bottom_nav.dart';
 import '../../widgets/phone_frame.dart';
 import '../home/home_screen.dart';
+import '../matches/matches_screen.dart';
 import '../profile/profile_screen.dart';
 import 'private_chat_screen.dart';
 
@@ -25,32 +26,6 @@ class MessagesScreen extends StatefulWidget {
 
 class _MessagesScreenState extends State<MessagesScreen> {
   late MatchingPreferences preferences;
-
-  final newMatches = const [
-    MessageThreadPreview(
-      name: 'Ece',
-      lastMessage: 'Yeni eşleşme',
-      timeLabel: 'Şimdi',
-      initial: 'E',
-      isOnline: true,
-      isNewMatch: true,
-    ),
-    MessageThreadPreview(
-      name: 'Selin',
-      lastMessage: 'Yeni eşleşme',
-      timeLabel: '12 dk',
-      initial: 'S',
-      isOnline: true,
-      isNewMatch: true,
-    ),
-    MessageThreadPreview(
-      name: 'Mert',
-      lastMessage: 'Yeni eşleşme',
-      timeLabel: '1 sa',
-      initial: 'M',
-      isNewMatch: true,
-    ),
-  ];
 
   final chats = const [
     MessageThreadPreview(
@@ -83,14 +58,14 @@ class _MessagesScreenState extends State<MessagesScreen> {
     preferences = widget.preferences;
   }
 
-  void _openChat(MessageThreadPreview item, {bool newMatch = false}) {
+  void _openChat(MessageThreadPreview item) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => PrivateChatScreen(
           name: item.name,
           initial: item.initial,
           isOnline: item.isOnline,
-          fromNewMatch: newMatch,
+          fromNewMatch: false,
         ),
       ),
     );
@@ -110,6 +85,17 @@ class _MessagesScreenState extends State<MessagesScreen> {
           minAge: preferences.minAge,
           maxAge: preferences.maxAge,
           purpose: preferences.purpose,
+        ),
+      ),
+    );
+  }
+
+  void _goMatches() {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => MatchesScreen(
+          profileName: widget.profileName,
+          preferences: preferences,
         ),
       ),
     );
@@ -144,7 +130,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                 slivers: [
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
+                      padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
                       child: Row(
                         children: [
                           const Expanded(
@@ -163,7 +149,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                 ),
                                 SizedBox(height: 5),
                                 Text(
-                                  'Eşleşmelerin ve özel sohbetlerin',
+                                  'Özel sohbetlerin',
                                   style: TextStyle(
                                     color: AppColors.muted,
                                     fontSize: 12.5,
@@ -189,124 +175,9 @@ class _MessagesScreenState extends State<MessagesScreen> {
                       ),
                     ),
                   ),
-                  const SliverToBoxAdapter(child: SizedBox(height: 16)),
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Row(
-                        children: [
-                          const Text(
-                            'Yeni eşleşmeler',
-                            style: TextStyle(
-                              color: AppColors.navy,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                          const SizedBox(width: 7),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: AppColors.blue,
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              '${newMatches.length}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  SliverToBoxAdapter(
-                    child: SizedBox(
-                      height: 128,
-                      child: ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
-                        scrollDirection: Axis.horizontal,
-                        itemCount: newMatches.length,
-                        separatorBuilder: (_, __) => const SizedBox(width: 12),
-                        itemBuilder: (context, index) {
-                          final item = newMatches[index];
-                          return InkWell(
-                            onTap: () => _openChat(item, newMatch: true),
-                            borderRadius: BorderRadius.circular(20),
-                            child: Container(
-                              width: 82,
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(.92),
-                                borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: AppColors.border),
-                              ),
-                              child: Column(
-                                children: [
-                                  Stack(
-                                    clipBehavior: Clip.none,
-                                    children: [
-                                      Container(
-                                        width: 54,
-                                        height: 54,
-                                        decoration: const BoxDecoration(
-                                          color: AppColors.navy,
-                                          shape: BoxShape.circle,
-                                        ),
-                                        alignment: Alignment.center,
-                                        child: Text(
-                                          item.initial,
-                                          style: const TextStyle(
-                                            color: AppColors.lime,
-                                            fontSize: 21,
-                                            fontWeight: FontWeight.w900,
-                                          ),
-                                        ),
-                                      ),
-                                      Positioned(
-                                        right: -2,
-                                        bottom: -2,
-                                        child: Container(
-                                          width: 18,
-                                          height: 18,
-                                          decoration: BoxDecoration(
-                                            color: AppColors.lime,
-                                            shape: BoxShape.circle,
-                                            border: Border.all(color: Colors.white, width: 2),
-                                          ),
-                                          child: const Icon(
-                                            Icons.favorite_rounded,
-                                            color: AppColors.navy,
-                                            size: 10,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 7),
-                                  Text(
-                                    item.name,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: AppColors.navy,
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.w900,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
                   const SliverToBoxAdapter(
                     child: Padding(
-                      padding: EdgeInsets.fromLTRB(20, 8, 20, 7),
+                      padding: EdgeInsets.fromLTRB(20, 14, 20, 8),
                       child: Text(
                         'Sohbetler',
                         style: TextStyle(
@@ -330,15 +201,15 @@ class _MessagesScreenState extends State<MessagesScreen> {
                       return InkWell(
                         onTap: () => _openChat(item),
                         child: Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 11, 20, 11),
+                          padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
                           child: Row(
                             children: [
                               Stack(
                                 clipBehavior: Clip.none,
                                 children: [
                                   Container(
-                                    width: 54,
-                                    height: 54,
+                                    width: 56,
+                                    height: 56,
                                     decoration: const BoxDecoration(
                                       color: AppColors.navy,
                                       shape: BoxShape.circle,
@@ -381,7 +252,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                                             item.name,
                                             style: const TextStyle(
                                               color: AppColors.navy,
-                                              fontSize: 14,
+                                              fontSize: 14.5,
                                               fontWeight: FontWeight.w900,
                                             ),
                                           ),
@@ -447,16 +318,17 @@ class _MessagesScreenState extends State<MessagesScreen> {
                       );
                     },
                   ),
-                  const SliverToBoxAdapter(child: SizedBox(height: 18)),
+                  const SliverToBoxAdapter(child: SizedBox(height: 20)),
                 ],
               ),
             ),
             MainBottomNav(
-              selectedIndex: 1,
+              selectedIndex: 2,
               unreadMessages: 2,
               onTap: (index) {
                 if (index == 0) _goHome();
-                if (index == 2) _goProfile();
+                if (index == 1) _goMatches();
+                if (index == 3) _goProfile();
               },
             ),
           ],
