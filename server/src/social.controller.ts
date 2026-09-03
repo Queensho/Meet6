@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Headers, Param, Post, Put, Query } from '@nestjs/common';
 
 import { AuthService } from './auth.service';
+import { ReportService } from './report.service';
 import { ReportUserDto, SendPrivateMessageDto, UpdateSettingsDto } from './social.dto';
 import { SocialService } from './social.service';
 
@@ -9,6 +10,7 @@ export class SocialController {
   constructor(
     private readonly auth: AuthService,
     private readonly social: SocialService,
+    private readonly reports: ReportService,
   ) {}
 
   private async userId(authorization?: string) {
@@ -93,12 +95,13 @@ export class SocialController {
     @Param('userId') targetUserId: string,
     @Body() body: ReportUserDto,
   ) {
-    return this.social.report(
+    return this.reports.submit(
       await this.userId(authorization),
       targetUserId,
       body.reason,
       body.detail,
       body.roomId,
+      body.matchId,
     );
   }
 
