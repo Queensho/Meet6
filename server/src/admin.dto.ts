@@ -1,4 +1,4 @@
-import { IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 export class AdminUserActionDto {
   @IsIn(['warn', 'ban', 'unban', 'remove_matchmaking'])
@@ -26,4 +26,46 @@ export class AdminRoomActionDto {
   @IsString()
   @MaxLength(240)
   reason!: string;
+}
+
+export class AdminReportActionDto {
+  @IsIn([
+    'review',
+    'resolve',
+    'reject',
+    'reopen',
+    'warn',
+    'ban_24h',
+    'ban_7d',
+    'ban_30d',
+    'ban_permanent',
+  ])
+  action!:
+    | 'review'
+    | 'resolve'
+    | 'reject'
+    | 'reopen'
+    | 'warn'
+    | 'ban_24h'
+    | 'ban_7d'
+    | 'ban_30d'
+    | 'ban_permanent';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  note?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
+}
+
+export class AdminReportEvidenceDto {
+  @IsString()
+  messageId!: string;
+
+  @IsBoolean()
+  keyEvidence!: boolean;
 }
