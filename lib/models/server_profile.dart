@@ -55,6 +55,28 @@ class ServerProfile {
     return value < 0 ? 0 : value;
   }
 
+  int get completionPercent {
+    var score = 0;
+    if (name.trim().length >= 2) score += 10;
+    if (DateTime.tryParse(birthDate) != null) score += 10;
+    if (gender.trim().isNotEmpty) score += 10;
+    if (bio.trim().length >= 3) score += 10;
+    if (latitude != null && longitude != null) score += 10;
+    if (interests.isNotEmpty) score += 10;
+    if (prompt.trim().isNotEmpty && promptAnswer.trim().length >= 3) score += 10;
+    score += (photoUrls.length > 3 ? 3 : photoUrls.length) * 10;
+    return score > 100 ? 100 : score;
+  }
+
+  String get completionHint {
+    if (completionPercent >= 100) return 'Profilin eşleşmeye hazır.';
+    if (photoUrls.length < 3) return 'En az ${3 - photoUrls.length} fotoğraf daha ekle.';
+    if (bio.trim().length < 3) return 'Kısa bir bio ekle.';
+    if (interests.isEmpty) return 'En az 1 ilgi alanı seç.';
+    if (promptAnswer.trim().length < 3) return 'Profil sorusunu cevapla.';
+    return 'Eksik alanları tamamla.';
+  }
+
   MatchingPreferences get preferences => MatchingPreferences(
         lookingFor: lookingFor,
         minAge: minAge,
