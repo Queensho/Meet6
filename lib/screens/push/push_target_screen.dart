@@ -36,7 +36,8 @@ class _PushTargetScreenState extends State<PushTargetScreen> {
       final roomId = widget.data['roomId']?.toString() ?? '';
       final matchId = widget.data['matchId']?.toString() ?? '';
 
-      if (type == 'room_found' && roomId.isNotEmpty) {
+      if ((type == 'room_found' || type == 'room_message') &&
+          roomId.isNotEmpty) {
         await LiveService.room(roomId);
         final saved = await SessionService.loadProfile();
         if (!mounted) return;
