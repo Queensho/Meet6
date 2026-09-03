@@ -5,6 +5,7 @@ import '../../models/picked_profile_photo.dart';
 import '../../models/profile_draft.dart';
 import '../../services/api_service.dart';
 import '../../services/location_service.dart';
+import '../../services/profile_photo_service.dart';
 import '../../services/session_service.dart';
 import '../../widgets/phone_frame.dart';
 import '../../widgets/primary_button.dart';
@@ -50,9 +51,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
           draft.gender != null;
     }
     if (step == 2) {
-      return draft.lookingFor != null &&
-          draft.hasLocation &&
-          draft.purpose != null;
+      return draft.lookingFor != null && draft.hasLocation && draft.purpose != null;
     }
     return extraPhotoCount >= 2 &&
         bioController.text.trim().length >= 3 &&
@@ -70,44 +69,20 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     super.dispose();
   }
 
-  String _mimeForName(String name) {
-    final lower = name.toLowerCase();
-    if (lower.endsWith('.png')) return 'image/png';
-    if (lower.endsWith('.webp')) return 'image/webp';
-    if (lower.endsWith('.heic')) return 'image/heic';
-    if (lower.endsWith('.heif')) return 'image/heif';
-    return 'image/jpeg';
-  }
-
   Future<PickedProfilePhoto?> _pickPhoto() async {
     if (photoPicking || submitting) return null;
     setState(() => photoPicking = true);
     try {
-      final picked = await imagePicker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 1800,
-        maxHeight: 1800,
-        imageQuality: 88,
-      );
-      if (picked == null) return null;
-      final bytes = await picked.readAsBytes();
-      if (bytes.length > 8 * 1024 * 1024) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Fotoğraf en fazla 8 MB olabilir.')),
-          );
-        }
-        return null;
+      return await ProfilePhotoService.pickAndPrepare(context, imagePicker);
+    } on ProfilePhotoException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
       }
-      return PickedProfilePhoto(
-        bytes: bytes,
-        fileName: picked.name,
-        mimeType: _mimeForName(picked.name),
-      );
+      return null;
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Fotoğraf seçilemedi. Tekrar dene.')),
+          const SnackBar(content: Text('Fotoğraf hazırlanamadı. Tekrar dene.')),
         );
       }
       return null;
@@ -271,7 +246,6 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       );
 
       if (!mounted) return;
-
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute(
           builder: (_) => HomeScreen(
@@ -291,15 +265,11 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
       );
     } on ApiException catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message)),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Profil sunucuya kaydedilemedi. Tekrar dene.'),
-        ),
+        const SnackBar(content: Text('Profil sunucuya kaydedilemedi. Tekrar dene.')),
       );
     } finally {
       if (mounted) setState(() => submitting = false);
@@ -339,15 +309,13 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
           locationError: locationError,
           distanceKm: draft.distanceKm,
           purpose: draft.purpose,
-          onLookingForChanged: (value) =>
-              setState(() => draft.lookingFor = value),
+          onLookingForChanged: (value) => setState(() => draft.lookingFor = value),
           onAgeChanged: (values) => setState(() {
             draft.minAge = values.start;
             draft.maxAge = values.end;
           }),
           onRequestLocation: _requestLocation,
-          onDistanceChanged: (value) =>
-              setState(() => draft.distanceKm = value),
+          onDistanceChanged: (value) => setState(() => draft.distanceKm = value),
           onPurposeChanged: (value) => setState(() => draft.purpose = value),
         );
       default:
