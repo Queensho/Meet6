@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../models/picked_profile_photo.dart';
 import '../../models/server_profile.dart';
 import '../../services/api_service.dart';
+import '../../services/profile_photo_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/form_components.dart';
 import '../../widgets/phone_frame.dart';
@@ -30,8 +31,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late String prompt;
   late String gender;
   late String birthDateIso;
-  late List<String?> existingPhotoSlots;
-  final replacementPhotos = List<PickedProfilePhoto?>.filled(4, null);
+  late List<_EditablePhoto> photos;
 
   bool saving = false;
   bool photoPicking = false;
@@ -68,10 +68,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     interests = i.interests.toSet();
     prompt = promptOptions.contains(i.prompt) ? i.prompt : promptOptions.first;
     gender = i.gender;
-    existingPhotoSlots = List<String?>.filled(4, null);
-    for (var index = 0; index < i.photoUrls.length && index < 4; index++) {
-      existingPhotoSlots[index] = i.photoUrls[index];
-    }
+    photos = List.generate(
+      4,
+      (index) => _EditablePhoto(
+        id: 'photo-$index-${DateTime.now().microsecondsSinceEpoch}',
+        existingUrl: index < i.photoUrls.length ? i.photoUrls[index] : null,
+      ),
+    );
   }
 
   @override
@@ -83,40 +86,40 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     super.dispose();
   }
 
-  int get photoCount {
-    var count = 0;
-    for (var index = 0; index < 4; index++) {
-      if (replacementPhotos[index] != null || existingPhotoSlots[index] != null) {
-        count++;
-      }
-    }
-    return count;
+  int get photoCount => photos.where((photo) => photo.hasPhoto).length;
+
+  int get completionPercent {
+    var score = 0;
+    if (nameController.text.trim().length >= 2) score += 10;
+    if (DateTime.tryParse(birthDateIso) != null) score += 10;
+    if (gender.isNotEmpty) score += 10;
+    if (bioController.text.trim().length >= 3) score += 10;
+    if (widget.initial.latitude != null && widget.initial.longitude != null) score += 10;
+    if (interests.isNotEmpty) score += 10;
+    if (prompt.trim().isNotEmpty && answerController.text.trim().length >= 3) score += 10;
+    score += photoCount.clamp(0, 3) * 10;
+    return score.clamp(0, 100);
+  }
+
+  String get completionHint {
+    if (completionPercent == 100) return 'Profilin eşleşmeye hazır.';
+    if (photoCount < 3) return 'En az ${3 - photoCount} fotoğraf daha ekle.';
+    if (bioController.text.trim().length < 3) return 'Kısa bir bio ekle.';
+    if (interests.isEmpty) return 'En az 1 ilgi alanı seç.';
+    if (answerController.text.trim().length < 3) return 'Profil sorusunu cevapla.';
+    return 'Eksik alanları tamamla.';
   }
 
   bool get canSave =>
       !saving &&
       !photoPicking &&
-      nameController.text.trim().length >= 2 &&
-      DateTime.tryParse(birthDateIso) != null &&
-      gender.isNotEmpty &&
-      bioController.text.trim().length >= 3 &&
-      interests.isNotEmpty &&
-      answerController.text.trim().length >= 3 &&
+      completionPercent == 100 &&
       photoCount >= 3;
 
   String _displayDate(String iso) {
     final date = DateTime.tryParse(iso);
     if (date == null) return '';
     return '${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')}.${date.year}';
-  }
-
-  String _mimeForName(String name) {
-    final lower = name.toLowerCase();
-    if (lower.endsWith('.png')) return 'image/png';
-    if (lower.endsWith('.webp')) return 'image/webp';
-    if (lower.endsWith('.heic')) return 'image/heic';
-    if (lower.endsWith('.heif')) return 'image/heif';
-    return 'image/jpeg';
   }
 
   Future<void> _pickBirthDate() async {
@@ -145,34 +148,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (photoPicking || saving) return;
     setState(() => photoPicking = true);
     try {
-      final picked = await imagePicker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 1800,
-        maxHeight: 1800,
-        imageQuality: 88,
-      );
-      if (picked == null) return;
-      final bytes = await picked.readAsBytes();
-      if (bytes.length > 8 * 1024 * 1024) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Fotoğraf en fazla 8 MB olabilir.')),
-          );
-        }
-        return;
-      }
-      if (!mounted) return;
+      final picked = await ProfilePhotoService.pickAndPrepare(context, imagePicker);
+      if (picked == null || !mounted) return;
       setState(() {
-        replacementPhotos[index] = PickedProfilePhoto(
-          bytes: bytes,
-          fileName: picked.name,
-          mimeType: _mimeForName(picked.name),
-        );
+        photos[index]
+          ..picked = picked
+          ..existingUrl = null;
+        _compactPhotos();
       });
+    } on ProfilePhotoException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+      }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Fotoğraf seçilemedi.')),
+          const SnackBar(content: Text('Fotoğraf hazırlanamadı. Tekrar dene.')),
         );
       }
     } finally {
@@ -180,11 +171,40 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
+  void _compactPhotos() {
+    final filled = photos.where((photo) => photo.hasPhoto).toList();
+    final empty = photos.where((photo) => !photo.hasPhoto).toList();
+    photos = [...filled, ...empty];
+  }
+
   void _removePhoto(int index) {
     if (saving) return;
     setState(() {
-      replacementPhotos[index] = null;
-      existingPhotoSlots[index] = null;
+      photos[index]
+        ..picked = null
+        ..existingUrl = null;
+      _compactPhotos();
+    });
+  }
+
+  void _makeMainPhoto(int index) {
+    if (saving || index <= 0 || index >= photos.length || !photos[index].hasPhoto) return;
+    setState(() {
+      final photo = photos.removeAt(index);
+      photos.insert(0, photo);
+    });
+  }
+
+  void _reorderPhoto(int oldIndex, int newIndex) {
+    if (saving || oldIndex < 0 || oldIndex >= photos.length || !photos[oldIndex].hasPhoto) return;
+    if (newIndex > oldIndex) newIndex--;
+    final lastFilledIndex = photoCount - 1;
+    newIndex = newIndex.clamp(0, lastFilledIndex);
+    if (oldIndex == newIndex) return;
+    setState(() {
+      final photo = photos.removeAt(oldIndex);
+      photos.insert(newIndex, photo);
+      _compactPhotos();
     });
   }
 
@@ -192,25 +212,23 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (!canSave) return;
     setState(() => saving = true);
     try {
-      final replacementIndexes = <int>[];
-      final files = <PickedProfilePhoto>[];
-      for (var index = 0; index < replacementPhotos.length; index++) {
-        final photo = replacementPhotos[index];
-        if (photo != null) {
-          replacementIndexes.add(index);
-          files.add(photo);
+      final pendingEntries = photos.where((photo) => photo.picked != null).toList();
+      if (pendingEntries.isNotEmpty) {
+        final uploadedUrls = await ApiService.uploadProfilePhotos(
+          pendingEntries.map((photo) => photo.picked!).toList(),
+        );
+        for (var index = 0; index < pendingEntries.length; index++) {
+          pendingEntries[index]
+            ..existingUrl = uploadedUrls[index]
+            ..picked = null;
         }
       }
 
-      if (files.isNotEmpty) {
-        final uploadedUrls = await ApiService.uploadProfilePhotos(files);
-        for (var i = 0; i < replacementIndexes.length; i++) {
-          existingPhotoSlots[replacementIndexes[i]] = uploadedUrls[i];
-          replacementPhotos[replacementIndexes[i]] = null;
-        }
-      }
+      final photoUrls = photos
+          .where((photo) => photo.hasPhoto)
+          .map((photo) => photo.existingUrl!)
+          .toList(growable: false);
 
-      final photoUrls = existingPhotoSlots.whereType<String>().toList();
       await ApiService.updateProfile(
         displayName: nameController.text.trim(),
         birthDate: birthDateIso,
@@ -237,9 +255,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       Navigator.of(context).pop(updated);
     } on ApiException catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message)),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -250,19 +266,87 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
-  Widget _photoSlot(int index, {bool main = false}) {
+  Widget _completionCard() {
     final scheme = Theme.of(context).colorScheme;
-    final replacement = replacementPhotos[index];
-    final existing = existingPhotoSlots[index];
-    final hasPhoto = replacement != null || existing != null;
-    final size = main ? 110.0 : 92.0;
+    final complete = completionPercent == 100;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 39,
+                height: 39,
+                decoration: BoxDecoration(
+                  color: complete ? AppColors.lime : scheme.surfaceContainerHigh,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  complete ? Icons.check_rounded : Icons.auto_awesome_rounded,
+                  color: complete ? AppColors.navy : AppColors.blue,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Profilin %$completionPercent tamamlandı',
+                      style: TextStyle(
+                        color: scheme.onSurface,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      completionHint,
+                      style: TextStyle(
+                        color: scheme.onSurfaceVariant,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 11),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(20),
+            child: LinearProgressIndicator(
+              minHeight: 7,
+              value: completionPercent / 100,
+              backgroundColor: scheme.surfaceContainerHigh,
+              color: complete ? AppColors.lime : AppColors.blue,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-    Widget child;
-    if (replacement != null) {
-      child = Image.memory(replacement.bytes, fit: BoxFit.cover);
-    } else if (existing != null) {
-      child = Image.network(
-        ApiService.absoluteMediaUrl(existing),
+  Widget _photoSlot(int index) {
+    final scheme = Theme.of(context).colorScheme;
+    final photo = photos[index];
+    final hasPhoto = photo.hasPhoto;
+
+    Widget preview;
+    if (photo.picked != null) {
+      preview = Image.memory(photo.picked!.bytes, fit: BoxFit.cover);
+    } else if (photo.existingUrl != null) {
+      preview = Image.network(
+        ApiService.absoluteMediaUrl(photo.existingUrl),
         fit: BoxFit.cover,
         errorBuilder: (_, __, ___) => Icon(
           Icons.broken_image_outlined,
@@ -270,62 +354,111 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         ),
       );
     } else {
-      child = Icon(
-        Icons.add_a_photo_outlined,
-        color: scheme.onSurfaceVariant,
-        size: main ? 36 : 28,
-      );
+      preview = Icon(Icons.add_a_photo_outlined, color: scheme.onSurfaceVariant, size: 30);
     }
 
-    final imageBox = InkWell(
-      onTap: () => _pickPhoto(index),
-      borderRadius: BorderRadius.circular(main ? 55 : 18),
-      child: Container(
-        width: size,
-        height: size,
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          color: scheme.surfaceContainerHigh,
-          shape: main ? BoxShape.circle : BoxShape.rectangle,
-          borderRadius: main ? null : BorderRadius.circular(18),
-          border: Border.all(
-            color: hasPhoto ? AppColors.lime : scheme.outlineVariant,
-            width: hasPhoto ? 2 : 1,
-          ),
-        ),
-        child: child,
-      ),
-    );
-
-    return Stack(
+    final tile = Stack(
       clipBehavior: Clip.none,
       children: [
-        imageBox,
+        InkWell(
+          onTap: () => _pickPhoto(index),
+          borderRadius: BorderRadius.circular(18),
+          child: Container(
+            width: 92,
+            height: 112,
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: index == 0 && hasPhoto ? AppColors.lime : scheme.outlineVariant,
+                width: index == 0 && hasPhoto ? 2.5 : 1,
+              ),
+            ),
+            child: preview,
+          ),
+        ),
+        if (index == 0 && hasPhoto)
+          Positioned(
+            left: 6,
+            top: 6,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.lime,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Text(
+                'ANA',
+                style: TextStyle(
+                  color: AppColors.navy,
+                  fontSize: 8.5,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ),
         if (hasPhoto)
           Positioned(
-            top: -6,
-            right: -6,
+            right: -5,
+            top: -5,
             child: InkWell(
               onTap: () => _removePhoto(index),
               customBorder: const CircleBorder(),
               child: Container(
-                width: 27,
-                height: 27,
+                width: 25,
+                height: 25,
                 decoration: BoxDecoration(
                   color: scheme.surface,
                   shape: BoxShape.circle,
                   border: Border.all(color: scheme.outlineVariant),
                 ),
-                child: Icon(
-                  Icons.close_rounded,
-                  color: scheme.onSurface,
-                  size: 17,
-                ),
+                child: Icon(Icons.close_rounded, color: scheme.onSurface, size: 16),
               ),
+            ),
+          ),
+        if (hasPhoto && index > 0)
+          Positioned(
+            left: 5,
+            bottom: 5,
+            child: InkWell(
+              onTap: () => _makeMainPhoto(index),
+              customBorder: const CircleBorder(),
+              child: Container(
+                width: 27,
+                height: 27,
+                decoration: BoxDecoration(
+                  color: scheme.surface.withOpacity(.92),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.star_rounded, color: AppColors.blue, size: 17),
+              ),
+            ),
+          ),
+        if (hasPhoto)
+          Positioned(
+            right: 5,
+            bottom: 5,
+            child: Container(
+              width: 27,
+              height: 27,
+              decoration: BoxDecoration(
+                color: scheme.surface.withOpacity(.92),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.drag_indicator_rounded, color: scheme.onSurfaceVariant, size: 17),
             ),
           ),
       ],
     );
+
+    return hasPhoto
+        ? ReorderableDragStartListener(
+            key: ValueKey(photo.id),
+            index: index,
+            child: tile,
+          )
+        : KeyedSubtree(key: ValueKey(photo.id), child: tile);
   }
 
   @override
@@ -362,13 +495,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   ),
                   TextButton(
                     onPressed: canSave ? _save : null,
-                    child: Text(
-                      saving ? 'Kaydediliyor' : 'Kaydet',
-                      style: TextStyle(
-                        color: canSave ? scheme.primary : scheme.onSurfaceVariant,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
+                    child: Text(saving ? 'Kaydediliyor' : 'Kaydet'),
                   ),
                 ],
               ),
@@ -376,48 +503,65 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             Divider(height: 1, color: scheme.outlineVariant),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(18, 20, 18, 30),
+                padding: const EdgeInsets.fromLTRB(18, 18, 18, 30),
                 physics: const BouncingScrollPhysics(),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Center(child: _photoSlot(0, main: true)),
-                    const SizedBox(height: 14),
-                    Center(
-                      child: Text(
-                        'Ana fotoğraf · dokunarak değiştir',
-                        style: TextStyle(
-                          color: scheme.onSurfaceVariant,
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w700,
+                    _completionCard(),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        const FieldLabel('Fotoğraflar'),
+                        const Spacer(),
+                        Text(
+                          '$photoCount/4',
+                          style: TextStyle(
+                            color: photoCount >= 3 ? AppColors.blue : const Color(0xFFE76A60),
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Basılı tutup sürükleyerek sırala. Yıldız ile ana fotoğrafı değiştir.',
+                      style: TextStyle(
+                        color: scheme.onSurfaceVariant,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 124,
+                      child: ReorderableListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        buildDefaultDragHandles: false,
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                        itemCount: photos.length,
+                        onReorder: _reorderPhoto,
+                        proxyDecorator: (child, index, animation) => Material(
+                          color: Colors.transparent,
+                          elevation: 8,
+                          borderRadius: BorderRadius.circular(18),
+                          child: child,
+                        ),
+                        itemBuilder: (context, index) => Padding(
+                          key: ValueKey('wrap-${photos[index].id}'),
+                          padding: const EdgeInsets.only(right: 10),
+                          child: _photoSlot(index),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        for (var index = 1; index < 4; index++) _photoSlot(index),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '$photoCount/4 fotoğraf · profil için en az 3 gerekli',
-                      style: TextStyle(
-                        color: photoCount >= 3
-                            ? scheme.onSurfaceVariant
-                            : const Color(0xFFE76A60),
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 22),
+                    const SizedBox(height: 18),
                     const FieldLabel('Ad'),
                     const SizedBox(height: 7),
                     TextField(
                       controller: nameController,
-                      style: TextStyle(color: scheme.onSurface),
                       onChanged: (_) => setState(() {}),
+                      style: TextStyle(color: scheme.onSurface),
                       decoration: meet6InputDecoration(
                         hint: 'Adın',
                         icon: Icons.person_outline_rounded,
@@ -461,11 +605,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     const SizedBox(height: 7),
                     TextField(
                       controller: bioController,
-                      style: TextStyle(color: scheme.onSurface),
                       maxLength: 120,
                       minLines: 3,
                       maxLines: 4,
                       onChanged: (_) => setState(() {}),
+                      style: TextStyle(color: scheme.onSurface),
                       decoration: meet6InputDecoration(
                         hint: 'Kendini anlat...',
                         icon: Icons.notes_rounded,
@@ -499,28 +643,21 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       value: prompt,
                       isExpanded: true,
                       dropdownColor: scheme.surface,
-                      style: TextStyle(
-                        color: scheme.onSurface,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                      ),
                       decoration: meet6InputDecoration(
                         hint: 'Soru seç',
                         icon: Icons.chat_bubble_outline_rounded,
                       ),
                       items: promptOptions
-                          .map(
-                            (e) => DropdownMenuItem(value: e, child: Text(e)),
-                          )
+                          .map((value) => DropdownMenuItem(value: value, child: Text(value)))
                           .toList(),
                       onChanged: (value) => setState(() => prompt = value ?? prompt),
                     ),
                     const SizedBox(height: 8),
                     TextField(
                       controller: answerController,
-                      style: TextStyle(color: scheme.onSurface),
                       maxLength: 80,
                       onChanged: (_) => setState(() {}),
+                      style: TextStyle(color: scheme.onSurface),
                       decoration: meet6InputDecoration(
                         hint: 'Cevabın',
                         icon: Icons.edit_note_rounded,
@@ -537,9 +674,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           foregroundColor: dark ? AppColors.navy : Colors.white,
                           disabledBackgroundColor: scheme.surfaceContainerHigh,
                           disabledForegroundColor: scheme.onSurfaceVariant,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(18),
-                          ),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
                         ),
                         child: Text(
                           saving
@@ -560,4 +695,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       ),
     );
   }
+}
+
+class _EditablePhoto {
+  _EditablePhoto({
+    required this.id,
+    this.existingUrl,
+    this.picked,
+  });
+
+  final String id;
+  String? existingUrl;
+  PickedProfilePhoto? picked;
+
+  bool get hasPhoto => picked != null || (existingUrl?.isNotEmpty ?? false);
 }
