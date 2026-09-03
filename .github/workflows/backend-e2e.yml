@@ -54,6 +54,7 @@ jobs:
       PORT: '3100'
       DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/meet6_e2e
       REDIS_URL: redis://127.0.0.1:6379
+      JWT_SECRET: meet6-ci-only-jwt-secret-do-not-use-production
       OTP_TEST_MODE: 'true'
       OTP_TEST_CODE: '123456'
       RATE_LIMIT_ENABLED: 'false'
