@@ -4,6 +4,7 @@ import '../services/api_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/brand.dart';
+import 'admin_live_rooms_screen.dart';
 import 'admin_users_screen.dart';
 import 'services/admin_api_service.dart';
 
@@ -348,6 +349,15 @@ class _AdminNav extends StatelessWidget {
                       Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) => AdminUsersScreen(onLogout: onLogout),
+                        ),
+                      );
+                      return;
+                    }
+                    if (i == 2) {
+                      Navigator.maybePop(context);
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => AdminLiveRoomsScreen(onLogout: onLogout),
                         ),
                       );
                       return;
