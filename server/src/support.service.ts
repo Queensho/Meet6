@@ -12,7 +12,7 @@ export class SupportService {
     const result = await this.infra.db.query(
       `insert into support_requests(user_id, topic, message)
        values($1,$2,$3)
-       returning id::text, topic, message, status, created_at`,
+       returning id::text, topic, message, status, priority, created_at`,
       [userId, topic, message],
     );
     return { ok: true, request: result.rows[0] };
@@ -20,7 +20,9 @@ export class SupportService {
 
   async list(userId: string) {
     const result = await this.infra.db.query(
-      `select id::text, topic, message, status, created_at, updated_at
+      `select id::text, topic, message, status, priority,
+              admin_response, responded_at, closed_at,
+              created_at, updated_at
        from support_requests
        where user_id=$1
        order by created_at desc
