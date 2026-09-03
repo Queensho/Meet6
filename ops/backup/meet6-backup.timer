@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Meet6 production backup nightly
+
+[Timer]
+OnCalendar=*-*-* 03:20:00
+Persistent=true
+RandomizedDelaySec=15m
+Unit=meet6-backup.service
+
+[Install]
+WantedBy=timers.target
