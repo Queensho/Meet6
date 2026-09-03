@@ -1,5 +1,6 @@
 package com.meet6.app
 
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
@@ -14,7 +15,7 @@ class MainActivity : FlutterActivity() {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                "meet6_high",
+                "meet6_high_v2",
                 "Meet6 bildirimleri",
                 NotificationManager.IMPORTANCE_HIGH,
             ).apply {
@@ -22,6 +23,8 @@ class MainActivity : FlutterActivity() {
                 enableVibration(true)
                 enableLights(true)
                 lightColor = Color.rgb(216, 255, 50)
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                setShowBadge(true)
             }
 
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
