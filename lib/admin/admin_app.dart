@@ -9,6 +9,7 @@ import 'admin_bans_screen.dart';
 import 'admin_live_rooms_screen.dart';
 import 'admin_matches_screen.dart';
 import 'admin_reports_screen.dart';
+import 'admin_settings_screen.dart';
 import 'admin_support_screen.dart';
 import 'admin_users_screen.dart';
 import 'services/admin_api_service.dart';
@@ -284,7 +285,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       'Toplam kullanıcı': [_stat('totalUsers'), Icons.groups_2_outlined, 'Bugün +${_stat('todayRegistrations')}'],
                       'Online kullanıcı': [_stat('onlineUsers'), Icons.circle, 'Gerçek zamanlı'],
                       'Kuyrukta bekleyen': [_stat('queuedUsers'), Icons.hourglass_top_rounded, 'Matchmaking'],
-                      'Aktif odalar': [_stat('activeRooms'), Icons.forum_outlined, '6 kişilik'],
+                      'Aktif odalar': [_stat('activeRooms'), Icons.forum_outlined, 'Canlı'],
                       'Tamamlanan oda': [_stat('todayCompletedRooms'), Icons.check_circle_outline_rounded, 'Bugün'],
                       'Karşılıklı eşleşme': [_stat('todayMatches'), Icons.favorite_outline_rounded, 'Bugün'],
                       'Gönderilen mesaj': [_stat('totalMessages'), Icons.chat_bubble_outline_rounded, 'Bugün ${_stat('todayMessages')}'],
@@ -321,6 +322,7 @@ class _AdminNav extends StatelessWidget {
       ('Destek', Icons.support_agent_rounded),
       ('Banlar', Icons.block_rounded),
       ('Audit Log', Icons.history_rounded),
+      ('Ayarlar', Icons.tune_rounded),
     ];
     return Container(
       color: AppColors.navy,
@@ -372,6 +374,10 @@ class _AdminNav extends StatelessWidget {
                     }
                     if (i == 7) {
                       Navigator.of(context).push(MaterialPageRoute(builder: (_) => AdminAuditLogScreen(onLogout: onLogout)));
+                      return;
+                    }
+                    if (i == 8) {
+                      Navigator.of(context).push(MaterialPageRoute(builder: (_) => AdminSettingsScreen(onLogout: onLogout)));
                       return;
                     }
                   },
