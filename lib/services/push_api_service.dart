@@ -66,6 +66,12 @@ class PushApiService {
     );
   }
 
-  static Future<Map<String, dynamic>> sendTestNotification() =>
-      _request('POST', '/api/push/test');
+  static Future<Map<String, dynamic>> sendTestNotification({
+    String kind = 'home',
+  }) =>
+      _request(
+        'POST',
+        '/api/push/test',
+        body: {'kind': kind},
+      );
 }
