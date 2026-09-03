@@ -74,11 +74,14 @@ EOF
 mv "$STAGING_DIR" "$FINAL_DIR"
 trap - EXIT
 
+# Remove abandoned staging directories older than one day and completed backups
+# older than the configured retention period.
+find "$BACKUP_ROOT" -mindepth 1 -maxdepth 1 -type d -name '.staging-*' -mtime +1 -exec rm -rf -- {} +
 find "$BACKUP_ROOT" \
   -mindepth 1 \
   -maxdepth 1 \
   -type d \
-  -name '20????????T??????Z' \
+  -name '20??????T??????Z' \
   -mtime "+$BACKUP_RETENTION_DAYS" \
   -print \
   -exec rm -rf -- {} +
