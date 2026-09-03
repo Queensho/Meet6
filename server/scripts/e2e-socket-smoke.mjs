@@ -184,9 +184,16 @@ async function main() {
 
   const disconnected = waitEvent(userB.socket, 'disconnect', () => true, 6000);
   const reconnected = waitEvent(userB.socket, 'connect', () => true, 12000);
+  const readyAfterReconnect = waitEvent(
+    userB.socket,
+    'server:ready',
+    (data) => String(data?.userId) === String(userB.id),
+    12000,
+  );
   userB.socket.io.engine.close();
   await disconnected;
   await reconnected;
+  await readyAfterReconnect;
   await emitAck(userB.socket, 'match:join', { matchId });
 
   await waitForPrivateMessageCooldown(userB.id, matchId);
@@ -212,7 +219,7 @@ async function main() {
 
   console.log('✅ MEET6 SOCKET E2E PASS');
   console.log(`matchId=${matchId}`);
-  console.log('Flow: socket auth → match join → typing → private message → read receipt → reconnect → private message');
+  console.log('Flow: socket auth → match join → typing → private message → read receipt → reconnect/auth → private message');
 }
 
 try {
