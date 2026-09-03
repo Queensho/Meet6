@@ -53,7 +53,7 @@ class _MatchingPreferencesScreenState extends State<MatchingPreferencesScreen> {
     lookingFor = p.lookingFor;
     minAge = p.minAge;
     maxAge = p.maxAge;
-    distanceKm = p.distanceKm;
+    distanceKm = p.distanceKm.clamp(1, 100).toInt();
     purpose = p.purpose;
     city = p.city;
     country = p.country;
@@ -354,27 +354,78 @@ class _MatchingPreferencesScreenState extends State<MatchingPreferencesScreen> {
                       children: [
                         const FieldLabel('Maksimum mesafe'),
                         const Spacer(),
-                        Text(
-                          distanceKm == 100 ? 'Fark etmez' : '$distanceKm km',
-                          style: TextStyle(
-                            color: scheme.primary,
-                            fontWeight: FontWeight.w900,
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: (dark ? AppColors.lime : scheme.primary)
+                                .withOpacity(.10),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            '$distanceKm km',
+                            style: TextStyle(
+                              color: dark ? AppColors.lime : scheme.primary,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w900,
+                            ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 9),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final value in const [10, 25, 50, 100])
-                          SelectChip(
-                            label: value == 100 ? 'Fark etmez' : '$value km',
-                            selected: distanceKm == value,
-                            onTap: () => setState(() => distanceKm = value),
+                    const SizedBox(height: 5),
+                    SliderTheme(
+                      data: SliderTheme.of(context).copyWith(
+                        trackHeight: 5,
+                        activeTrackColor:
+                            dark ? AppColors.lime : scheme.primary,
+                        inactiveTrackColor: scheme.outlineVariant,
+                        thumbColor: dark ? AppColors.lime : scheme.primary,
+                        overlayColor: (dark ? AppColors.lime : scheme.primary)
+                            .withOpacity(.12),
+                        thumbShape:
+                            const RoundSliderThumbShape(enabledThumbRadius: 9),
+                        overlayShape:
+                            const RoundSliderOverlayShape(overlayRadius: 20),
+                      ),
+                      child: Slider(
+                        value: distanceKm.toDouble(),
+                        min: 1,
+                        max: 100,
+                        divisions: 99,
+                        label: '$distanceKm km',
+                        onChanged: saving
+                            ? null
+                            : (value) => setState(
+                                  () => distanceKm = value.round(),
+                                ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Row(
+                        children: [
+                          Text(
+                            '1 km',
+                            style: TextStyle(
+                              color: scheme.onSurfaceVariant,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
-                      ],
+                          const Spacer(),
+                          Text(
+                            '100 km',
+                            style: TextStyle(
+                              color: scheme.onSurfaceVariant,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 22),
                     const FieldLabel('Tanışma amacı'),
@@ -403,8 +454,10 @@ class _MatchingPreferencesScreenState extends State<MatchingPreferencesScreen> {
                       child: FilledButton.icon(
                         onPressed: hasLocation && !saving ? _save : null,
                         style: FilledButton.styleFrom(
-                          backgroundColor: dark ? AppColors.lime : AppColors.navy,
-                          foregroundColor: dark ? AppColors.navy : Colors.white,
+                          backgroundColor:
+                              dark ? AppColors.lime : AppColors.navy,
+                          foregroundColor:
+                              dark ? AppColors.navy : Colors.white,
                           disabledBackgroundColor: scheme.surfaceContainerHigh,
                           disabledForegroundColor: scheme.onSurfaceVariant,
                           shape: RoundedRectangleBorder(
@@ -422,7 +475,9 @@ class _MatchingPreferencesScreenState extends State<MatchingPreferencesScreen> {
                               )
                             : const Icon(Icons.check_rounded, size: 20),
                         label: Text(
-                          saving ? 'Sunucuya kaydediliyor...' : 'Tercihleri kaydet',
+                          saving
+                              ? 'Sunucuya kaydediliyor...'
+                              : 'Tercihleri kaydet',
                           style: const TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w900,
