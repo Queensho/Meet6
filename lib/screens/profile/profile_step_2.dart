@@ -38,6 +38,7 @@ class ProfileStepTwo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasLocation = locationLabel.isNotEmpty;
+    final safeDistance = distanceKm.clamp(1, 100).toInt();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -192,28 +193,66 @@ class ProfileStepTwo extends StatelessWidget {
           children: [
             const FieldLabel('Konumuna göre maksimum mesafe'),
             const Spacer(),
-            Text(
-              distanceKm == 100 ? 'Fark etmez' : '$distanceKm km',
-              style: const TextStyle(
-                color: AppColors.blue,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w900,
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.blue.withOpacity(.09),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '$safeDistance km',
+                style: const TextStyle(
+                  color: AppColors.blue,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 9),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final value in const [10, 25, 50, 100])
-              SelectChip(
-                label: value == 100 ? 'Fark etmez' : '$value km',
-                selected: distanceKm == value,
-                onTap: () => onDistanceChanged(value),
+        const SizedBox(height: 5),
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            trackHeight: 5,
+            activeTrackColor: AppColors.blue,
+            inactiveTrackColor: AppColors.border,
+            thumbColor: AppColors.blue,
+            overlayColor: AppColors.blue.withOpacity(.12),
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 9),
+            overlayShape: const RoundSliderOverlayShape(overlayRadius: 20),
+          ),
+          child: Slider(
+            value: safeDistance.toDouble(),
+            min: 1,
+            max: 100,
+            divisions: 99,
+            label: '$safeDistance km',
+            onChanged: (value) => onDistanceChanged(value.round()),
+          ),
+        ),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 4),
+          child: Row(
+            children: [
+              Text(
+                '1 km',
+                style: TextStyle(
+                  color: AppColors.muted,
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-          ],
+              Spacer(),
+              Text(
+                '100 km',
+                style: TextStyle(
+                  color: AppColors.muted,
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 20),
         const FieldLabel('Tanışma amacı'),
