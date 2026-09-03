@@ -19,6 +19,8 @@ class PushNotificationService {
 
   static StreamSubscription<String>? _tokenRefreshSubscription;
   static StreamSubscription<RemoteMessage>? _openedAppSubscription;
+  static StreamSubscription<RemoteMessage>? _foregroundSubscription;
+  static Timer? _foregroundBannerTimer;
   static bool _initialized = false;
   static bool _initializing = false;
   static bool _tapHandlingInitialized = false;
@@ -54,19 +56,75 @@ class PushNotificationService {
     throw lastError ?? StateError('FCM token kaydı başarısız.');
   }
 
-  static Future<void> _setupTapHandling() async {
+  static Future<void> _setupMessageHandling() async {
     if (_tapHandlingInitialized) return;
     _tapHandlingInitialized = true;
 
     await _openedAppSubscription?.cancel();
+    await _foregroundSubscription?.cancel();
+
     _openedAppSubscription = FirebaseMessaging.onMessageOpenedApp.listen(
       (message) => unawaited(_openNotification(message)),
+    );
+    _foregroundSubscription = FirebaseMessaging.onMessage.listen(
+      _showForegroundAlert,
     );
 
     final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
     if (initialMessage != null) {
       unawaited(_openNotification(initialMessage));
     }
+  }
+
+  static void _showForegroundAlert(RemoteMessage message) {
+    final navigator = AppNavigator.key.currentState;
+    final context = navigator?.context;
+    if (context == null) return;
+
+    final title = message.notification?.title ??
+        message.data['title']?.toString() ??
+        'Meet6 bildirimi';
+    final body = message.notification?.body ??
+        message.data['body']?.toString() ??
+        '';
+    if (title.trim().isEmpty && body.trim().isEmpty) return;
+
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) return;
+
+    _foregroundBannerTimer?.cancel();
+    messenger.clearMaterialBanners();
+    messenger.showMaterialBanner(
+      MaterialBanner(
+        leading: const Icon(
+          Icons.notifications_active_rounded,
+          color: Color(0xFF2F5BFF),
+        ),
+        content: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(fontWeight: FontWeight.w900),
+            ),
+            if (body.trim().isNotEmpty) ...[
+              const SizedBox(height: 3),
+              Text(body),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: messenger.hideCurrentMaterialBanner,
+            child: const Text('Kapat'),
+          ),
+        ],
+      ),
+    );
+    _foregroundBannerTimer = Timer(const Duration(seconds: 8), () {
+      messenger.hideCurrentMaterialBanner();
+    });
   }
 
   static Future<void> _openNotification(RemoteMessage message) async {
@@ -109,7 +167,7 @@ class PushNotificationService {
     try {
       await Firebase.initializeApp();
       FirebaseMessaging.onBackgroundMessage(meet6FirebaseBackgroundHandler);
-      await _setupTapHandling();
+      await _setupMessageHandling();
 
       final messaging = FirebaseMessaging.instance;
       final permission = await messaging.requestPermission(
@@ -148,10 +206,14 @@ class PushNotificationService {
   }
 
   static Future<void> resetRuntimeState() async {
+    _foregroundBannerTimer?.cancel();
+    _foregroundBannerTimer = null;
     await _tokenRefreshSubscription?.cancel();
     await _openedAppSubscription?.cancel();
+    await _foregroundSubscription?.cancel();
     _tokenRefreshSubscription = null;
     _openedAppSubscription = null;
+    _foregroundSubscription = null;
     _initialized = false;
     _initializing = false;
     _tapHandlingInitialized = false;
