@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
+import '../services/app_runtime_config_service.dart';
 import '../services/push_notification_service.dart';
 import '../services/realtime_service.dart';
 import '../services/session_service.dart';
@@ -69,8 +70,6 @@ class _SessionGateState extends State<SessionGate> {
         }
       }
     } catch (_) {
-      // Sunucuya ilk açılışta ulaşılamazsa kullanıcıyı kilitleme. Socket.IO
-      // reconnect döngüsü arka planda devam eder ve uygulama kullanılabilir kalır.
       unawaited(RealtimeService.connect().catchError((_) {}));
     }
 
@@ -78,6 +77,12 @@ class _SessionGateState extends State<SessionGate> {
   }
 
   Future<Widget> _resolveScreen() async {
+    final runtime = await AppRuntimeConfigService.refresh();
+    if (runtime.maintenanceEnabled) {
+      await _stopAuthenticatedServices();
+      return _MaintenanceScreen(message: runtime.maintenanceMessage);
+    }
+
     final authSession = await SessionService.loadAuthSessionId();
     final local = await SessionService.loadProfile();
 
@@ -228,6 +233,114 @@ class _SessionGateState extends State<SessionGate> {
 
         return snapshot.data ?? const LoginScreen();
       },
+    );
+  }
+}
+
+class _MaintenanceScreen extends StatefulWidget {
+  const _MaintenanceScreen({required this.message});
+  final String message;
+
+  @override
+  State<_MaintenanceScreen> createState() => _MaintenanceScreenState();
+}
+
+class _MaintenanceScreenState extends State<_MaintenanceScreen> {
+  bool checking = false;
+
+  Future<void> _checkAgain() async {
+    if (checking) return;
+    setState(() => checking = true);
+    final config = await AppRuntimeConfigService.refresh();
+    if (!mounted) return;
+    if (!config.maintenanceEnabled) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const SessionGate()),
+      );
+      return;
+    }
+    setState(() => checking = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final message = widget.message.trim().isEmpty
+        ? 'Meet6 kısa süreli bakımda. Lütfen biraz sonra tekrar dene.'
+        : widget.message;
+    return Scaffold(
+      backgroundColor: AppColors.navy,
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 82,
+                  height: 82,
+                  decoration: const BoxDecoration(
+                    color: AppColors.lime,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.handyman_rounded,
+                    color: AppColors.navy,
+                    size: 38,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  'Meet6 bakımda',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 14,
+                      height: 1.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                FilledButton.icon(
+                  onPressed: checking ? null : _checkAgain,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.lime,
+                    foregroundColor: AppColors.navy,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  ),
+                  icon: checking
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.navy,
+                          ),
+                        )
+                      : const Icon(Icons.refresh_rounded),
+                  label: const Text(
+                    'Tekrar kontrol et',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
