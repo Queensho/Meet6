@@ -142,9 +142,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       body: RefreshIndicator(
         onRefresh: _load,
         child: _loading
-            ? const ListView(
-                physics: AlwaysScrollableScrollPhysics(),
-                children: [
+            ? ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                children: const [
                   SizedBox(height: 260),
                   Center(child: CircularProgressIndicator()),
                 ],
