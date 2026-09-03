@@ -82,10 +82,16 @@ async function bootstrap() {
     next();
   });
 
-  const origins = (process.env.CORS_ORIGINS ?? 'https://queensho.github.io')
+  const configuredOrigins = (process.env.CORS_ORIGINS ?? 'https://queensho.github.io')
     .split(',')
     .map((value) => value.trim())
     .filter(Boolean);
+  const origins = Array.from(new Set([
+    ...configuredOrigins,
+    'https://meet6.com.tr',
+    'https://www.meet6.com.tr',
+    'https://admin.meet6.com.tr',
+  ]));
 
   if (process.env.NODE_ENV === 'production' && origins.includes('*')) {
     throw new Error('Wildcard CORS origin is forbidden in production');
