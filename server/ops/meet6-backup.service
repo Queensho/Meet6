@@ -1,0 +1,23 @@
+[Unit]
+Description=Meet6 production backup
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=/var/www/meet6/server
+Environment=BACKUP_ROOT=/var/backups/meet6
+Environment=DB_NAME=meet6
+Environment=DB_USER=postgres
+Environment=UPLOAD_ROOT=/var/www/meet6/uploads
+Environment=BACKUP_RETENTION_DAYS=14
+ExecStart=/usr/bin/env bash /var/www/meet6/server/scripts/backup-production.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+NoNewPrivileges=true
