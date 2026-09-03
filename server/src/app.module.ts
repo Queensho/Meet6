@@ -16,6 +16,7 @@ import { ProfileController } from './profile.controller';
 import { ProfileService } from './profile.service';
 import { PushController } from './push.controller';
 import { PushService } from './push.service';
+import { ReportService } from './report.service';
 import { RoomControlController } from './room-control.controller';
 import { RoomController } from './room.controller';
 import { RoomMessageService } from './room-message.service';
@@ -51,6 +52,7 @@ import { SupportService } from './support.service';
     RoomService,
     RoomMessageService,
     SocialService,
+    ReportService,
     SupportService,
     PushService,
     RoomsGateway,
