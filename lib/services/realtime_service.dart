@@ -63,6 +63,24 @@ class RealtimeService {
         }
       }
     }
+
+    // user:message yalnızca mesajın alıcısının kullanıcı kanalına yayınlanır.
+    // Uygulama olayı aldığı anda teslim ACK'i göndererek "Teslim edildi"
+    // durumunu sohbet ekranı açık olmasa da gerçek cihaz teslimine bağlarız.
+    if (type == 'user:message') {
+      final matchId = data['matchId']?.toString() ?? '';
+      final rawMessage = data['message'];
+      if (matchId.isNotEmpty && rawMessage is Map) {
+        final message = Map<String, dynamic>.from(rawMessage);
+        final messageId = message['id']?.toString() ?? '';
+        if (messageId.isNotEmpty) {
+          unawaited(
+            markMatchDelivered(matchId, messageId)
+                .catchError((_) => <String, dynamic>{}),
+          );
+        }
+      }
+    }
   }
 
   static void _register(io.Socket socket) {
@@ -79,8 +97,10 @@ class RealtimeService {
       'match:created',
       'match:message',
       'user:message',
+      'match:delivered',
       'match:read',
       'match:typing',
+      'match:message-deleted',
       'presence:update',
     ];
 
@@ -274,8 +294,20 @@ class RealtimeService {
   static Future<Map<String, dynamic>> sendPrivateMessage(String matchId, String body) =>
       _ack('match:send', {'matchId': matchId, 'body': body});
 
+  static Future<Map<String, dynamic>> markMatchDelivered(
+    String matchId,
+    String messageId,
+  ) =>
+      _ack('match:delivered', {'matchId': matchId, 'messageId': messageId});
+
   static Future<Map<String, dynamic>> markMatchRead(String matchId) =>
       _ack('match:read', {'matchId': matchId});
+
+  static Future<Map<String, dynamic>> deletePrivateMessage(
+    String matchId,
+    String messageId,
+  ) =>
+      _ack('match:delete', {'matchId': matchId, 'messageId': messageId});
 
   static void setTyping(String matchId, bool typing) {
     final socket = _socket;
