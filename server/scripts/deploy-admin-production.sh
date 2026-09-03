@@ -9,7 +9,6 @@ fi
 REPO_ROOT="${MEET6_ROOT:-/var/www/meet6}"
 ADMIN_ROOT="${MEET6_ADMIN_ROOT:-/var/www/meet6-admin}"
 ADMIN_DOMAIN="${MEET6_ADMIN_DOMAIN:-admin.meet6.com.tr}"
-API_BASE_URL="${MEET6_API_BASE_URL:-https://api.meet6.com.tr}"
 ADMIN_PHONE="${1:-${MEET6_ADMIN_PHONE:-}}"
 ADMIN_ROLE="${MEET6_ADMIN_ROLE:-super_admin}"
 NGINX_AVAILABLE="/etc/nginx/sites-available/meet6-admin"
@@ -30,70 +29,95 @@ case "$ADMIN_ROLE" in
   *) echo "Geçersiz admin rolü: $ADMIN_ROLE" >&2; exit 1 ;;
 esac
 
-echo "[1/8] Repo güncelleniyor..."
-git -C "$REPO_ROOT" pull --ff-only
+APP_USER="${MEET6_APP_USER:-${SUDO_USER:-}}"
+if [[ -z "$APP_USER" || "$APP_USER" == root ]]; then
+  APP_USER="$(stat -c '%U' "$REPO_ROOT")"
+fi
+if [[ -z "$APP_USER" || "$APP_USER" == root ]]; then
+  echo "Meet6 uygulama kullanıcısı belirlenemedi. MEET6_APP_USER=tayfun ile tekrar çalıştır." >&2
+  exit 1
+fi
+APP_GROUP="$(id -gn "$APP_USER")"
+APP_HOME="$(getent passwd "$APP_USER" | cut -d: -f6)"
+if [[ -z "$APP_HOME" ]]; then
+  echo "Uygulama kullanıcısının HOME dizini bulunamadı: $APP_USER" >&2
+  exit 1
+fi
+
+run_as_app() {
+  runuser -u "$APP_USER" -- env HOME="$APP_HOME" bash -lc "$*"
+}
+
+# Önceki hatalı root deployundan kalabilecek dosya sahipliğini düzelt.
+chown -R "$APP_USER:$APP_GROUP" "$REPO_ROOT/.git" 2>/dev/null || true
+for path in "$REPO_ROOT/server/dist" "$REPO_ROOT/server/node_modules" "$REPO_ROOT/server/package-lock.json"; do
+  [[ -e "$path" ]] && chown -R "$APP_USER:$APP_GROUP" "$path" 2>/dev/null || true
+done
+
+echo "[1/8] Repo güncelleniyor... (app user: $APP_USER)"
+run_as_app "git -C '$REPO_ROOT' pull --ff-only"
+TARGET_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD)"
 
 echo "[2/8] Backend bağımlılıkları, migration ve build..."
-cd "$REPO_ROOT/server"
-npm install
-npm run migrate
-npm run build
+run_as_app "cd '$REPO_ROOT/server' && npm install && npm run migrate && npm run build"
 
 if [[ -n "$ADMIN_PHONE" ]]; then
   echo "[3/8] Admin yetkisi veriliyor: $ADMIN_ROLE"
-  npm run admin:grant -- "$ADMIN_PHONE" "$ADMIN_ROLE"
+  run_as_app "cd '$REPO_ROOT/server' && npm run admin:grant -- '$ADMIN_PHONE' '$ADMIN_ROLE'"
 else
   echo "[3/8] Admin telefonu verilmedi; yetkilendirme atlandı."
 fi
 
-echo "[4/8] API yeniden yükleniyor..."
+echo "[4/8] API PM2 altında '$APP_USER' kullanıcısıyla yeniden yükleniyor..."
+# İlk sürümde sudo ile yanlışlıkla açılmış root PM2 meet6-api sürecini temizle.
 if command -v pm2 >/dev/null 2>&1; then
-  pm2 startOrReload ecosystem.config.cjs --env production
-  pm2 save
-else
-  echo "PM2 bulunamadı. Önce production ops kurulumunu çalıştır." >&2
-  exit 1
+  PM2_HOME=/root/.pm2 pm2 delete meet6-api >/dev/null 2>&1 || true
+  PM2_HOME=/root/.pm2 pm2 save --force >/dev/null 2>&1 || true
 fi
 
-echo "[5/8] Admin Flutter Web derleniyor..."
-cd "$REPO_ROOT"
-rm -rf build/web
-
-build_admin() {
-  flutter pub get
-  flutter build web \
-    --target lib/admin_main.dart \
-    --release \
-    --base-href / \
-    --dart-define=MEET6_ENV=production \
-    --dart-define="MEET6_API_BASE_URL=$API_BASE_URL"
-}
-
-if command -v flutter >/dev/null 2>&1; then
-  build_admin
-elif command -v docker >/dev/null 2>&1; then
-  docker run --rm \
-    -v "$REPO_ROOT:/workspace" \
-    -w /workspace \
-    ghcr.io/cirruslabs/flutter:stable \
-    bash -lc "flutter pub get && flutter build web --target lib/admin_main.dart --release --base-href / --dart-define=MEET6_ENV=production --dart-define=MEET6_API_BASE_URL=$API_BASE_URL"
-else
-  echo "Flutter veya Docker bulunamadı. Admin web derlenemedi." >&2
+if ! run_as_app "command -v pm2 >/dev/null 2>&1"; then
+  echo "PM2 '$APP_USER' kullanıcısında bulunamadı. Production ops kurulumunu kontrol et." >&2
   exit 1
 fi
+run_as_app "cd '$REPO_ROOT/server' && pm2 startOrReload ecosystem.config.cjs --env production && pm2 save"
 
-if [[ ! -f "$REPO_ROOT/build/web/index.html" ]]; then
-  echo "Admin web build oluşmadı." >&2
+echo "[5/8] GitHub CI admin web paketi bekleniyor..."
+# VPS'te Flutter/Docker gerekmez. GitHub Actions production admin build'ini
+# admin-web dalına yayınlar. Aynı commitin paketi gelene kadar bekle.
+ADMIN_BRANCH_READY=false
+for attempt in $(seq 1 60); do
+  run_as_app "git -C '$REPO_ROOT' fetch --force origin admin-web:refs/remotes/origin/admin-web" >/dev/null 2>&1 || true
+  SOURCE_SHA="$(git -C "$REPO_ROOT" show origin/admin-web:.admin-source-sha 2>/dev/null | tr -d '\r\n' || true)"
+  if [[ "$SOURCE_SHA" == "$TARGET_SHA" ]]; then
+    ADMIN_BRANCH_READY=true
+    break
+  fi
+  if (( attempt % 6 == 0 )); then
+    echo "  CI bekleniyor... ${attempt}0 sn (hedef ${TARGET_SHA:0:7}, gelen ${SOURCE_SHA:0:7})"
+  fi
+  sleep 10
+done
+
+if [[ "$ADMIN_BRANCH_READY" != true ]]; then
+  echo "GitHub CI admin-web paketi 10 dakika içinde hazır olmadı." >&2
+  echo "Actions durumunu kontrol edip aynı deploy komutunu tekrar çalıştır." >&2
   exit 1
 fi
 
 echo "[6/8] Admin statik dosyaları yayın dizinine alınıyor..."
+TMP_ADMIN="$(mktemp -d)"
+trap 'rm -rf "$TMP_ADMIN"' EXIT
+git -C "$REPO_ROOT" archive origin/admin-web | tar -x -C "$TMP_ADMIN"
+if [[ ! -f "$TMP_ADMIN/index.html" ]]; then
+  echo "admin-web dalında index.html bulunamadı." >&2
+  exit 1
+fi
 mkdir -p "$ADMIN_ROOT"
 if command -v rsync >/dev/null 2>&1; then
-  rsync -a --delete "$REPO_ROOT/build/web/" "$ADMIN_ROOT/"
+  rsync -a --delete "$TMP_ADMIN/" "$ADMIN_ROOT/"
 else
-  rm -rf "$ADMIN_ROOT"/*
-  cp -a "$REPO_ROOT/build/web/." "$ADMIN_ROOT/"
+  find "$ADMIN_ROOT" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+  cp -a "$TMP_ADMIN/." "$ADMIN_ROOT/"
 fi
 chown -R www-data:www-data "$ADMIN_ROOT" 2>/dev/null || true
 find "$ADMIN_ROOT" -type d -exec chmod 755 {} +
@@ -144,8 +168,9 @@ else
 fi
 
 echo
-pm2 list || true
+run_as_app "pm2 list" || true
 echo "Admin yerel test: OK"
+echo "Admin build SHA: $TARGET_SHA"
 echo "Hedef adres: https://$ADMIN_DOMAIN"
 if [[ -n "$ADMIN_PHONE" ]]; then
   echo "Admin hesabı: $ADMIN_PHONE ($ADMIN_ROLE)"
