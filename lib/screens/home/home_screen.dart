@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../models/matching_preferences.dart';
 import '../../services/push_notification_service.dart';
 import '../../services/realtime_service.dart';
+import '../../services/runtime_app_config_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/main_bottom_nav.dart';
 import '../matches/matches_screen.dart';
@@ -62,7 +63,19 @@ class _HomeScreenState extends State<HomeScreen> {
       latitude: widget.latitude,
       longitude: widget.longitude,
     );
+    RuntimeAppConfigService.listenable.addListener(_runtimeChanged);
+    unawaited(RuntimeAppConfigService.load(force: true));
     _startAuthenticatedServices();
+  }
+
+  @override
+  void dispose() {
+    RuntimeAppConfigService.listenable.removeListener(_runtimeChanged);
+    super.dispose();
+  }
+
+  void _runtimeChanged() {
+    if (mounted) setState(() {});
   }
 
   void _startAuthenticatedServices() {
@@ -153,6 +166,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final runtime = RuntimeAppConfigService.cached;
     return Scaffold(
       backgroundColor: AppColors.lime,
       body: SafeArea(
@@ -209,9 +223,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
-                    '6 kişi. 15 dk.\nGerçek sohbet.',
-                    style: TextStyle(
+                  Text(
+                    '${runtime.minimumUsers} kişi. ${runtime.roomDurationMinutes} dk.\nGerçek sohbet.',
+                    style: const TextStyle(
                       color: AppColors.navy,
                       fontSize: 34,
                       height: .98,
@@ -242,9 +256,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           color: AppColors.navy.withValues(alpha: .12),
                         ),
                       ),
-                      child: const Row(
+                      child: Row(
                         children: [
-                          CircleAvatar(
+                          const CircleAvatar(
                             radius: 18,
                             backgroundColor: AppColors.navy,
                             child: Icon(
@@ -253,12 +267,12 @@ class _HomeScreenState extends State<HomeScreen> {
                               color: AppColors.lime,
                             ),
                           ),
-                          SizedBox(width: 11),
+                          const SizedBox(width: 11),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
+                                const Text(
                                   'Odaya girmek için 6’ya dokun',
                                   style: TextStyle(
                                     color: AppColors.navy,
@@ -266,10 +280,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                     fontWeight: FontWeight.w900,
                                   ),
                                 ),
-                                SizedBox(height: 2),
+                                const SizedBox(height: 2),
                                 Text(
-                                  'Sana uygun 5 kişiyle sohbet başlar.',
-                                  style: TextStyle(
+                                  'Sana uygun ${runtime.minimumUsers - 1} kişiyle sohbet başlar.',
+                                  style: const TextStyle(
                                     color: AppColors.navy,
                                     fontSize: 11.5,
                                     fontWeight: FontWeight.w600,
@@ -278,7 +292,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               ],
                             ),
                           ),
-                          Icon(
+                          const Icon(
                             Icons.arrow_forward_rounded,
                             color: AppColors.navy,
                             size: 20,
