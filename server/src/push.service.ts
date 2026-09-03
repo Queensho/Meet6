@@ -360,8 +360,9 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
       android: {
         priority: 'high',
         notification: {
-          channelId: 'meet6_high',
+          channelId: 'meet6_high_v2',
           sound: 'default',
+          visibility: 'public',
         },
       },
       apns: {
