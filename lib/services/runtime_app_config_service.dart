@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../config/app_config.dart';
@@ -51,6 +52,8 @@ class RuntimeAppConfigService {
 
   static RuntimeAppConfig _cached = const RuntimeAppConfig();
   static DateTime? _loadedAt;
+  static final ValueNotifier<RuntimeAppConfig> listenable =
+      ValueNotifier<RuntimeAppConfig>(_cached);
 
   static RuntimeAppConfig get cached => _cached;
 
@@ -68,6 +71,7 @@ class RuntimeAppConfigService {
       if (decoded is! Map) return _cached;
       _cached = RuntimeAppConfig.fromJson(Map<String, dynamic>.from(decoded));
       _loadedAt = DateTime.now();
+      listenable.value = _cached;
     } catch (_) {}
     return _cached;
   }
