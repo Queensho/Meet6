@@ -44,7 +44,8 @@ jobs:
             server/scripts/healthcheck-production.sh \
             server/scripts/error-watch-production.sh \
             server/scripts/install-production-ops.sh \
-            server/scripts/deploy-admin-production.sh
+            server/scripts/deploy-admin-production.sh \
+            server/scripts/deploy-api-domain-production.sh
           node --check server/ecosystem.config.cjs
 
       - name: Setup Flutter
