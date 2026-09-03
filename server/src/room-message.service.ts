@@ -61,7 +61,9 @@ export class RoomMessageService {
         `select r.status
          from rooms r
          join room_members rm on rm.room_id = r.id
-         where r.id = $1 and rm.user_id = $2`,
+         where r.id = $1
+           and rm.user_id = $2
+           and rm.admin_removed_at is null`,
         [roomId, userId],
       );
 
