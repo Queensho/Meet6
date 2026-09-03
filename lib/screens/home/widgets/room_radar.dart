@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../theme/app_colors.dart';
-import '../../../widgets/meet6_3d_avatar.dart';
 
 class RoomRadar extends StatefulWidget {
   const RoomRadar({
@@ -21,12 +20,13 @@ class _RoomRadarState extends State<RoomRadar>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
-  static const _profiles = [
-    _OrbitProfile('Deniz', Alignment(0, -1)),
-    _OrbitProfile('Selin', Alignment(-1, -.30)),
-    _OrbitProfile('Bora', Alignment(1, -.30)),
-    _OrbitProfile('Ece', Alignment(-1, .60)),
-    _OrbitProfile('Mert', Alignment(1, .60)),
+  static const _avatarAssets = [
+    'assets/images/Avatar1.png',
+    'assets/images/Avatar2.png',
+    'assets/images/Avatar3.png',
+    'assets/images/Avatar4.png',
+    'assets/images/Avatar5.png',
+    'assets/images/Avatar6.png',
   ];
 
   @override
@@ -34,7 +34,7 @@ class _RoomRadarState extends State<RoomRadar>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 14),
+      duration: const Duration(seconds: 16),
     )..repeat();
   }
 
@@ -51,7 +51,7 @@ class _RoomRadarState extends State<RoomRadar>
       child: LayoutBuilder(
         builder: (context, constraints) {
           final size = math.min(constraints.maxWidth, constraints.maxHeight);
-          final avatarSize = (size * .17).clamp(48.0, 64.0).toDouble();
+          final avatarSize = (size * .165).clamp(46.0, 62.0).toDouble();
           final orbitRadius = size * .355;
           final center = size / 2;
 
@@ -70,9 +70,9 @@ class _RoomRadarState extends State<RoomRadar>
                       painter: _RadarPainter(progress: pulseProgress),
                     ),
                   ),
-                  for (var index = 0; index < _profiles.length; index++)
-                    _buildOrbitProfile(
-                      profile: _profiles[index],
+                  for (var index = 0; index < _avatarAssets.length; index++)
+                    _buildOrbitAvatar(
+                      asset: _avatarAssets[index],
                       index: index,
                       orbitAngle: orbitAngle,
                       center: center,
@@ -168,15 +168,15 @@ class _RoomRadarState extends State<RoomRadar>
     );
   }
 
-  Widget _buildOrbitProfile({
-    required _OrbitProfile profile,
+  Widget _buildOrbitAvatar({
+    required String asset,
     required int index,
     required double orbitAngle,
     required double center,
     required double radius,
     required double avatarSize,
   }) {
-    final angle = orbitAngle + (math.pi * 2 / _profiles.length) * index;
+    final angle = orbitAngle + (math.pi * 2 / _avatarAssets.length) * index;
     final left = center + math.cos(angle) * radius - avatarSize / 2;
     final top = center + math.sin(angle) * radius - avatarSize / 2;
 
@@ -185,22 +185,41 @@ class _RoomRadarState extends State<RoomRadar>
       top: top,
       width: avatarSize,
       height: avatarSize,
-      child: Tooltip(
-        message: profile.name,
-        child: Meet63DAvatar(
-          alignment: profile.alignment,
-          size: avatarSize,
+      child: Semantics(
+        label: 'Meet6 avatar ${index + 1}',
+        image: true,
+        child: Container(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.white,
+            border: Border.all(color: Colors.white, width: 2.5),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.navy.withOpacity(.14),
+                blurRadius: 12,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: ClipOval(
+            child: Image.asset(
+              asset,
+              fit: BoxFit.cover,
+              filterQuality: FilterQuality.high,
+              errorBuilder: (_, __, ___) => Container(
+                color: AppColors.softSurface,
+                alignment: Alignment.center,
+                child: const Icon(
+                  Icons.person_rounded,
+                  color: AppColors.navy,
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );
   }
-}
-
-class _OrbitProfile {
-  const _OrbitProfile(this.name, this.alignment);
-
-  final String name;
-  final Alignment alignment;
 }
 
 class _RadarPainter extends CustomPainter {
