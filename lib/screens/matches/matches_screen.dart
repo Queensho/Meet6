@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../models/matching_preferences.dart';
 import '../../services/api_service.dart';
 import '../../services/live_service.dart';
+import '../../services/realtime_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/main_bottom_nav.dart';
 import '../../widgets/phone_frame.dart';
@@ -31,27 +34,51 @@ class _MatchesScreenState extends State<MatchesScreen> {
   int unreadTotal = 0;
   bool loading = true;
   String? error;
+  StreamSubscription<RealtimeEvent>? realtimeSub;
 
   @override
   void initState() {
     super.initState();
     preferences = widget.preferences;
+    _startRealtime();
     _load();
+  }
+
+  Future<void> _startRealtime() async {
+    await realtimeSub?.cancel();
+    realtimeSub = RealtimeService.events.listen((event) {
+      if (!mounted) return;
+      if (event.type == 'matches:update') {
+        _applySnapshot(event.data);
+        return;
+      }
+      if (event.type == 'connection:connected') {
+        unawaited(_load());
+      }
+    });
+    try {
+      await RealtimeService.connect();
+    } catch (_) {}
+  }
+
+  void _applySnapshot(Map<String, dynamic> data) {
+    final raw = data['matches'];
+    if (!mounted) return;
+    setState(() {
+      matches = raw is List
+          ? raw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
+          : const [];
+      unreadTotal = (data['unreadTotal'] as num?)?.toInt() ?? 0;
+      loading = false;
+      error = null;
+    });
   }
 
   Future<void> _load() async {
     try {
       final data = await LiveService.matches();
-      final raw = data['matches'];
       if (!mounted) return;
-      setState(() {
-        matches = raw is List
-            ? raw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
-            : const [];
-        unreadTotal = (data['unreadTotal'] as num?)?.toInt() ?? 0;
-        loading = false;
-        error = null;
-      });
+      _applySnapshot(data);
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -118,7 +145,13 @@ class _MatchesScreenState extends State<MatchesScreen> {
         ),
       ),
     );
-    if (mounted) _load();
+    if (mounted) unawaited(_load());
+  }
+
+  @override
+  void dispose() {
+    realtimeSub?.cancel();
+    super.dispose();
   }
 
   @override
