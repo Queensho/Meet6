@@ -3,6 +3,7 @@ import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/com
 import { AdminRuntimeSettingsDto } from './admin.dto';
 import { AdminService } from './admin.service';
 import { InfrastructureService } from './infrastructure.service';
+import { RoomsGateway } from './rooms.gateway';
 import { RuntimeSettingsService } from './runtime-settings.service';
 
 @Injectable()
@@ -11,6 +12,7 @@ export class AdminSettingsService {
     private readonly infra: InfrastructureService,
     private readonly adminService: AdminService,
     private readonly runtimeSettings: RuntimeSettingsService,
+    private readonly roomsGateway: RoomsGateway,
   ) {}
 
   async get(adminUserId: string) {
@@ -79,6 +81,13 @@ export class AdminSettingsService {
        values($1,'update_runtime_settings','app_settings','1',$2::jsonb)`,
       [adminUserId, JSON.stringify({ previous, current })],
     );
+
+    const publicConfig = await this.runtimeSettings.publicConfig();
+    try {
+      this.roomsGateway.server?.emit('app:config', publicConfig);
+    } catch (_) {
+      // WebSocket henüz hazır değilse HTTP config endpointi kaynak olmaya devam eder.
+    }
 
     return { ok: true, admin, editable: true, settings: current };
   }
