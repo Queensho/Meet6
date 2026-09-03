@@ -124,6 +124,10 @@ jobs:
         working-directory: server
         run: npm run e2e:socket-smoke
 
+      - name: Run private message feature E2E
+        working-directory: server
+        run: npm run e2e:private-message-features
+
       - name: Run matchmaking policy E2E
         working-directory: server
         run: node scripts/e2e-matchmaking-policy.mjs
