@@ -21,3 +21,9 @@ export class AdminRemovePhotoDto {
   @MaxLength(600)
   photoUrl!: string;
 }
+
+export class AdminRoomActionDto {
+  @IsString()
+  @MaxLength(240)
+  reason!: string;
+}
