@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 
 import { AdminController } from './admin.controller';
+import { AdminMatchService } from './admin-match.service';
 import { AdminRoomService } from './admin-room.service';
 import { AdminService } from './admin.service';
 import { AuthController } from './auth.controller';
@@ -56,6 +57,7 @@ import { SupportService } from './support.service';
     MatchmakingSchedulerService,
     AdminService,
     AdminRoomService,
+    AdminMatchService,
   ],
 })
 export class AppModule {}
