@@ -7,6 +7,8 @@ import '../services/push_notification_service.dart';
 import '../services/realtime_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_colors.dart';
+import 'chat/room_chat_screen.dart';
+import 'chat/room_selection_screen.dart';
 import 'home/home_screen.dart';
 import 'login_screen.dart';
 
@@ -37,6 +39,42 @@ class _SessionGateState extends State<SessionGate> {
   Future<void> _stopAuthenticatedServices() async {
     RealtimeService.disconnect();
     await PushNotificationService.resetRuntimeState();
+  }
+
+  Future<Widget> _resolveAuthenticatedLanding(SavedSession session) async {
+    unawaited(
+      PushNotificationService.initializeForAuthenticatedUser()
+          .catchError((_) {}),
+    );
+
+    try {
+      await RealtimeService.connect();
+      final state = await RealtimeService.queueStatus();
+      final rawRoom = state['room'];
+      if (state['state'] == 'room' && rawRoom is Map) {
+        final room = Map<String, dynamic>.from(rawRoom);
+        final roomId = room['id']?.toString() ?? '';
+        final status = room['status']?.toString();
+        if (roomId.isNotEmpty && status == 'selection') {
+          return RoomSelectionScreen(
+            roomId: roomId,
+            profileName: session.profileName,
+          );
+        }
+        if (roomId.isNotEmpty && status == 'active') {
+          return RoomChatScreen(
+            roomId: roomId,
+            profileName: session.profileName,
+          );
+        }
+      }
+    } catch (_) {
+      // Sunucuya ilk açılışta ulaşılamazsa kullanıcıyı kilitleme. Socket.IO
+      // reconnect döngüsü arka planda devam eder ve uygulama kullanılabilir kalır.
+      unawaited(RealtimeService.connect().catchError((_) {}));
+    }
+
+    return _home(session);
   }
 
   Future<Widget> _resolveScreen() async {
@@ -70,8 +108,7 @@ class _SessionGateState extends State<SessionGate> {
 
       final saved = _savedSessionFromUser(user);
       await _cache(saved);
-      _startAuthenticatedServices();
-      return _home(saved);
+      return _resolveAuthenticatedLanding(saved);
     } on ApiException catch (error) {
       if (error.statusCode == 401) {
         await _stopAuthenticatedServices();
