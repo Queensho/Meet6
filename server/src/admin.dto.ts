@@ -83,3 +83,55 @@ export class AdminSupportActionDto {
   @IsIn(['low', 'normal', 'high'])
   priority?: 'low' | 'normal' | 'high';
 }
+
+export class AdminRuntimeSettingsDto {
+  @IsInt()
+  @Min(1)
+  @Max(120)
+  roomDurationMinutes!: number;
+
+  @IsInt()
+  @Min(1)
+  @Max(60)
+  extensionMinutes!: number;
+
+  @IsInt()
+  @Min(5)
+  @Max(120)
+  selectionSeconds!: number;
+
+  @IsInt()
+  @Min(1)
+  @Max(720)
+  roomRepeatHours!: number;
+
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  recentMatchDays!: number;
+
+  @IsInt()
+  @Min(2)
+  @Max(6)
+  minimumRoomUsers!: number;
+
+  @IsBoolean()
+  maintenanceMode!: boolean;
+
+  @IsString()
+  @MaxLength(500)
+  maintenanceMessage!: string;
+
+  @IsBoolean()
+  announcementEnabled!: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  announcementTitle?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  announcementMessage?: string;
+}
