@@ -92,6 +92,31 @@ class AdminApiService {
         body: {'reason': reason},
       );
 
+  static Future<Map<String, dynamic>> matches({
+    String status = 'all',
+    String search = '',
+    int page = 1,
+    int limit = 20,
+  }) {
+    final uri = Uri(path: '/api/admin/matches', queryParameters: {
+      'status': status,
+      'search': search,
+      'page': '$page',
+      'limit': '$limit',
+    });
+    return _request('GET', uri.toString());
+  }
+
+  static Future<Map<String, dynamic>> matchDetail(String matchId) =>
+      _request('GET', '/api/admin/matches/$matchId');
+
+  static Future<Map<String, dynamic>> endMatch(String matchId, String reason) =>
+      _request(
+        'POST',
+        '/api/admin/matches/$matchId/end',
+        body: {'reason': reason},
+      );
+
   static String mediaUrl(String? value) {
     final raw = value?.trim() ?? '';
     if (raw.isEmpty) return '';
