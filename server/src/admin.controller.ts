@@ -8,6 +8,7 @@ import {
   AdminSupportActionDto,
   AdminUserActionDto,
 } from './admin.dto';
+import { AdminGovernanceService } from './admin-governance.service';
 import { AdminMatchService } from './admin-match.service';
 import { AdminReportService } from './admin-report.service';
 import { AdminRoomService } from './admin-room.service';
@@ -24,6 +25,7 @@ export class AdminController {
     private readonly adminMatches: AdminMatchService,
     private readonly adminReports: AdminReportService,
     private readonly adminSupport: AdminSupportService,
+    private readonly governance: AdminGovernanceService,
   ) {}
 
   @Get('me')
@@ -264,5 +266,62 @@ export class AdminController {
   ) {
     const { userId } = await this.auth.userIdFromAuthorization(authorization);
     return this.adminSupport.action(userId, requestId, body);
+  }
+
+  @Get('bans')
+  async bans(
+    @Headers('authorization') authorization: string | undefined,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const { userId } = await this.auth.userIdFromAuthorization(authorization);
+    return this.governance.listBans(
+      userId,
+      status ?? 'active',
+      search ?? '',
+      Number(page) || 1,
+      Number(limit) || 20,
+    );
+  }
+
+  @Get('bans/:banId')
+  async banDetail(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('banId') banId: string,
+  ) {
+    const { userId } = await this.auth.userIdFromAuthorization(authorization);
+    return this.governance.banDetail(userId, banId);
+  }
+
+  @Post('bans/:banId/revoke')
+  async revokeBan(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('banId') banId: string,
+    @Body() body: AdminRoomActionDto,
+  ) {
+    const { userId } = await this.auth.userIdFromAuthorization(authorization);
+    return this.governance.revokeBan(userId, banId, body.reason);
+  }
+
+  @Get('audit-logs')
+  async auditLogs(
+    @Headers('authorization') authorization: string | undefined,
+    @Query('action') action?: string,
+    @Query('targetType') targetType?: string,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const { userId } = await this.auth.userIdFromAuthorization(authorization);
+    return this.governance.auditLogs(
+      userId,
+      action ?? 'all',
+      targetType ?? 'all',
+      search ?? '',
+      Number(page) || 1,
+      Number(limit) || 30,
+    );
   }
 }
