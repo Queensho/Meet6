@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../screens/push/push_target_screen.dart';
+import '../theme/app_colors.dart';
 import 'app_navigator.dart';
 import 'push_api_service.dart';
 
@@ -96,9 +97,37 @@ class PushNotificationService {
     messenger.clearMaterialBanners();
     messenger.showMaterialBanner(
       MaterialBanner(
-        leading: const Icon(
-          Icons.notifications_active_rounded,
-          color: Color(0xFF2F5BFF),
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        elevation: 4,
+        dividerColor: AppColors.border,
+        padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+        leading: Container(
+          width: 46,
+          height: 46,
+          decoration: BoxDecoration(
+            color: AppColors.lime,
+            shape: BoxShape.circle,
+            border: Border.all(color: AppColors.navy, width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.navy.withOpacity(.12),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          alignment: Alignment.center,
+          child: const Text(
+            '6',
+            style: TextStyle(
+              color: AppColors.navy,
+              fontSize: 27,
+              height: .9,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -2,
+            ),
+          ),
         ),
         content: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -106,18 +135,53 @@ class PushNotificationService {
           children: [
             Text(
               title,
-              style: const TextStyle(fontWeight: FontWeight.w900),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.navy,
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+              ),
             ),
             if (body.trim().isNotEmpty) ...[
               const SizedBox(height: 3),
-              Text(body),
+              Text(
+                body,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.muted,
+                  fontSize: 12,
+                  height: 1.3,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ],
           ],
         ),
         actions: [
-          TextButton(
+          if (message.data.isNotEmpty)
+            TextButton(
+              onPressed: () {
+                messenger.hideCurrentMaterialBanner();
+                unawaited(_openNotification(message));
+              },
+              child: const Text(
+                'Aç',
+                style: TextStyle(
+                  color: AppColors.blue,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          IconButton(
+            tooltip: 'Kapat',
             onPressed: messenger.hideCurrentMaterialBanner,
-            child: const Text('Kapat'),
+            icon: const Icon(
+              Icons.close_rounded,
+              color: AppColors.navy,
+              size: 20,
+            ),
           ),
         ],
       ),
