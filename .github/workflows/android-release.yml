@@ -11,6 +11,9 @@ on:
         description: "Android version code (must increase for Play Store)"
         required: true
         default: "1"
+  push:
+    paths:
+      - ".release/android-production"
 
 permissions:
   contents: read
@@ -19,6 +22,8 @@ jobs:
   release:
     runs-on: ubuntu-latest
     env:
+      RELEASE_VERSION_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.version_name || '1.0.0' }}
+      RELEASE_VERSION_CODE: ${{ github.event_name == 'workflow_dispatch' && inputs.version_code || '1' }}
       MEET6_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
       MEET6_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
       MEET6_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
@@ -70,14 +75,14 @@ jobs:
       - name: Build signed Android App Bundle
         run: >-
           flutter build appbundle --release
-          --build-name "${{ inputs.version_name }}"
-          --build-number "${{ inputs.version_code }}"
+          --build-name "$RELEASE_VERSION_NAME"
+          --build-number "$RELEASE_VERSION_CODE"
 
       - name: Build signed release APK
         run: >-
           flutter build apk --release
-          --build-name "${{ inputs.version_name }}"
-          --build-number "${{ inputs.version_code }}"
+          --build-name "$RELEASE_VERSION_NAME"
+          --build-number "$RELEASE_VERSION_CODE"
 
       - name: Verify signed outputs
         shell: bash
@@ -90,7 +95,7 @@ jobs:
       - name: Upload Play Store AAB
         uses: actions/upload-artifact@v4
         with:
-          name: meet6-android-aab-${{ inputs.version_name }}-${{ inputs.version_code }}
+          name: meet6-android-aab-${{ env.RELEASE_VERSION_NAME }}-${{ env.RELEASE_VERSION_CODE }}
           path: build/app/outputs/bundle/release/app-release.aab
           if-no-files-found: error
           retention-days: 30
@@ -98,7 +103,7 @@ jobs:
       - name: Upload release APK
         uses: actions/upload-artifact@v4
         with:
-          name: meet6-android-apk-${{ inputs.version_name }}-${{ inputs.version_code }}
+          name: meet6-android-apk-${{ env.RELEASE_VERSION_NAME }}-${{ env.RELEASE_VERSION_CODE }}
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
           retention-days: 30
