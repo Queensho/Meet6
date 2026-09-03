@@ -31,12 +31,12 @@ class _ProfilePhotoCropScreenState extends State<ProfilePhotoCropScreen> {
   void _onCropped(CropResult result) {
     if (!mounted) return;
     switch (result) {
-      case CropResult.success(:final croppedImage):
+      case CropSuccess(:final croppedImage):
         Navigator.of(context).pop(Uint8List.fromList(croppedImage));
-      case CropResult.error(:final error):
+      case CropFailure(:final cause):
         setState(() => cropping = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fotoğraf kırpılamadı: $error')),
+          SnackBar(content: Text('Fotoğraf kırpılamadı: $cause')),
         );
     }
   }
