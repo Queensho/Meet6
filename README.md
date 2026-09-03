@@ -10,6 +10,6 @@ Meet6, 6 kisilik canli tanisma odalari uzerine kurulu bir Flutter uygulamasidir.
 - Karsilikli secim olursa ozel sohbet acilir.
 
 ## Canli onizleme
-GitHub Pages: https://queensho.github.io/Meet6/
+Production domain: https://www.meet6.com.tr/
 
-`main` branch'e gelen her degisiklik GitHub Actions ile otomatik olarak Flutter Web'e build edilip GitHub Pages'e yayinlanir.
+`main` branch'e gelen her degisiklik GitHub Actions ile otomatik olarak Flutter Web'e build edilip GitHub Pages'e yayinlanir. Custom domain `www.meet6.com.tr` olarak ayarlanmistir.
