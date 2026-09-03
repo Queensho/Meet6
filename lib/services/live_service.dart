@@ -156,6 +156,7 @@ class LiveService {
     required String reason,
     String? detail,
     String? roomId,
+    String? matchId,
   }) async {
     await _send(
       'POST',
@@ -164,6 +165,7 @@ class LiveService {
         'reason': reason,
         if (detail != null && detail.trim().isNotEmpty) 'detail': detail.trim(),
         if (roomId != null && roomId.isNotEmpty) 'roomId': roomId,
+        if (matchId != null && matchId.isNotEmpty) 'matchId': matchId,
       },
     );
   }
