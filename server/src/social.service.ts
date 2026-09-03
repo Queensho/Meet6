@@ -40,10 +40,13 @@ export class SocialService {
               m.created_at as matched_at,
               last_message.body as last_message,
               last_message.created_at as last_message_at,
-              coalesce(unread.count,0)::int as unread_count
+              coalesce(unread.count,0)::int as unread_count,
+              coalesce(us.show_online,true) as show_online,
+              other.last_seen_at
        from matches m
        join users other on other.id = case when m.user_a_id=$1 then m.user_b_id else m.user_a_id end
        join profiles p on p.user_id = other.id
+       left join user_settings us on us.user_id=other.id
        left join lateral (
          select pm.body, pm.created_at
          from private_messages pm
@@ -59,8 +62,22 @@ export class SocialService {
        order by coalesce(last_message.created_at,m.created_at) desc`,
       [userId],
     );
-    const unreadTotal = result.rows.reduce((sum, row: any) => sum + Number(row.unread_count ?? 0), 0);
-    return { ok: true, matches: result.rows, unreadTotal };
+
+    const matches = await Promise.all(result.rows.map(async (row: any) => {
+      const showOnline = row.show_online !== false;
+      const online = showOnline
+        ? await this.infra.redis.scard(`presence:${row.user_id}`).then((count) => count > 0).catch(() => false)
+        : false;
+      const { show_online: _hidden, ...rest } = row;
+      return {
+        ...rest,
+        online,
+        last_seen_at: showOnline && !online ? row.last_seen_at : null,
+      };
+    }));
+
+    const unreadTotal = matches.reduce((sum, row: any) => sum + Number(row.unread_count ?? 0), 0);
+    return { ok: true, matches, unreadTotal };
   }
 
   async matchDetail(userId: string, matchId: string | number) {
@@ -71,23 +88,38 @@ export class SocialService {
               extract(year from age(current_date,p.birth_date))::int as age,
               p.gender, p.bio, p.city, p.country,
               p.profile_prompt, p.profile_answer, p.interests, p.photo_urls,
-              case when us.show_online=false then false
-                   when u.last_seen_at is null then false
-                   else u.last_seen_at > now()-interval '5 minutes' end as online
+              coalesce(us.show_online,true) as show_online,
+              u.last_seen_at
        from users u
        join profiles p on p.user_id=u.id
        left join user_settings us on us.user_id=u.id
        where u.id=$1`,
       [otherId],
     );
-    if (!result.rows[0]) throw new NotFoundException('Profil bulunamadı.');
-    return { ok: true, matchId: String(matchId), profile: result.rows[0] };
+    const profile = result.rows[0] as Record<string, any> | undefined;
+    if (!profile) throw new NotFoundException('Profil bulunamadı.');
+
+    const showOnline = profile.show_online !== false;
+    const online = showOnline
+      ? await this.infra.redis.scard(`presence:${otherId}`).then((count) => count > 0).catch(() => false)
+      : false;
+    const { show_online: _hidden, ...visibleProfile } = profile;
+    return {
+      ok: true,
+      matchId: String(matchId),
+      profile: {
+        ...visibleProfile,
+        online,
+        last_seen_at: showOnline && !online ? profile.last_seen_at : null,
+      },
+    };
   }
 
   async privateMessages(userId: string, matchId: string | number, afterId = 0) {
     await this.assertActiveMatch(userId, matchId);
     const result = await this.infra.db.query(
-      `select pm.id::text, pm.sender_user_id::text, pm.body, pm.created_at, pm.read_at
+      `select pm.id::text, pm.sender_user_id::text, pm.body,
+              pm.created_at, pm.delivered_at, pm.read_at
        from private_messages pm
        where pm.match_id=$1 and pm.id>$2
        order by pm.id asc
@@ -120,7 +152,7 @@ export class SocialService {
     const result = await this.infra.db.query(
       `insert into private_messages(match_id,sender_user_id,body)
        values($1,$2,$3)
-       returning id::text, sender_user_id::text, body, created_at, read_at`,
+       returning id::text, sender_user_id::text, body, created_at, delivered_at, read_at`,
       [matchId, userId, body],
     );
     const sender = await this.infra.db.query<{ display_name: string }>(
@@ -135,14 +167,53 @@ export class SocialService {
     return { ok: true, message: result.rows[0] };
   }
 
+  async markDelivered(userId: string, matchId: string | number, messageId: string | number) {
+    await this.assertActiveMatch(userId, matchId);
+    const result = await this.infra.db.query<{ id: string; delivered_at: Date }>(
+      `update private_messages
+       set delivered_at=coalesce(delivered_at,now())
+       where id=$1 and match_id=$2 and sender_user_id<>$3
+       returning id::text, delivered_at`,
+      [messageId, matchId, userId],
+    );
+    const message = result.rows[0];
+    if (!message) throw new NotFoundException('Teslim edilecek mesaj bulunamadı.');
+    return {
+      ok: true,
+      messageId: message.id,
+      deliveredAt: message.delivered_at,
+    };
+  }
+
   async markRead(userId: string, matchId: string | number) {
     await this.assertActiveMatch(userId, matchId);
+    const readAt = new Date();
     await this.infra.db.query(
-      `update private_messages set read_at=coalesce(read_at,now())
+      `update private_messages
+       set delivered_at=coalesce(delivered_at,$3),
+           read_at=coalesce(read_at,$3)
        where match_id=$1 and sender_user_id<>$2 and read_at is null`,
-      [matchId, userId],
+      [matchId, userId, readAt],
     );
-    return { ok: true };
+    return { ok: true, readAt };
+  }
+
+  async deletePrivateMessage(
+    userId: string,
+    matchId: string | number,
+    messageId: string | number,
+  ) {
+    await this.assertActiveMatch(userId, matchId);
+    const result = await this.infra.db.query<{ id: string }>(
+      `delete from private_messages
+       where id=$1 and match_id=$2 and sender_user_id=$3
+       returning id::text`,
+      [messageId, matchId, userId],
+    );
+    if (!result.rows[0]) {
+      throw new BadRequestException('Yalnızca kendi mesajını silebilirsin.');
+    }
+    return { ok: true, messageId: result.rows[0].id };
   }
 
   async unmatch(userId: string, matchId: string | number) {
