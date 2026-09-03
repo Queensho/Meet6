@@ -325,11 +325,14 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
     );
     const userSettings = settings.rows[0];
     const isTest = notification.data?.test === true;
-    if (!isTest && !userSettings?.notifications_enabled) {
+    const forceDelivery = notification.data?.forceDelivery === true
+      || notification.type === 'moderation_warning'
+      || notification.type === 'moderation_ban';
+    if (!isTest && !forceDelivery && !userSettings?.notifications_enabled) {
       await this.finish(notification.id, { sent: false, error: 'notifications_disabled' });
       return;
     }
-    if (!isTest && notification.type === 'room_found' && !userSettings.room_reminders) {
+    if (!isTest && !forceDelivery && notification.type === 'room_found' && !userSettings?.room_reminders) {
       await this.finish(notification.id, { sent: false, error: 'room_reminders_disabled' });
       return;
     }
@@ -366,7 +369,7 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
         payload: { aps: { sound: 'default' } },
       },
       webpush: {
-        fcmOptions: { link: 'https://queensho.github.io/Meet6/' },
+        fcmOptions: { link: 'https://www.meet6.com.tr/' },
       },
     });
 
