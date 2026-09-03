@@ -65,7 +65,7 @@ jobs:
       - name: Build web
         run: >-
           flutter build web --release
-          --base-href /Meet6/
+          --base-href /
           --dart-define=MEET6_ENV=development
 
       - name: Configure Pages
