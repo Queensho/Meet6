@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../services/live_service.dart';
+import '../services/realtime_service.dart';
 import '../theme/app_colors.dart';
 
-class MainBottomNav extends StatelessWidget {
+class MainBottomNav extends StatefulWidget {
   const MainBottomNav({
     super.key,
     required this.selectedIndex,
@@ -13,6 +17,52 @@ class MainBottomNav extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onTap;
   final int unreadMessages;
+
+  @override
+  State<MainBottomNav> createState() => _MainBottomNavState();
+}
+
+class _MainBottomNavState extends State<MainBottomNav> {
+  int unreadMessages = 0;
+  StreamSubscription<RealtimeEvent>? realtimeSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshUnread();
+    realtimeSub = RealtimeService.events.listen((event) {
+      if (!mounted) return;
+      if (event.type == 'matches:update') {
+        final next = (event.data['unreadTotal'] as num?)?.toInt() ?? 0;
+        if (next != unreadMessages) setState(() => unreadMessages = next);
+      } else if (event.type == 'connection:connected') {
+        unawaited(_refreshUnread());
+      }
+    });
+  }
+
+  Future<void> _refreshUnread() async {
+    try {
+      final data = await LiveService.matches();
+      if (!mounted) return;
+      final next = (data['unreadTotal'] as num?)?.toInt() ?? 0;
+      if (next != unreadMessages) setState(() => unreadMessages = next);
+    } catch (_) {
+      if (mounted && unreadMessages != 0) setState(() => unreadMessages = 0);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant MainBottomNav oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.selectedIndex == 2) unawaited(_refreshUnread());
+  }
+
+  @override
+  void dispose() {
+    realtimeSub?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,33 +89,33 @@ class MainBottomNav extends StatelessWidget {
               child: _NavItem(
                 icon: Icons.home_rounded,
                 outlineIcon: Icons.home_outlined,
-                selected: selectedIndex == 0,
-                onTap: () => onTap(0),
+                selected: widget.selectedIndex == 0,
+                onTap: () => widget.onTap(0),
               ),
             ),
             Expanded(
               child: _NavItem(
                 icon: Icons.favorite_rounded,
                 outlineIcon: Icons.favorite_border_rounded,
-                selected: selectedIndex == 1,
-                onTap: () => onTap(1),
+                selected: widget.selectedIndex == 1,
+                onTap: () => widget.onTap(1),
               ),
             ),
             Expanded(
               child: _NavItem(
                 icon: Icons.chat_bubble_rounded,
                 outlineIcon: Icons.chat_bubble_outline_rounded,
-                selected: selectedIndex == 2,
+                selected: widget.selectedIndex == 2,
                 badge: unreadMessages,
-                onTap: () => onTap(2),
+                onTap: () => widget.onTap(2),
               ),
             ),
             Expanded(
               child: _NavItem(
                 icon: Icons.person_rounded,
                 outlineIcon: Icons.person_outline_rounded,
-                selected: selectedIndex == 3,
-                onTap: () => onTap(3),
+                selected: widget.selectedIndex == 3,
+                onTap: () => widget.onTap(3),
               ),
             ),
           ],
@@ -115,7 +165,7 @@ class _NavItem extends StatelessWidget {
                 Icon(
                   selected ? icon : outlineIcon,
                   color: selected ? AppColors.navy : Colors.white,
-                  size: selected ? 23 : 23,
+                  size: 23,
                 ),
                 if (badge > 0)
                   Positioned(
