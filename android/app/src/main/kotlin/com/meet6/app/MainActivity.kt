@@ -3,6 +3,7 @@ package com.meet6.app
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import io.flutter.embedding.android.FlutterActivity
@@ -17,8 +18,10 @@ class MainActivity : FlutterActivity() {
                 "Meet6 bildirimleri",
                 NotificationManager.IMPORTANCE_HIGH,
             ).apply {
-                description = "Oda, eşleşme ve yeni mesaj bildirimleri"
+                description = "Oda, eşleşme, mesaj ve hesap bildirimleri"
                 enableVibration(true)
+                enableLights(true)
+                lightColor = Color.rgb(216, 255, 50)
             }
 
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
