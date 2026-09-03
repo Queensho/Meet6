@@ -2,12 +2,11 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../config/app_config.dart';
 import 'session_service.dart';
 
 class PushApiService {
   const PushApiService._();
-
-  static const _baseUrl = 'https://meet6-api-185-165-46-213.nip.io';
 
   static Future<Map<String, dynamic>> _request(
     String method,
@@ -19,7 +18,7 @@ class PushApiService {
       throw StateError('Push işlemi için oturum gerekli.');
     }
 
-    final request = http.Request(method, Uri.parse('$_baseUrl$path'))
+    final request = http.Request(method, AppConfig.apiUri(path))
       ..headers.addAll({
         'Accept': 'application/json',
         'Content-Type': 'application/json',
