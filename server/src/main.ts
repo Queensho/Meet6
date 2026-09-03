@@ -7,6 +7,21 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { InfrastructureService } from './infrastructure.service';
 
+type MiddlewareRequest = {
+  method: string;
+  path: string;
+  ip?: string;
+  socket: { remoteAddress?: string };
+};
+
+type MiddlewareResponse = {
+  setHeader(name: string, value: string): void;
+  status(code: number): MiddlewareResponse;
+  json(body: unknown): void;
+};
+
+type MiddlewareNext = () => void;
+
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     cors: false,
@@ -16,7 +31,11 @@ async function bootstrap() {
   // hop so req.ip resolves to the real client IP from X-Forwarded-For.
   app.set('trust proxy', 1);
 
-  app.use((_req, res, next) => {
+  app.use((
+    _req: MiddlewareRequest,
+    res: MiddlewareResponse,
+    next: MiddlewareNext,
+  ) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Referrer-Policy', 'no-referrer');
@@ -47,7 +66,11 @@ async function bootstrap() {
   const rateLimitEnabled = process.env.RATE_LIMIT_ENABLED !== 'false';
 
   if (rateLimitEnabled) {
-    app.use(async (req, res, next) => {
+    app.use(async (
+      req: MiddlewareRequest,
+      res: MiddlewareResponse,
+      next: MiddlewareNext,
+    ) => {
       if (req.method === 'OPTIONS' || !req.path.startsWith('/api/')) {
         next();
         return;
@@ -77,10 +100,7 @@ async function bootstrap() {
           await infrastructure.redis.expire(key, windowSeconds);
         }
 
-        const ttl = Math.max(
-          0,
-          await infrastructure.redis.ttl(key),
-        );
+        const ttl = Math.max(0, await infrastructure.redis.ttl(key));
         const remaining = Math.max(0, limit - count);
 
         res.setHeader('RateLimit-Limit', String(limit));
