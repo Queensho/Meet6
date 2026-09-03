@@ -10,6 +10,7 @@ import '../widgets/login_hero.dart';
 import '../widgets/phone_frame.dart';
 import '../widgets/theme_mode_switch.dart';
 import 'otp_screen.dart';
+import 'profile/settings/legal_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -64,6 +65,13 @@ class _LoginScreenState extends State<LoginScreen> {
     } finally {
       if (mounted) setState(() => submitting = false);
     }
+  }
+
+  void _openLegal() {
+    FocusScope.of(context).unfocus();
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const LegalScreen()),
+    );
   }
 
   @override
@@ -139,6 +147,29 @@ class _LoginScreenState extends State<LoginScreen> {
                       enabled: canContinue,
                       onChanged: () => setState(() {}),
                       onContinue: _continue,
+                    ),
+                    const SizedBox(height: 8),
+                    Center(
+                      child: TextButton.icon(
+                        onPressed: submitting ? null : _openLegal,
+                        icon: const Icon(Icons.verified_user_outlined, size: 16),
+                        label: const Text(
+                          '18+ · Yasal & KVKK',
+                          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                    ),
+                    Center(
+                      child: Text(
+                        'Meet6 yalnızca 18 yaş ve üzeri kullanıcılar içindir.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: scheme.onSurfaceVariant,
+                          fontSize: 9.8,
+                          height: 1.3,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                     if (submitting) ...[
                       const SizedBox(height: 10),
