@@ -58,6 +58,40 @@ class AdminApiService {
         body: {'photoUrl': photoUrl},
       );
 
+  static Future<Map<String, dynamic>> rooms({
+    String status = 'live',
+    int page = 1,
+    int limit = 20,
+  }) {
+    final uri = Uri(path: '/api/admin/rooms', queryParameters: {
+      'status': status,
+      'page': '$page',
+      'limit': '$limit',
+    });
+    return _request('GET', uri.toString());
+  }
+
+  static Future<Map<String, dynamic>> roomDetail(String roomId) =>
+      _request('GET', '/api/admin/rooms/$roomId');
+
+  static Future<Map<String, dynamic>> closeRoom(String roomId, String reason) =>
+      _request(
+        'POST',
+        '/api/admin/rooms/$roomId/close',
+        body: {'reason': reason},
+      );
+
+  static Future<Map<String, dynamic>> removeRoomMember(
+    String roomId,
+    String userId,
+    String reason,
+  ) =>
+      _request(
+        'POST',
+        '/api/admin/rooms/$roomId/members/$userId/remove',
+        body: {'reason': reason},
+      );
+
   static String mediaUrl(String? value) {
     final raw = value?.trim() ?? '';
     if (raw.isEmpty) return '';
