@@ -4,6 +4,7 @@ import '../services/api_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/brand.dart';
+import 'admin_users_screen.dart';
 import 'services/admin_api_service.dart';
 
 class AdminApp extends StatelessWidget {
@@ -337,8 +338,23 @@ class _AdminNav extends StatelessWidget {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   leading: Icon(items[i].$2, color: i == 0 ? AppColors.lime : Colors.white70),
                   title: Text(items[i].$1, style: TextStyle(color: i == 0 ? Colors.white : Colors.white70, fontWeight: FontWeight.w800, fontSize: 13)),
-                  onTap: i == 0 ? () => Navigator.maybePop(context) : () {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${items[i].$1} ekranını sıradaki adımda bağlıyoruz.')));
+                  onTap: () {
+                    if (i == 0) {
+                      Navigator.maybePop(context);
+                      return;
+                    }
+                    if (i == 1) {
+                      Navigator.maybePop(context);
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => AdminUsersScreen(onLogout: onLogout),
+                        ),
+                      );
+                      return;
+                    }
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('${items[i].$1} ekranını sıradaki adımda bağlıyoruz.')),
+                    );
                   },
                 ),
               ),
