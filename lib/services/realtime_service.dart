@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:socket_io_client/socket_io_client.dart' as io;
 
@@ -19,6 +20,7 @@ class RealtimeService {
   static String? _token;
   static Completer<void>? _connecting;
   static final _events = StreamController<RealtimeEvent>.broadcast();
+  static final Random _random = Random.secure();
 
   static Stream<RealtimeEvent> get events => _events.stream;
   static bool get connected => _socket?.connected == true;
@@ -35,6 +37,13 @@ class RealtimeService {
         .whereType<Map>()
         .map((item) => Map<String, dynamic>.from(item))
         .toList();
+  }
+
+  static String _newClientMessageId() {
+    final micros = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+    final randomA = _random.nextInt(1 << 31).toRadixString(36);
+    final randomB = _random.nextInt(1 << 31).toRadixString(36);
+    return '$micros-$randomA-$randomB';
   }
 
   static void _push(String type, dynamic raw) {
@@ -125,6 +134,7 @@ class RealtimeService {
         'reconnectionAttempts': 1000000,
         'reconnectionDelay': 500,
         'reconnectionDelayMax': 4000,
+        'randomizationFactor': 0.35,
         'timeout': 10000,
         'auth': {'token': token},
       },
@@ -167,6 +177,29 @@ class RealtimeService {
     );
   }
 
+  static Future<Map<String, dynamic>> _ackWithReconnectRetry(
+    String event,
+    Map<String, dynamic> data, {
+    int attempts = 3,
+  }) async {
+    Object? lastError;
+    for (var attempt = 0; attempt < attempts; attempt++) {
+      try {
+        return await _ack(event, data);
+      } catch (error) {
+        lastError = error;
+        if (attempt + 1 >= attempts) rethrow;
+        await Future<void>.delayed(Duration(milliseconds: 350 * (attempt + 1)));
+        try {
+          await connect();
+        } catch (_) {
+          // Sonraki deneme Socket.IO reconnect döngüsünü tekrar kullanır.
+        }
+      }
+    }
+    throw lastError ?? const ApiException('Gerçek zamanlı işlem başarısız oldu.');
+  }
+
   static Future<Map<String, dynamic>> joinQueue() => _ack('queue:join');
   static Future<Map<String, dynamic>> queueStatus() => _ack('queue:status');
   static Future<Map<String, dynamic>> cancelQueue() => _ack('queue:cancel');
@@ -191,8 +224,18 @@ class RealtimeService {
     } catch (_) {}
   }
 
-  static Future<Map<String, dynamic>> sendRoomMessage(String roomId, String body) =>
-      _ack('room:send', {'roomId': roomId, 'body': body});
+  static Future<Map<String, dynamic>> sendRoomMessage(String roomId, String body) {
+    final clientMessageId = _newClientMessageId();
+    return _ackWithReconnectRetry(
+      'room:send',
+      {
+        'roomId': roomId,
+        'body': body,
+        'clientMessageId': clientMessageId,
+      },
+      attempts: 4,
+    );
+  }
 
   static Future<Map<String, dynamic>> voteRoomExtension(String roomId, bool vote) =>
       _ack('room:extension', {'roomId': roomId, 'vote': vote});
