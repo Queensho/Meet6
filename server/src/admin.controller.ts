@@ -5,6 +5,7 @@ import {
   AdminReportActionDto,
   AdminReportEvidenceDto,
   AdminRoomActionDto,
+  AdminRuntimeSettingsDto,
   AdminSupportActionDto,
   AdminUserActionDto,
 } from './admin.dto';
@@ -13,6 +14,7 @@ import { AdminMatchService } from './admin-match.service';
 import { AdminReportService } from './admin-report.service';
 import { AdminRoomService } from './admin-room.service';
 import { AdminService } from './admin.service';
+import { AdminSettingsService } from './admin-settings.service';
 import { AdminSupportService } from './admin-support.service';
 import { AuthService } from './auth.service';
 
@@ -26,6 +28,7 @@ export class AdminController {
     private readonly adminReports: AdminReportService,
     private readonly adminSupport: AdminSupportService,
     private readonly governance: AdminGovernanceService,
+    private readonly adminSettings: AdminSettingsService,
   ) {}
 
   @Get('me')
@@ -43,6 +46,21 @@ export class AdminController {
     return this.admin.dashboard(userId, Number(period) === 30 ? 30 : 7);
   }
 
+  @Get('settings')
+  async settings(@Headers('authorization') authorization?: string) {
+    const { userId } = await this.auth.userIdFromAuthorization(authorization);
+    return this.adminSettings.get(userId);
+  }
+
+  @Post('settings')
+  async updateSettings(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: AdminRuntimeSettingsDto,
+  ) {
+    const { userId } = await this.auth.userIdFromAuthorization(authorization);
+    return this.adminSettings.update(userId, body);
+  }
+
   @Get('users')
   async users(
     @Headers('authorization') authorization?: string,
@@ -52,13 +70,7 @@ export class AdminController {
     @Query('limit') limit?: string,
   ) {
     const { userId } = await this.auth.userIdFromAuthorization(authorization);
-    return this.admin.listUsers(
-      userId,
-      search ?? '',
-      status ?? 'all',
-      Number(page) || 1,
-      Number(limit) || 20,
-    );
+    return this.admin.listUsers(userId, search ?? '', status ?? 'all', Number(page) || 1, Number(limit) || 20);
   }
 
   @Get('users/:userId')
@@ -107,12 +119,7 @@ export class AdminController {
     @Query('limit') limit?: string,
   ) {
     const { userId } = await this.auth.userIdFromAuthorization(authorization);
-    return this.adminRooms.listRooms(
-      userId,
-      status ?? 'live',
-      Number(page) || 1,
-      Number(limit) || 20,
-    );
+    return this.adminRooms.listRooms(userId, status ?? 'live', Number(page) || 1, Number(limit) || 20);
   }
 
   @Get('rooms/:roomId')
@@ -154,13 +161,7 @@ export class AdminController {
     @Query('limit') limit?: string,
   ) {
     const { userId } = await this.auth.userIdFromAuthorization(authorization);
-    return this.adminMatches.listMatches(
-      userId,
-      status ?? 'all',
-      search ?? '',
-      Number(page) || 1,
-      Number(limit) || 20,
-    );
+    return this.adminMatches.listMatches(userId, status ?? 'all', search ?? '', Number(page) || 1, Number(limit) || 20);
   }
 
   @Get('matches/:matchId')
@@ -191,13 +192,7 @@ export class AdminController {
     @Query('limit') limit?: string,
   ) {
     const { userId } = await this.auth.userIdFromAuthorization(authorization);
-    return this.adminReports.listReports(
-      userId,
-      status ?? 'open',
-      search ?? '',
-      Number(page) || 1,
-      Number(limit) || 20,
-    );
+    return this.adminReports.listReports(userId, status ?? 'open', search ?? '', Number(page) || 1, Number(limit) || 20);
   }
 
   @Get('reports/:reportId')
@@ -239,14 +234,7 @@ export class AdminController {
     @Query('limit') limit?: string,
   ) {
     const { userId } = await this.auth.userIdFromAuthorization(authorization);
-    return this.adminSupport.list(
-      userId,
-      status ?? 'open',
-      priority ?? 'all',
-      search ?? '',
-      Number(page) || 1,
-      Number(limit) || 20,
-    );
+    return this.adminSupport.list(userId, status ?? 'open', priority ?? 'all', search ?? '', Number(page) || 1, Number(limit) || 20);
   }
 
   @Get('support/:requestId')
@@ -277,13 +265,7 @@ export class AdminController {
     @Query('limit') limit?: string,
   ) {
     const { userId } = await this.auth.userIdFromAuthorization(authorization);
-    return this.governance.listBans(
-      userId,
-      status ?? 'active',
-      search ?? '',
-      Number(page) || 1,
-      Number(limit) || 20,
-    );
+    return this.governance.listBans(userId, status ?? 'active', search ?? '', Number(page) || 1, Number(limit) || 20);
   }
 
   @Get('bans/:banId')
@@ -315,13 +297,6 @@ export class AdminController {
     @Query('limit') limit?: string,
   ) {
     const { userId } = await this.auth.userIdFromAuthorization(authorization);
-    return this.governance.auditLogs(
-      userId,
-      action ?? 'all',
-      targetType ?? 'all',
-      search ?? '',
-      Number(page) || 1,
-      Number(limit) || 30,
-    );
+    return this.governance.auditLogs(userId, action ?? 'all', targetType ?? 'all', search ?? '', Number(page) || 1, Number(limit) || 30);
   }
 }
