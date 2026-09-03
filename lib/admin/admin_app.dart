@@ -5,6 +5,7 @@ import '../services/session_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/brand.dart';
 import 'admin_live_rooms_screen.dart';
+import 'admin_matches_screen.dart';
 import 'admin_users_screen.dart';
 import 'services/admin_api_service.dart';
 
@@ -66,9 +67,7 @@ class _AdminGateState extends State<_AdminGate> {
   @override
   Widget build(BuildContext context) {
     if (loading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator(color: AppColors.blue)),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator(color: AppColors.blue)));
     }
     if (!authorized) {
       return _AdminLoginScreen(onAuthenticated: () => setState(() => authorized = true));
@@ -126,70 +125,68 @@ class _AdminLoginScreenState extends State<_AdminLoginScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 430),
-            padding: const EdgeInsets.all(26),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: AppColors.border),
-              boxShadow: const [BoxShadow(blurRadius: 32, color: Color(0x11000000), offset: Offset(0, 14))],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Meet6Brand(width: 190),
-                const SizedBox(height: 24),
-                const Text('Admin Paneli', style: TextStyle(color: AppColors.navy, fontSize: 28, fontWeight: FontWeight.w900)),
-                const SizedBox(height: 6),
-                const Text('Yetkili Meet6 hesabınla telefon ve OTP kullanarak giriş yap.', style: TextStyle(color: AppColors.muted, height: 1.45)),
-                const SizedBox(height: 24),
-                TextField(
-                  controller: phone,
-                  enabled: !codeSent && !loading,
-                  keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(labelText: 'Telefon numarası', prefixText: '+90 ', border: OutlineInputBorder()),
-                ),
-                if (codeSent) ...[
-                  const SizedBox(height: 14),
+  Widget build(BuildContext context) => Scaffold(
+        body: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 430),
+              padding: const EdgeInsets.all(26),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(color: AppColors.border),
+                boxShadow: const [BoxShadow(blurRadius: 32, color: Color(0x11000000), offset: Offset(0, 14))],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Meet6Brand(width: 190),
+                  const SizedBox(height: 24),
+                  const Text('Admin Paneli', style: TextStyle(color: AppColors.navy, fontSize: 28, fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 6),
+                  const Text('Yetkili Meet6 hesabınla telefon ve OTP kullanarak giriş yap.', style: TextStyle(color: AppColors.muted, height: 1.45)),
+                  const SizedBox(height: 24),
                   TextField(
-                    controller: code,
-                    enabled: !loading,
-                    keyboardType: TextInputType.number,
-                    maxLength: 6,
-                    decoration: const InputDecoration(labelText: 'Doğrulama kodu', counterText: '', border: OutlineInputBorder()),
-                    onSubmitted: (_) => _submit(),
+                    controller: phone,
+                    enabled: !codeSent && !loading,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(labelText: 'Telefon numarası', prefixText: '+90 ', border: OutlineInputBorder()),
+                  ),
+                  if (codeSent) ...[
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: code,
+                      enabled: !loading,
+                      keyboardType: TextInputType.number,
+                      maxLength: 6,
+                      decoration: const InputDecoration(labelText: 'Doğrulama kodu', counterText: '', border: OutlineInputBorder()),
+                      onSubmitted: (_) => _submit(),
+                    ),
+                  ],
+                  if (error != null) ...[
+                    const SizedBox(height: 12),
+                    Text(error!, style: const TextStyle(color: Color(0xFFD74747), fontWeight: FontWeight.w700)),
+                  ],
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: FilledButton(
+                      onPressed: loading ? null : _submit,
+                      style: FilledButton.styleFrom(backgroundColor: AppColors.blue, foregroundColor: Colors.white),
+                      child: loading
+                          ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white))
+                          : Text(codeSent ? 'Admin paneline gir' : 'Kod gönder', style: const TextStyle(fontWeight: FontWeight.w900)),
+                    ),
                   ),
                 ],
-                if (error != null) ...[
-                  const SizedBox(height: 12),
-                  Text(error!, style: const TextStyle(color: Color(0xFFD74747), fontWeight: FontWeight.w700)),
-                ],
-                const SizedBox(height: 18),
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: FilledButton(
-                    onPressed: loading ? null : _submit,
-                    style: FilledButton.styleFrom(backgroundColor: AppColors.blue, foregroundColor: Colors.white),
-                    child: loading
-                        ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white))
-                        : Text(codeSent ? 'Admin paneline gir' : 'Kod gönder', style: const TextStyle(fontWeight: FontWeight.w900)),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),
-      ),
-    );
-  }
+      );
 }
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -247,33 +244,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final wide = MediaQuery.sizeOf(context).width >= 980;
-    final content = _DashboardContent(
-      loading: loading,
-      error: error,
-      period: period,
-      onPeriod: (value) {
-        if (value == period) return;
-        setState(() => period = value);
-        _load();
-      },
-      onRefresh: _load,
-      stats: {
-        'Toplam kullanıcı': [_stat('totalUsers'), Icons.groups_2_outlined, 'Bugün +${_stat('todayRegistrations')}'],
-        'Online kullanıcı': [_stat('onlineUsers'), Icons.circle, 'Gerçek zamanlı'],
-        'Kuyrukta bekleyen': [_stat('queuedUsers'), Icons.hourglass_top_rounded, 'Matchmaking'],
-        'Aktif odalar': [_stat('activeRooms'), Icons.forum_outlined, '6 kişilik'],
-        'Tamamlanan oda': [_stat('todayCompletedRooms'), Icons.check_circle_outline_rounded, 'Bugün'],
-        'Karşılıklı eşleşme': [_stat('todayMatches'), Icons.favorite_outline_rounded, 'Bugün'],
-        'Gönderilen mesaj': [_stat('totalMessages'), Icons.chat_bubble_outline_rounded, 'Bugün ${_stat('todayMessages')}'],
-        'Açık şikâyet': [_stat('openReports'), Icons.report_gmailerrorred_outlined, 'Moderasyon'],
-        'Açık destek': [_stat('openSupportRequests'), Icons.support_agent_rounded, 'Bekleyen'],
-        'Banlı hesap': [_stat('bannedUsers'), Icons.block_rounded, 'Aktif ban'],
-      },
-      registrations: _series('registrations'),
-      matches: _series('matches'),
-      health: _health,
-    );
-
     return Scaffold(
       drawer: wide ? null : Drawer(child: _AdminNav(onLogout: _logout)),
       body: Row(
@@ -295,7 +265,34 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ],
                   ),
                 ),
-                Expanded(child: content),
+                Expanded(
+                  child: _DashboardContent(
+                    loading: loading,
+                    error: error,
+                    period: period,
+                    onPeriod: (value) {
+                      if (value == period) return;
+                      setState(() => period = value);
+                      _load();
+                    },
+                    onRefresh: _load,
+                    stats: {
+                      'Toplam kullanıcı': [_stat('totalUsers'), Icons.groups_2_outlined, 'Bugün +${_stat('todayRegistrations')}'],
+                      'Online kullanıcı': [_stat('onlineUsers'), Icons.circle, 'Gerçek zamanlı'],
+                      'Kuyrukta bekleyen': [_stat('queuedUsers'), Icons.hourglass_top_rounded, 'Matchmaking'],
+                      'Aktif odalar': [_stat('activeRooms'), Icons.forum_outlined, '6 kişilik'],
+                      'Tamamlanan oda': [_stat('todayCompletedRooms'), Icons.check_circle_outline_rounded, 'Bugün'],
+                      'Karşılıklı eşleşme': [_stat('todayMatches'), Icons.favorite_outline_rounded, 'Bugün'],
+                      'Gönderilen mesaj': [_stat('totalMessages'), Icons.chat_bubble_outline_rounded, 'Bugün ${_stat('todayMessages')}'],
+                      'Açık şikâyet': [_stat('openReports'), Icons.report_gmailerrorred_outlined, 'Moderasyon'],
+                      'Açık destek': [_stat('openSupportRequests'), Icons.support_agent_rounded, 'Bekleyen'],
+                      'Banlı hesap': [_stat('bannedUsers'), Icons.block_rounded, 'Aktif ban'],
+                    },
+                    registrations: _series('registrations'),
+                    matches: _series('matches'),
+                    health: _health,
+                  ),
+                ),
               ],
             ),
           ),
@@ -340,31 +337,21 @@ class _AdminNav extends StatelessWidget {
                   leading: Icon(items[i].$2, color: i == 0 ? AppColors.lime : Colors.white70),
                   title: Text(items[i].$1, style: TextStyle(color: i == 0 ? Colors.white : Colors.white70, fontWeight: FontWeight.w800, fontSize: 13)),
                   onTap: () {
-                    if (i == 0) {
-                      Navigator.maybePop(context);
-                      return;
-                    }
+                    Navigator.maybePop(context);
+                    if (i == 0) return;
                     if (i == 1) {
-                      Navigator.maybePop(context);
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => AdminUsersScreen(onLogout: onLogout),
-                        ),
-                      );
+                      Navigator.of(context).push(MaterialPageRoute(builder: (_) => AdminUsersScreen(onLogout: onLogout)));
                       return;
                     }
                     if (i == 2) {
-                      Navigator.maybePop(context);
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => AdminLiveRoomsScreen(onLogout: onLogout),
-                        ),
-                      );
+                      Navigator.of(context).push(MaterialPageRoute(builder: (_) => AdminLiveRoomsScreen(onLogout: onLogout)));
                       return;
                     }
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('${items[i].$1} ekranını sıradaki adımda bağlıyoruz.')),
-                    );
+                    if (i == 3) {
+                      Navigator.of(context).push(MaterialPageRoute(builder: (_) => AdminMatchesScreen(onLogout: onLogout)));
+                      return;
+                    }
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${items[i].$1} ekranını sıradaki adımda bağlıyoruz.')));
                   },
                 ),
               ),
@@ -406,68 +393,79 @@ class _DashboardContent extends StatelessWidget {
   final Map<String, dynamic> health;
 
   @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, box) {
-      final cardWidth = box.maxWidth >= 1250 ? (box.maxWidth - 104) / 5 : box.maxWidth >= 760 ? (box.maxWidth - 76) / 3 : (box.maxWidth - 52) / 2;
-      return RefreshIndicator(
-        onRefresh: () async => onRefresh(),
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            Row(
+  Widget build(BuildContext context) => LayoutBuilder(
+        builder: (context, box) {
+          final cardWidth = box.maxWidth >= 1250
+              ? (box.maxWidth - 104) / 5
+              : box.maxWidth >= 760
+                  ? (box.maxWidth - 76) / 3
+                  : (box.maxWidth - 52) / 2;
+          return RefreshIndicator(
+            onRefresh: () async => onRefresh(),
+            child: ListView(
+              padding: const EdgeInsets.all(20),
               children: [
-                const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Genel Bakış', style: TextStyle(color: AppColors.navy, fontSize: 24, fontWeight: FontWeight.w900)),
-                  SizedBox(height: 4),
-                  Text('Meet6 canlı operasyon ve büyüme özeti', style: TextStyle(color: AppColors.muted, fontWeight: FontWeight.w600)),
-                ])),
-                SegmentedButton<int>(
-                  segments: const [ButtonSegment(value: 7, label: Text('7 gün')), ButtonSegment(value: 30, label: Text('30 gün'))],
-                  selected: {period},
-                  onSelectionChanged: (value) => onPeriod(value.first),
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Genel Bakış', style: TextStyle(color: AppColors.navy, fontSize: 24, fontWeight: FontWeight.w900)),
+                          SizedBox(height: 4),
+                          Text('Meet6 canlı operasyon ve büyüme özeti', style: TextStyle(color: AppColors.muted, fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                    ),
+                    SegmentedButton<int>(
+                      segments: const [ButtonSegment(value: 7, label: Text('7 gün')), ButtonSegment(value: 30, label: Text('30 gün'))],
+                      selected: {period},
+                      onSelectionChanged: (value) => onPeriod(value.first),
+                    ),
+                  ],
                 ),
+                if (loading) const Padding(padding: EdgeInsets.only(top: 12), child: LinearProgressIndicator(color: AppColors.blue)),
+                if (error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(error!, style: const TextStyle(color: Color(0xFFD74747), fontWeight: FontWeight.w700))),
+                const SizedBox(height: 18),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: stats.entries
+                      .map((entry) => SizedBox(
+                            width: cardWidth.clamp(155, 260),
+                            child: _StatCard(title: entry.key, value: entry.value[0] as int, icon: entry.value[1] as IconData, subtitle: entry.value[2] as String),
+                          ))
+                      .toList(),
+                ),
+                const SizedBox(height: 20),
+                Wrap(
+                  spacing: 14,
+                  runSpacing: 14,
+                  children: [
+                    SizedBox(width: box.maxWidth >= 900 ? (box.maxWidth - 54) / 2 : box.maxWidth - 40, child: _ChartCard(title: 'Yeni kullanıcılar', subtitle: 'Son $period gün', data: registrations, icon: Icons.person_add_alt_1_rounded)),
+                    SizedBox(width: box.maxWidth >= 900 ? (box.maxWidth - 54) / 2 : box.maxWidth - 40, child: _ChartCard(title: 'Karşılıklı eşleşmeler', subtitle: 'Son $period gün', data: matches, icon: Icons.favorite_rounded)),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                const Text('Sistem Sağlığı', style: TextStyle(color: AppColors.navy, fontSize: 18, fontWeight: FontWeight.w900)),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: [
+                    _HealthChip(label: 'API', value: health['api']),
+                    _HealthChip(label: 'PostgreSQL', value: health['database']),
+                    _HealthChip(label: 'Redis', value: health['redis']),
+                    _HealthChip(label: 'WebSocket', value: health['websocket'], detail: '${health['websocketConnections'] ?? 0} bağlantı'),
+                    _HealthChip(label: 'Gecikme', value: 'ok', detail: '${health['latencyMs'] ?? 0} ms'),
+                  ],
+                ),
+                const SizedBox(height: 28),
               ],
             ),
-            if (loading) const Padding(padding: EdgeInsets.only(top: 12), child: LinearProgressIndicator(color: AppColors.blue)),
-            if (error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(error!, style: const TextStyle(color: Color(0xFFD74747), fontWeight: FontWeight.w700))),
-            const SizedBox(height: 18),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: stats.entries.map((entry) => SizedBox(
-                width: cardWidth.clamp(155, 260),
-                child: _StatCard(title: entry.key, value: entry.value[0] as int, icon: entry.value[1] as IconData, subtitle: entry.value[2] as String),
-              )).toList(),
-            ),
-            const SizedBox(height: 20),
-            Wrap(
-              spacing: 14,
-              runSpacing: 14,
-              children: [
-                SizedBox(width: box.maxWidth >= 900 ? (box.maxWidth - 54) / 2 : box.maxWidth - 40, child: _ChartCard(title: 'Yeni kullanıcılar', subtitle: 'Son $period gün', data: registrations, icon: Icons.person_add_alt_1_rounded)),
-                SizedBox(width: box.maxWidth >= 900 ? (box.maxWidth - 54) / 2 : box.maxWidth - 40, child: _ChartCard(title: 'Karşılıklı eşleşmeler', subtitle: 'Son $period gün', data: matches, icon: Icons.favorite_rounded)),
-              ],
-            ),
-            const SizedBox(height: 20),
-            const Text('Sistem Sağlığı', style: TextStyle(color: AppColors.navy, fontSize: 18, fontWeight: FontWeight.w900)),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                _HealthChip(label: 'API', value: health['api']),
-                _HealthChip(label: 'PostgreSQL', value: health['database']),
-                _HealthChip(label: 'Redis', value: health['redis']),
-                _HealthChip(label: 'WebSocket', value: health['websocket'], detail: '${health['websocketConnections'] ?? 0} bağlantı'),
-                _HealthChip(label: 'Gecikme', value: 'ok', detail: '${health['latencyMs'] ?? 0} ms'),
-              ],
-            ),
-            const SizedBox(height: 28),
-          ],
-        ),
+          );
+        },
       );
-    });
-  }
 }
 
 class _StatCard extends StatelessWidget {
@@ -479,22 +477,22 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        Container(width: 38, height: 38, decoration: BoxDecoration(color: AppColors.softSurface, borderRadius: BorderRadius.circular(12)), child: Icon(icon, color: AppColors.blue, size: 20)),
-        const Spacer(),
-        Container(width: 8, height: 8, decoration: const BoxDecoration(color: AppColors.lime, shape: BoxShape.circle)),
-      ]),
-      const SizedBox(height: 14),
-      Text('$value', style: const TextStyle(color: AppColors.navy, fontSize: 28, fontWeight: FontWeight.w900, height: 1)),
-      const SizedBox(height: 7),
-      Text(title, style: const TextStyle(color: AppColors.navy, fontSize: 12.5, fontWeight: FontWeight.w900)),
-      const SizedBox(height: 3),
-      Text(subtitle, style: const TextStyle(color: AppColors.muted, fontSize: 10.5, fontWeight: FontWeight.w700)),
-    ]),
-  );
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Container(width: 38, height: 38, decoration: BoxDecoration(color: AppColors.softSurface, borderRadius: BorderRadius.circular(12)), child: Icon(icon, color: AppColors.blue, size: 20)),
+            const Spacer(),
+            Container(width: 8, height: 8, decoration: const BoxDecoration(color: AppColors.lime, shape: BoxShape.circle)),
+          ]),
+          const SizedBox(height: 14),
+          Text('$value', style: const TextStyle(color: AppColors.navy, fontSize: 28, fontWeight: FontWeight.w900, height: 1)),
+          const SizedBox(height: 7),
+          Text(title, style: const TextStyle(color: AppColors.navy, fontSize: 12.5, fontWeight: FontWeight.w900)),
+          const SizedBox(height: 3),
+          Text(subtitle, style: const TextStyle(color: AppColors.muted, fontSize: 10.5, fontWeight: FontWeight.w700)),
+        ]),
+      );
 }
 
 class _ChartCard extends StatelessWidget {
@@ -506,15 +504,15 @@ class _ChartCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    height: 270,
-    padding: const EdgeInsets.all(18),
-    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [Icon(icon, color: AppColors.blue, size: 20), const SizedBox(width: 8), Expanded(child: Text(title, style: const TextStyle(color: AppColors.navy, fontWeight: FontWeight.w900))), Text(subtitle, style: const TextStyle(color: AppColors.muted, fontSize: 11, fontWeight: FontWeight.w700))]),
-      const SizedBox(height: 18),
-      Expanded(child: CustomPaint(painter: _LineChartPainter(data.map((e) => (e['value'] as num?)?.toDouble() ?? 0).toList()), child: const SizedBox.expand())),
-    ]),
-  );
+        height: 270,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(22), border: Border.all(color: AppColors.border)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [Icon(icon, color: AppColors.blue, size: 20), const SizedBox(width: 8), Expanded(child: Text(title, style: const TextStyle(color: AppColors.navy, fontWeight: FontWeight.w900))), Text(subtitle, style: const TextStyle(color: AppColors.muted, fontSize: 11, fontWeight: FontWeight.w700))]),
+          const SizedBox(height: 18),
+          Expanded(child: CustomPaint(painter: _LineChartPainter(data.map((e) => (e['value'] as num?)?.toDouble() ?? 0).toList()), child: const SizedBox.expand())),
+        ]),
+      );
 }
 
 class _LineChartPainter extends CustomPainter {
