@@ -12,6 +12,7 @@ import { AuthService } from './auth.service';
 import { InfrastructureService } from './infrastructure.service';
 import { normalizeTurkishPhone } from './phone.util';
 import { RoomsGateway } from './rooms.gateway';
+import { RuntimeSettingsService } from './runtime-settings.service';
 
 @Controller('rooms')
 export class RoomControlController {
@@ -19,6 +20,7 @@ export class RoomControlController {
     private readonly auth: AuthService,
     private readonly infra: InfrastructureService,
     private readonly realtime: RoomsGateway,
+    private readonly runtimeSettings: RuntimeSettingsService,
   ) {}
 
   private async userId(authorization?: string) {
@@ -86,15 +88,16 @@ export class RoomControlController {
       throw new ForbiddenException('Bu işlem için yetkin yok.');
     }
 
+    const settings = await this.runtimeSettings.assertOperational();
     const result = await this.infra.db.query<{ id: string }>(
       `update rooms
        set status = 'selection',
            ends_at = now(),
            selection_started_at = now(),
-           selection_ends_at = now() + interval '10 seconds'
+           selection_ends_at = now() + ($2::int * interval '1 second')
        where id = $1 and status = 'active'
        returning id::text`,
-      [roomId],
+      [roomId, settings.selectionSeconds],
     );
     if (!result.rows[0]) {
       throw new BadRequestException('Oda artık aktif değil.');
@@ -102,8 +105,8 @@ export class RoomControlController {
 
     await this.infra.db.query(
       `insert into room_messages(room_id, sender_user_id, body)
-       values($1, null, 'Sohbet erken bitirildi. Gizli seçim için 10 saniyen var.')`,
-      [roomId],
+       values($1, null, $2)`,
+      [roomId, `Sohbet erken bitirildi. Gizli seçim için ${settings.selectionSeconds} saniyen var.`],
     );
 
     await this.realtime.broadcastRoomUpdate(roomId);
@@ -112,7 +115,7 @@ export class RoomControlController {
       ok: true,
       roomId: result.rows[0].id,
       status: 'selection',
-      selectionSecondsLeft: 10,
+      selectionSecondsLeft: settings.selectionSeconds,
     };
   }
 }
