@@ -20,7 +20,7 @@ create index if not exists matches_admin_status_idx
   on matches(unmatched_at, created_at desc);
 
 -- Older matches did not persist their source room. Recover it from the
--- reciprocal secret selections when a unique/latest candidate is available.
+-- reciprocal secret selections when a latest candidate is available.
 update matches m
 set source_room_id = (
   select s1.room_id
@@ -36,3 +36,31 @@ set source_room_id = (
   limit 1
 )
 where m.source_room_id is null;
+
+-- RoomService inserts a match immediately after reciprocal selection. Keep
+-- the origin durable without coupling every caller to the new column.
+create or replace function meet6_assign_match_source_room()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.source_room_id is null then
+    select s1.room_id into new.source_room_id
+    from room_selections s1
+    join room_selections s2
+      on s2.room_id = s1.room_id
+     and s2.user_id = s1.selected_user_id
+     and s2.selected_user_id = s1.user_id
+    where s1.user_id = new.user_a_id
+      and s1.selected_user_id = new.user_b_id
+    order by greatest(s1.updated_at, s2.updated_at) desc
+    limit 1;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists matches_assign_source_room on matches;
+create trigger matches_assign_source_room
+before insert on matches
+for each row execute function meet6_assign_match_source_room();
