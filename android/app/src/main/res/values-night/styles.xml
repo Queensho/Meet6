@@ -2,7 +2,7 @@
 <resources>
     <style name="LaunchTheme" parent="@android:style/Theme.Black.NoTitleBar">
         <item name="android:windowFullscreen">false</item>
-        <item name="android:windowBackground">#0B1020</item>
+        <item name="android:windowBackground">#000000</item>
     </style>
 
     <style name="NormalTheme" parent="@android:style/Theme.Black.NoTitleBar">
