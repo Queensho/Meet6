@@ -33,6 +33,7 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
   bool openingMatch = false;
   String? error;
   int selectionSecondsLeft = 0;
+  int _fallbackTick = 0;
   Timer? countdownTimer;
   StreamSubscription<RealtimeEvent>? realtimeSub;
 
@@ -94,7 +95,7 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
     try {
       await RealtimeService.joinRoom(widget.roomId);
       await _load();
-      await _checkSelectionResult();
+      if (submitted) await _checkSelectionResult();
     } catch (_) {}
   }
 
@@ -146,6 +147,14 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
         timer.cancel();
         return;
       }
+
+      if (submitted) {
+        _fallbackTick++;
+        if (_fallbackTick % 2 == 0) {
+          unawaited(_checkSelectionResult());
+        }
+      }
+
       if (selectionSecondsLeft <= 1) {
         timer.cancel();
         setState(() => selectionSecondsLeft = 0);
@@ -187,7 +196,7 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
         await _openMatch(result['matchId'].toString());
       }
     } catch (_) {
-      // Realtime event ana yol; bu istek yalnızca kaçırılan eventi telafi eder.
+      // Realtime event ana yol; bu kontrol kaçırılan eventi telafi eder.
     }
   }
 
@@ -201,17 +210,40 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
         .toList();
   }
 
+  Map<String, dynamic>? get selectedCandidate {
+    final id = selectedUserId;
+    if (id == null) return null;
+    for (final candidate in candidates) {
+      if (candidate['user_id']?.toString() == id) return candidate;
+    }
+    return null;
+  }
+
+  String get selectedName {
+    return selectedCandidate?['display_name']?.toString().trim() ?? '';
+  }
+
   bool get selectionExpired {
     if (room == null) return false;
     return room?['status'] == 'closed' ||
         (room?['status'] == 'selection' && selectionSecondsLeft <= 0);
   }
 
-  Future<void> _submitChoice(String userId) async {
-    if (userId.isEmpty || submitting || submitted || selectionExpired) return;
-
+  void _selectLocally(String userId) {
+    if (userId.isEmpty || submitted || submitting || selectionExpired) return;
     setState(() {
       selectedUserId = userId;
+      error = null;
+    });
+  }
+
+  Future<void> _confirmSelection() async {
+    final userId = selectedUserId;
+    if (userId == null || userId.isEmpty || submitting || submitted || selectionExpired) {
+      return;
+    }
+
+    setState(() {
       submitting = true;
       error = null;
     });
@@ -231,15 +263,12 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
       if (result['matched'] == true && result['matchId'] != null) {
         await _openMatch(result['matchId'].toString());
       } else {
-        // Karşı taraf birkaç ms sonra seçerse realtime eventi açar.
-        // Event kaçarsa seçim sonunda REST sonucu tekrar kontrol edilir.
         unawaited(_checkSelectionResult());
       }
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
         submitting = false;
-        selectedUserId = null;
         error = e.message;
       });
     }
@@ -300,9 +329,12 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
     } else if (submitted) {
       title = 'Seçimin gizlice\nkaydedildi';
       subtitle = 'Karşı taraf da seni seçerse eşleşme anında açılır.';
+    } else if (selectedUserId != null) {
+      title = 'Seçimini\nonayla';
+      subtitle = 'Yanlış kişiye dokunduysan başka birini seçebilirsin. Onaylayana kadar sunucuya gönderilmez.';
     } else {
       title = 'Kiminle devam\netmek istersin?';
-      subtitle = 'Bir kişiye dokun. Seçimin anında ve gizlice kaydedilir.';
+      subtitle = 'Önce bir kişiyi seç, ardından alttaki butonla kesin olarak onayla.';
     }
 
     return Scaffold(
@@ -337,15 +369,11 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
                         width: 48,
                         height: 48,
                         decoration: BoxDecoration(
-                          color: urgent
-                              ? const Color(0xFFFFE7DF)
-                              : AppColors.lime,
+                          color: urgent ? const Color(0xFFFFE7DF) : AppColors.lime,
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: (urgent
-                                      ? const Color(0xFFE76A60)
-                                      : AppColors.lime)
+                              color: (urgent ? const Color(0xFFE76A60) : AppColors.lime)
                                   .withOpacity(.24),
                               blurRadius: 14,
                             ),
@@ -355,9 +383,7 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
                         child: Text(
                           closed ? '0' : '$seconds',
                           style: TextStyle(
-                            color: urgent
-                                ? const Color(0xFFE76A60)
-                                : AppColors.navy,
+                            color: urgent ? const Color(0xFFE76A60) : AppColors.navy,
                             fontSize: 22,
                             fontWeight: FontWeight.w900,
                           ),
@@ -402,21 +428,17 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
                 Expanded(
                   child: candidates.isEmpty
                       ? const Center(
-                          child: CircularProgressIndicator(
-                            color: AppColors.lime,
-                          ),
+                          child: CircularProgressIndicator(color: AppColors.lime),
                         )
                       : ListView.separated(
                           physics: const BouncingScrollPhysics(),
                           itemCount: candidates.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(height: 9),
+                          separatorBuilder: (_, __) => const SizedBox(height: 9),
                           itemBuilder: (context, index) {
                             final person = candidates[index];
                             final id = person['user_id']?.toString() ?? '';
                             final selected = selectedUserId == id;
-                            final name =
-                                person['display_name']?.toString() ?? 'Meet6';
+                            final name = person['display_name']?.toString() ?? 'Meet6';
                             final age = (person['age'] as num?)?.toInt();
                             final photos = person['photo_urls'];
                             final photo = photos is List && photos.isNotEmpty
@@ -430,15 +452,13 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
                             return InkWell(
                               onTap: submitted || closed || submitting
                                   ? null
-                                  : () => unawaited(_submitChoice(id)),
+                                  : () => _selectLocally(id),
                               borderRadius: BorderRadius.circular(20),
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 180),
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: selected
-                                      ? AppColors.lime
-                                      : scheme.surface,
+                                  color: selected ? AppColors.lime : scheme.surface,
                                   borderRadius: BorderRadius.circular(20),
                                   border: Border.all(
                                     color: selected
@@ -471,15 +491,13 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
                                           : Image.network(
                                               ApiService.absoluteMediaUrl(photo),
                                               fit: BoxFit.cover,
-                                              errorBuilder: (_, __, ___) =>
-                                                  Center(
+                                              errorBuilder: (_, __, ___) => Center(
                                                 child: Text(
                                                   initial,
                                                   style: const TextStyle(
                                                     color: AppColors.lime,
                                                     fontSize: 21,
-                                                    fontWeight:
-                                                        FontWeight.w900,
+                                                    fontWeight: FontWeight.w900,
                                                   ),
                                                 ),
                                               ),
@@ -498,24 +516,14 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
                                         ),
                                       ),
                                     ),
-                                    if (submitting && selected)
-                                      const SizedBox(
-                                        width: 23,
-                                        height: 23,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2.5,
-                                          color: AppColors.navy,
-                                        ),
-                                      )
-                                    else
-                                      Icon(
-                                        selected
-                                            ? Icons.check_circle_rounded
-                                            : Icons.circle_outlined,
-                                        color: selected
-                                            ? AppColors.navy
-                                            : scheme.onSurfaceVariant,
-                                      ),
+                                    Icon(
+                                      selected
+                                          ? Icons.check_circle_rounded
+                                          : Icons.circle_outlined,
+                                      color: selected
+                                          ? AppColors.navy
+                                          : scheme.onSurfaceVariant,
+                                    ),
                                   ],
                                 ),
                               ),
@@ -545,36 +553,41 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
                               icon: const SizedBox(
                                 width: 18,
                                 height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.3,
-                                ),
+                                child: CircularProgressIndicator(strokeWidth: 2.3),
                               ),
                               label: const Text(
                                 'Karşılıklı seçim bekleniyor...',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w900,
-                                ),
+                                style: TextStyle(fontWeight: FontWeight.w900),
                               ),
                             )
-                          : Container(
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: dark
-                                    ? scheme.surfaceContainerHigh
-                                    : AppColors.softSurface,
-                                borderRadius: BorderRadius.circular(19),
-                                border: Border.all(
-                                  color: scheme.outlineVariant,
+                          : FilledButton.icon(
+                              onPressed: selectedUserId == null || submitting
+                                  ? null
+                                  : _confirmSelection,
+                              style: FilledButton.styleFrom(
+                                backgroundColor: dark ? AppColors.lime : AppColors.navy,
+                                foregroundColor: dark ? AppColors.navy : Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(19),
                                 ),
                               ),
-                              child: Text(
+                              icon: submitting
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.3,
+                                      ),
+                                    )
+                                  : const Icon(Icons.favorite_rounded),
+                              label: Text(
                                 submitting
-                                    ? 'Seçimin kaydediliyor...'
-                                    : 'Bir kişiye dokunman yeterli',
-                                style: TextStyle(
-                                  color: scheme.onSurfaceVariant,
-                                  fontWeight: FontWeight.w900,
-                                ),
+                                    ? 'Seçim kaydediliyor...'
+                                    : selectedUserId == null
+                                        ? 'Önce bir kişi seç'
+                                        : '${selectedName.isEmpty ? 'Bu kişi' : selectedName} ile devam et',
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontWeight: FontWeight.w900),
                               ),
                             ),
                 ),
