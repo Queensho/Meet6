@@ -17,7 +17,7 @@ export class ReportService {
     const reason = reasonInput.trim();
     const cleanDetail = detail?.trim() || null;
     const cleanRoomId = roomId?.trim() || null;
-    const cleanMatchId = matchId?.trim() || null;
+    let cleanMatchId = matchId?.trim() || null;
 
     if (!reason) throw new BadRequestException('Şikâyet nedeni gerekli.');
     if (String(userId) === String(targetUserId)) {
@@ -32,6 +32,23 @@ export class ReportService {
       [targetUserId],
     );
     if (!target.rows[0]?.exists) throw new NotFoundException('Kullanıcı bulunamadı.');
+
+    // Older app builds did not send matchId from the private chat report dialog.
+    // If the pair currently has an active match, attach it automatically so the
+    // moderation panel still receives the private-chat evidence context.
+    if (!cleanRoomId && !cleanMatchId) {
+      const activeMatch = await this.infra.db.query<{ id: string }>(
+        `select id::text
+         from matches
+         where unmatched_at is null
+           and least(user_a_id,user_b_id)=least($1::bigint,$2::bigint)
+           and greatest(user_a_id,user_b_id)=greatest($1::bigint,$2::bigint)
+         order by created_at desc
+         limit 1`,
+        [userId, targetUserId],
+      );
+      cleanMatchId = activeMatch.rows[0]?.id ?? null;
+    }
 
     if (cleanRoomId) {
       const membership = await this.infra.db.query<{ count: string }>(
