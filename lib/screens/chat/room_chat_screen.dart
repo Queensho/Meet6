@@ -380,10 +380,10 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
             ),
             Divider(height: 1, color: scheme.outlineVariant),
             SizedBox(
-              height: 76,
+              height: 84,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 itemCount: members.length,
                 separatorBuilder: (_, __) => const SizedBox(width: 10),
                 itemBuilder: (context, index) {
@@ -395,6 +395,7 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
                   return SizedBox(
                     width: 56,
                     child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Container(
                           width: 44,
@@ -430,10 +431,12 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
                         const SizedBox(height: 3),
                         Text(
                           mine ? 'Sen' : name.split(' ').first,
+                          maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             color: scheme.onSurfaceVariant,
                             fontSize: 9.5,
+                            height: 1.05,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
