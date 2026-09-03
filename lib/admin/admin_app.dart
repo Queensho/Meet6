@@ -7,6 +7,7 @@ import '../widgets/brand.dart';
 import 'admin_live_rooms_screen.dart';
 import 'admin_matches_screen.dart';
 import 'admin_reports_screen.dart';
+import 'admin_support_screen.dart';
 import 'admin_users_screen.dart';
 import 'services/admin_api_service.dart';
 
@@ -357,6 +358,10 @@ class _AdminNav extends StatelessWidget {
                     }
                     if (i == 4) {
                       Navigator.of(context).push(MaterialPageRoute(builder: (_) => AdminReportsScreen(onLogout: onLogout)));
+                      return;
+                    }
+                    if (i == 5) {
+                      Navigator.of(context).push(MaterialPageRoute(builder: (_) => AdminSupportScreen(onLogout: onLogout)));
                       return;
                     }
                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${items[i].$1} ekranını sıradaki adımda bağlıyoruz.')));
