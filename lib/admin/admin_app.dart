@@ -6,6 +6,7 @@ import '../theme/app_colors.dart';
 import '../widgets/brand.dart';
 import 'admin_live_rooms_screen.dart';
 import 'admin_matches_screen.dart';
+import 'admin_reports_screen.dart';
 import 'admin_users_screen.dart';
 import 'services/admin_api_service.dart';
 
@@ -336,6 +337,9 @@ class _AdminNav extends StatelessWidget {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   leading: Icon(items[i].$2, color: i == 0 ? AppColors.lime : Colors.white70),
                   title: Text(items[i].$1, style: TextStyle(color: i == 0 ? Colors.white : Colors.white70, fontWeight: FontWeight.w800, fontSize: 13)),
+                  trailing: i == 4
+                      ? Container(width: 7, height: 7, decoration: const BoxDecoration(color: Color(0xFFE65B5B), shape: BoxShape.circle))
+                      : null,
                   onTap: () {
                     Navigator.maybePop(context);
                     if (i == 0) return;
@@ -349,6 +353,10 @@ class _AdminNav extends StatelessWidget {
                     }
                     if (i == 3) {
                       Navigator.of(context).push(MaterialPageRoute(builder: (_) => AdminMatchesScreen(onLogout: onLogout)));
+                      return;
+                    }
+                    if (i == 4) {
+                      Navigator.of(context).push(MaterialPageRoute(builder: (_) => AdminReportsScreen(onLogout: onLogout)));
                       return;
                     }
                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${items[i].$1} ekranını sıradaki adımda bağlıyoruz.')));
