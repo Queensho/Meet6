@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
 import '../theme/app_colors.dart';
-import 'session_gate.dart';
+import 'onboarding_gate.dart';
 
 class SplashVideoScreen extends StatefulWidget {
   const SplashVideoScreen({super.key});
@@ -73,7 +73,7 @@ class _SplashVideoScreenState extends State<SplashVideoScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_finished) return const SessionGate();
+    if (_finished) return const OnboardingGate();
 
     return Scaffold(
       backgroundColor: Colors.black,
