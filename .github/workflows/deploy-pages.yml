@@ -43,7 +43,8 @@ jobs:
             server/scripts/notify-ops.sh \
             server/scripts/healthcheck-production.sh \
             server/scripts/error-watch-production.sh \
-            server/scripts/install-production-ops.sh
+            server/scripts/install-production-ops.sh \
+            server/scripts/deploy-admin-production.sh
           node --check server/ecosystem.config.cjs
 
       - name: Setup Flutter
@@ -76,7 +77,16 @@ jobs:
           flutter build web --release
           -t lib/admin_main.dart
           --base-href /
-          --dart-define=MEET6_ENV=development
+          --dart-define=MEET6_ENV=production
+          --dart-define=MEET6_API_BASE_URL=https://api.meet6.com.tr
+
+      - name: Upload admin web artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: meet6-admin-web
+          path: build/web
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Build web
         run: >-
