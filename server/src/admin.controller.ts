@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Headers, Param, Post, Query } from '@nestjs/common';
 
 import { AdminRemovePhotoDto, AdminRoomActionDto, AdminUserActionDto } from './admin.dto';
+import { AdminMatchService } from './admin-match.service';
 import { AdminRoomService } from './admin-room.service';
 import { AdminService } from './admin.service';
 import { AuthService } from './auth.service';
@@ -11,6 +12,7 @@ export class AdminController {
     private readonly auth: AuthService,
     private readonly admin: AdminService,
     private readonly adminRooms: AdminRoomService,
+    private readonly adminMatches: AdminMatchService,
   ) {}
 
   @Get('me')
@@ -128,5 +130,42 @@ export class AdminController {
   ) {
     const { userId } = await this.auth.userIdFromAuthorization(authorization);
     return this.adminRooms.removeMember(userId, roomId, targetUserId, body.reason);
+  }
+
+  @Get('matches')
+  async matches(
+    @Headers('authorization') authorization: string | undefined,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const { userId } = await this.auth.userIdFromAuthorization(authorization);
+    return this.adminMatches.listMatches(
+      userId,
+      status ?? 'all',
+      search ?? '',
+      Number(page) || 1,
+      Number(limit) || 20,
+    );
+  }
+
+  @Get('matches/:matchId')
+  async matchDetail(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('matchId') matchId: string,
+  ) {
+    const { userId } = await this.auth.userIdFromAuthorization(authorization);
+    return this.adminMatches.matchDetail(userId, matchId);
+  }
+
+  @Post('matches/:matchId/end')
+  async endMatch(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('matchId') matchId: string,
+    @Body() body: AdminRoomActionDto,
+  ) {
+    const { userId } = await this.auth.userIdFromAuthorization(authorization);
+    return this.adminMatches.endMatch(userId, matchId, body.reason);
   }
 }
