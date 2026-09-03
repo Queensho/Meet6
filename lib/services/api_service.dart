@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 
+import '../config/app_config.dart';
 import '../models/picked_profile_photo.dart';
 import 'session_service.dart';
 
@@ -31,9 +32,9 @@ class AuthResult {
 class ApiService {
   const ApiService._();
 
-  static const baseUrl = 'https://meet6-api-185-165-46-213.nip.io';
+  static String get baseUrl => AppConfig.apiBaseUrl;
 
-  static Uri _uri(String path) => Uri.parse('$baseUrl$path');
+  static Uri _uri(String path) => AppConfig.apiUri(path);
 
   static String absoluteMediaUrl(String? value) {
     final raw = value?.trim() ?? '';
