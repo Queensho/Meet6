@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../services/app_runtime_config_service.dart';
 import '../services/live_service.dart';
 import '../services/realtime_service.dart';
 import '../theme/app_colors.dart';
@@ -16,6 +17,9 @@ class MainBottomNav extends StatefulWidget {
 
   final int selectedIndex;
   final ValueChanged<int> onTap;
+
+  // Eski ekran çağrılarını kırmamak için parametre tutuluyor. Rozet değeri
+  // tek doğruluk kaynağı olan backend matches snapshot'ından hesaplanır.
   final int unreadMessages;
 
   @override
@@ -29,6 +33,7 @@ class _MainBottomNavState extends State<MainBottomNav> {
   @override
   void initState() {
     super.initState();
+    unawaited(AppRuntimeConfigService.refresh());
     _refreshUnread();
     realtimeSub = RealtimeService.events.listen((event) {
       if (!mounted) return;
@@ -37,6 +42,7 @@ class _MainBottomNavState extends State<MainBottomNav> {
         if (next != unreadMessages) setState(() => unreadMessages = next);
       } else if (event.type == 'connection:connected') {
         unawaited(_refreshUnread());
+        unawaited(AppRuntimeConfigService.refresh());
       }
     });
   }
@@ -48,7 +54,7 @@ class _MainBottomNavState extends State<MainBottomNav> {
       final next = (data['unreadTotal'] as num?)?.toInt() ?? 0;
       if (next != unreadMessages) setState(() => unreadMessages = next);
     } catch (_) {
-      if (mounted && unreadMessages != 0) setState(() => unreadMessages = 0);
+      // Geçici bağlantı hatasında son doğru rozeti koru.
     }
   }
 
@@ -64,63 +70,128 @@ class _MainBottomNavState extends State<MainBottomNav> {
     super.dispose();
   }
 
+  Widget _nav() {
+    return Container(
+      height: 60,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: AppColors.navy,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x24000000),
+            blurRadius: 18,
+            offset: Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _NavItem(
+              icon: Icons.home_rounded,
+              outlineIcon: Icons.home_outlined,
+              selected: widget.selectedIndex == 0,
+              onTap: () => widget.onTap(0),
+            ),
+          ),
+          Expanded(
+            child: _NavItem(
+              icon: Icons.favorite_rounded,
+              outlineIcon: Icons.favorite_border_rounded,
+              selected: widget.selectedIndex == 1,
+              onTap: () => widget.onTap(1),
+            ),
+          ),
+          Expanded(
+            child: _NavItem(
+              icon: Icons.chat_bubble_rounded,
+              outlineIcon: Icons.chat_bubble_outline_rounded,
+              selected: widget.selectedIndex == 2,
+              badge: unreadMessages,
+              onTap: () => widget.onTap(2),
+            ),
+          ),
+          Expanded(
+            child: _NavItem(
+              icon: Icons.person_rounded,
+              outlineIcon: Icons.person_outline_rounded,
+              selected: widget.selectedIndex == 3,
+              onTap: () => widget.onTap(3),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      minimum: const EdgeInsets.fromLTRB(14, 5, 14, 8),
-      child: Container(
-        height: 60,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-        decoration: BoxDecoration(
-          color: AppColors.navy,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x24000000),
-              blurRadius: 18,
-              offset: Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: _NavItem(
-                icon: Icons.home_rounded,
-                outlineIcon: Icons.home_outlined,
-                selected: widget.selectedIndex == 0,
-                onTap: () => widget.onTap(0),
-              ),
-            ),
-            Expanded(
-              child: _NavItem(
-                icon: Icons.favorite_rounded,
-                outlineIcon: Icons.favorite_border_rounded,
-                selected: widget.selectedIndex == 1,
-                onTap: () => widget.onTap(1),
-              ),
-            ),
-            Expanded(
-              child: _NavItem(
-                icon: Icons.chat_bubble_rounded,
-                outlineIcon: Icons.chat_bubble_outline_rounded,
-                selected: widget.selectedIndex == 2,
-                badge: unreadMessages,
-                onTap: () => widget.onTap(2),
-              ),
-            ),
-            Expanded(
-              child: _NavItem(
-                icon: Icons.person_rounded,
-                outlineIcon: Icons.person_outline_rounded,
-                selected: widget.selectedIndex == 3,
-                onTap: () => widget.onTap(3),
-              ),
-            ),
-          ],
-        ),
-      ),
+    return ValueListenableBuilder<AppRuntimeConfig>(
+      valueListenable: AppRuntimeConfigService.value,
+      builder: (context, config, _) {
+        final showAnnouncement = config.announcementEnabled &&
+            config.announcementMessage.trim().isNotEmpty;
+        return SafeArea(
+          top: false,
+          minimum: const EdgeInsets.fromLTRB(14, 5, 14, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (showAnnouncement) ...[
+                Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 7),
+                  padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),
+                  decoration: BoxDecoration(
+                    color: AppColors.lime,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.navy.withOpacity(.10)),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.campaign_rounded, color: AppColors.navy, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (config.announcementTitle.trim().isNotEmpty)
+                              Text(
+                                config.announcementTitle.trim(),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: AppColors.navy,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            Text(
+                              config.announcementMessage.trim(),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: AppColors.navy,
+                                fontSize: 10.5,
+                                height: 1.25,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              _nav(),
+            ],
+          ),
+        );
+      },
     );
   }
 }
