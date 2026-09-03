@@ -1,4 +1,10 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import {
   applicationDefault,
   cert,
@@ -18,6 +24,15 @@ interface PushNotificationRow {
   body: string;
   data: Record<string, unknown>;
   push_attempts: number;
+}
+
+type PushTestKind = 'home' | 'room' | 'match' | 'message';
+
+interface PushTestPayload {
+  type: string;
+  title: string;
+  body: string;
+  data: Record<string, unknown>;
 }
 
 @Injectable()
@@ -113,17 +128,121 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  async queueTest(userId: string) {
-    const result = await this.infra.db.query<{ id: string }>(
-      `insert into notifications(user_id,type,title,body,data)
-       values($1,'push_test','Meet6 bildirim testi','Push bildirimleri çalışıyor.',jsonb_build_object('screen','home'))
-       returning id::text`,
+  private async pushTestPayload(
+    userId: string,
+    kind: PushTestKind,
+  ): Promise<PushTestPayload> {
+    if (kind === 'home') {
+      return {
+        type: 'push_test',
+        title: 'Meet6 bildirim testi',
+        body: 'Push bildirimleri çalışıyor.',
+        data: { screen: 'home', test: true },
+      };
+    }
+
+    if (kind === 'room') {
+      const room = await this.infra.db.query<{ id: string }>(
+        `select rm.room_id::text as id
+         from room_members rm
+         join rooms r on r.id=rm.room_id
+         where rm.user_id=$1
+           and rm.left_at is null
+           and r.status='active'
+         order by rm.room_id desc
+         limit 1`,
+        [userId],
+      );
+      const roomId = room.rows[0]?.id;
+      if (!roomId) {
+        throw new BadRequestException('Deep-link testi için aktif oda bulunamadı.');
+      }
+      return {
+        type: 'room_found',
+        title: 'Odan hazır!',
+        body: 'Deep-link testi: bildirime dokun ve odayı aç.',
+        data: { roomId, test: true },
+      };
+    }
+
+    const match = await this.infra.db.query<{ id: string }>(
+      `select id::text as id
+       from matches
+       where unmatched_at is null
+         and (user_a_id=$1 or user_b_id=$1)
+       order by id desc
+       limit 1`,
       [userId],
     );
+    const matchId = match.rows[0]?.id;
+    if (!matchId) {
+      throw new BadRequestException('Deep-link testi için aktif eşleşme bulunamadı.');
+    }
+
+    if (kind === 'match') {
+      return {
+        type: 'match',
+        title: 'Yeni eşleşme!',
+        body: 'Deep-link testi: bildirime dokun ve eşleşmeyi aç.',
+        data: { matchId, test: true },
+      };
+    }
+
+    return {
+      type: 'message',
+      title: 'Yeni mesaj',
+      body: 'Deep-link testi: bildirime dokun ve sohbeti aç.',
+      data: { matchId, test: true },
+    };
+  }
+
+  private async insertTestNotification(userId: string, payload: PushTestPayload) {
+    const result = await this.infra.db.query<{ id: string }>(
+      `insert into notifications(user_id,type,title,body,data)
+       values($1,$2,$3,$4,$5::jsonb)
+       returning id::text`,
+      [
+        userId,
+        payload.type,
+        payload.title,
+        payload.body,
+        JSON.stringify(payload.data),
+      ],
+    );
+    return result.rows[0]?.id;
+  }
+
+  async queueTest(userId: string, kind: PushTestKind = 'home') {
+    const payload = await this.pushTestPayload(userId, kind);
+    const delaySeconds = kind === 'home' ? 0 : 5;
+
+    if (delaySeconds > 0) {
+      const timer = setTimeout(() => {
+        void this.insertTestNotification(userId, payload)
+          .then(() => this.processOutbox())
+          .catch((error) => {
+            this.logger.warn(
+              `Delayed ${kind} push test failed: ${this.errorMessage(error)}`,
+            );
+          });
+      }, delaySeconds * 1000);
+      timer.unref?.();
+
+      return {
+        ok: true,
+        kind,
+        scheduled: true,
+        delaySeconds,
+        firebaseConfigured: this.messaging != null,
+      };
+    }
+
+    const notificationId = await this.insertTestNotification(userId, payload);
     void this.processOutbox();
     return {
       ok: true,
-      notificationId: result.rows[0]?.id,
+      kind,
+      notificationId,
       firebaseConfigured: this.messaging != null,
     };
   }
@@ -205,11 +324,12 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
       [notification.user_id],
     );
     const userSettings = settings.rows[0];
-    if (!userSettings?.notifications_enabled) {
+    const isTest = notification.data?.test === true;
+    if (!isTest && !userSettings?.notifications_enabled) {
       await this.finish(notification.id, { sent: false, error: 'notifications_disabled' });
       return;
     }
-    if (notification.type === 'room_found' && !userSettings.room_reminders) {
+    if (!isTest && notification.type === 'room_found' && !userSettings.room_reminders) {
       await this.finish(notification.id, { sent: false, error: 'room_reminders_disabled' });
       return;
     }
