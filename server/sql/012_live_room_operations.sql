@@ -1,5 +1,5 @@
 alter table room_members
-  add column if not exists connection_count integer not null default 0;
+  add column if not exists connection_count integer not null default 1;
 
 alter table room_members
   add column if not exists last_connected_at timestamptz;
