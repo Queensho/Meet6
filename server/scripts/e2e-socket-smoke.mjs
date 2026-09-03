@@ -26,6 +26,10 @@ const redis = new Redis(REDIS_URL, { maxRetriesPerRequest: 2 });
 const sockets = [];
 const TEST_PHONES = ['+905550060001', '+905550060002'];
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function waitEvent(socket, event, predicate = () => true, timeoutMs = 8000) {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
@@ -64,6 +68,14 @@ function emitAck(socket, event, payload = {}, timeoutMs = 8000) {
       resolve(response ?? {});
     });
   });
+}
+
+async function waitForPrivateMessageCooldown(userId, matchId) {
+  const key = `private-message:${userId}:${matchId}`;
+  const remainingMs = await redis.pttl(key);
+  if (remainingMs > 0) {
+    await sleep(remainingMs + 150);
+  }
 }
 
 async function activeSession(userId) {
@@ -147,6 +159,10 @@ async function main() {
   await typingSeen;
   await emitAck(userA.socket, 'match:typing', { matchId, typing: false });
 
+  // e2e:live sends a private message immediately before this smoke test.
+  // Respect the production one-message-per-second Redis guard instead of weakening it for CI.
+  await waitForPrivateMessageCooldown(userA.id, matchId);
+
   const messageBody = `ci-socket-${Date.now()}`;
   const messageSeen = waitEvent(
     userB.socket,
@@ -173,6 +189,7 @@ async function main() {
   await reconnected;
   await emitAck(userB.socket, 'match:join', { matchId });
 
+  await waitForPrivateMessageCooldown(userB.id, matchId);
   const afterReconnectBody = `ci-reconnect-${Date.now()}`;
   const afterReconnectSeen = waitEvent(
     userA.socket,
