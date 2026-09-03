@@ -13,12 +13,12 @@ alter table support_requests
 alter table support_requests
   add column if not exists closed_at timestamptz;
 
+alter table support_requests
+  drop constraint if exists support_requests_status_check;
+
 update support_requests
 set status='answered'
 where status='in_progress';
-
-alter table support_requests
-  drop constraint if exists support_requests_status_check;
 
 alter table support_requests
   add constraint support_requests_status_check
