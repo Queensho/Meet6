@@ -5,12 +5,14 @@ import {
   AdminReportActionDto,
   AdminReportEvidenceDto,
   AdminRoomActionDto,
+  AdminSupportActionDto,
   AdminUserActionDto,
 } from './admin.dto';
 import { AdminMatchService } from './admin-match.service';
 import { AdminReportService } from './admin-report.service';
 import { AdminRoomService } from './admin-room.service';
 import { AdminService } from './admin.service';
+import { AdminSupportService } from './admin-support.service';
 import { AuthService } from './auth.service';
 
 @Controller('admin')
@@ -21,6 +23,7 @@ export class AdminController {
     private readonly adminRooms: AdminRoomService,
     private readonly adminMatches: AdminMatchService,
     private readonly adminReports: AdminReportService,
+    private readonly adminSupport: AdminSupportService,
   ) {}
 
   @Get('me')
@@ -222,5 +225,44 @@ export class AdminController {
   ) {
     const { userId } = await this.auth.userIdFromAuthorization(authorization);
     return this.adminReports.markEvidence(userId, reportId, body.messageId, body.keyEvidence);
+  }
+
+  @Get('support')
+  async supportRequests(
+    @Headers('authorization') authorization: string | undefined,
+    @Query('status') status?: string,
+    @Query('priority') priority?: string,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const { userId } = await this.auth.userIdFromAuthorization(authorization);
+    return this.adminSupport.list(
+      userId,
+      status ?? 'open',
+      priority ?? 'all',
+      search ?? '',
+      Number(page) || 1,
+      Number(limit) || 20,
+    );
+  }
+
+  @Get('support/:requestId')
+  async supportRequestDetail(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('requestId') requestId: string,
+  ) {
+    const { userId } = await this.auth.userIdFromAuthorization(authorization);
+    return this.adminSupport.detail(userId, requestId);
+  }
+
+  @Post('support/:requestId/action')
+  async supportRequestAction(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('requestId') requestId: string,
+    @Body() body: AdminSupportActionDto,
+  ) {
+    const { userId } = await this.auth.userIdFromAuthorization(authorization);
+    return this.adminSupport.action(userId, requestId, body);
   }
 }
