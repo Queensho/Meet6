@@ -100,6 +100,44 @@ class AdminApiService {
         if (priority != null) 'priority': priority,
       });
 
+  static Future<Map<String, dynamic>> bans({
+    String status = 'active',
+    String search = '',
+    int page = 1,
+    int limit = 20,
+  }) {
+    final uri = Uri(path: '/api/admin/bans', queryParameters: {
+      'status': status,
+      'search': search,
+      'page': '$page',
+      'limit': '$limit',
+    });
+    return _request('GET', uri.toString());
+  }
+
+  static Future<Map<String, dynamic>> banDetail(String banId) =>
+      _request('GET', '/api/admin/bans/$banId');
+
+  static Future<Map<String, dynamic>> revokeBan(String banId, String reason) =>
+      _request('POST', '/api/admin/bans/$banId/revoke', body: {'reason': reason});
+
+  static Future<Map<String, dynamic>> auditLogs({
+    String action = 'all',
+    String targetType = 'all',
+    String search = '',
+    int page = 1,
+    int limit = 30,
+  }) {
+    final uri = Uri(path: '/api/admin/audit-logs', queryParameters: {
+      'action': action,
+      'targetType': targetType,
+      'search': search,
+      'page': '$page',
+      'limit': '$limit',
+    });
+    return _request('GET', uri.toString());
+  }
+
   static String mediaUrl(String? value) {
     final raw = value?.trim() ?? '';
     if (raw.isEmpty) return '';
