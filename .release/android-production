@@ -2,4 +2,5 @@ Meet6 Android release
 version_name=1.0.0
 version_code=1
 track=internal
-requested_at=2026-09-03
+requested_at=2026-09-03T13:37:00+03:00
+source_commit=8f82553b6f28b7cea71a413203986843d149022a
