@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 
 import { InfrastructureService } from './infrastructure.service';
+import { RuntimeSettings, RuntimeSettingsService } from './runtime-settings.service';
 
 interface QueueProfileRow {
   user_id: string;
@@ -25,20 +26,15 @@ interface QueueProfileRow {
 
 @Injectable()
 export class RoomService {
-  constructor(private readonly infra: InfrastructureService) {}
+  constructor(
+    private readonly infra: InfrastructureService,
+    private readonly runtimeSettings: RuntimeSettingsService,
+  ) {}
 
   private configInt(name: string, fallback: number, min = 1, max = 10_000) {
     const parsed = Number(process.env[name] ?? fallback);
     if (!Number.isFinite(parsed)) return fallback;
     return Math.max(min, Math.min(max, Math.floor(parsed)));
-  }
-
-  private get roomRepeatHours() {
-    return this.configInt('MATCHMAKING_ROOM_REPEAT_HOURS', 24, 1, 24 * 30);
-  }
-
-  private get recentMatchDays() {
-    return this.configInt('MATCHMAKING_RECENT_MATCH_DAYS', 7, 1, 365);
   }
 
   private get candidatePoolLimit() {
@@ -103,12 +99,14 @@ export class RoomService {
   }
 
   async syncExpiredRooms() {
+    const settings = await this.runtimeSettings.get();
     await this.infra.db.query(
       `update rooms
        set status = 'selection',
            selection_started_at = coalesce(selection_started_at, now()),
-           selection_ends_at = coalesce(selection_ends_at, now() + interval '10 seconds')
+           selection_ends_at = coalesce(selection_ends_at, now() + ($1::int * interval '1 second'))
        where status = 'active' and ends_at <= now()`,
+      [settings.selectionSeconds],
     );
     await this.infra.db.query(
       `update rooms
@@ -149,6 +147,7 @@ export class RoomService {
   }
 
   async joinQueue(userId: string) {
+    const settings = await this.runtimeSettings.assertOperational();
     await this.ensureProfileReady(userId);
     const existingRoomId = await this.currentOpenRoomId(userId);
     if (existingRoomId) {
@@ -160,7 +159,7 @@ export class RoomService {
        on conflict(user_id) do nothing`,
       [userId],
     );
-    await this.tryMatchmaking();
+    await this.tryMatchmaking(settings);
     return this.queueStatus(userId);
   }
 
@@ -170,6 +169,7 @@ export class RoomService {
   }
 
   async queueStatus(userId: string) {
+    const settings = await this.runtimeSettings.get();
     const roomId = await this.currentOpenRoomId(userId);
     if (roomId) {
       await this.infra.db.query('delete from matchmaking_queue where user_id = $1', [userId]);
@@ -204,8 +204,9 @@ export class RoomService {
       nextRetrySeconds: this.retrySeconds,
       waitingStrategy: 'strict',
       filters: {
-        roomRepeatHours: this.roomRepeatHours,
-        recentMatchDays: this.recentMatchDays,
+        roomRepeatHours: settings.roomRepeatHours,
+        recentMatchDays: settings.recentMatchDays,
+        minimumRoomUsers: settings.minimumRoomUsers,
         blockAndReport: 'permanent',
         preferencesRelaxed: false,
       },
@@ -213,11 +214,14 @@ export class RoomService {
   }
 
   async processQueue() {
-    const roomId = await this.tryMatchmaking();
+    const settings = await this.runtimeSettings.get();
+    if (settings.maintenanceMode) return false;
+    const roomId = await this.tryMatchmaking(settings);
     return roomId != null;
   }
 
-  private async tryMatchmaking(): Promise<string | null> {
+  private async tryMatchmaking(settings: RuntimeSettings): Promise<string | null> {
+    if (settings.maintenanceMode) return null;
     const client = await this.infra.db.connect();
     try {
       await client.query('begin');
@@ -243,7 +247,8 @@ export class RoomService {
          for update of q skip locked`,
       );
 
-      if (queued.rows.length < 6) {
+      const roomSize = settings.minimumRoomUsers;
+      if (queued.rows.length < roomSize) {
         await client.query('commit');
         return null;
       }
@@ -289,7 +294,7 @@ export class RoomService {
          where rm1.user_id = any($1::bigint[])
            and rm2.user_id = any($1::bigint[])
            and r.started_at >= now() - ($2::int * interval '1 hour')`,
-        [ids, this.roomRepeatHours],
+        [ids, settings.roomRepeatHours],
       );
       for (const row of recentRoomPairs.rows) {
         forbiddenPairs.add(this.pairKey(row.user_a_id, row.user_b_id));
@@ -305,7 +310,7 @@ export class RoomService {
            and user_b_id = any($1::bigint[])
            and (unmatched_at is null
                 or created_at >= now() - ($2::int * interval '1 day'))`,
-        [ids, this.recentMatchDays],
+        [ids, settings.recentMatchDays],
       );
       for (const row of recentMatches.rows) {
         forbiddenPairs.add(this.pairKey(row.user_a_id, row.user_b_id));
@@ -327,9 +332,9 @@ export class RoomService {
           if (candidateGroup.every((member) => this.compatible(member, row, forbiddenPairs))) {
             candidateGroup.push(row);
           }
-          if (candidateGroup.length === 6) break;
+          if (candidateGroup.length === roomSize) break;
         }
-        if (candidateGroup.length === 6) group = candidateGroup;
+        if (candidateGroup.length === roomSize) group = candidateGroup;
       }
 
       if (!group) {
@@ -339,7 +344,8 @@ export class RoomService {
 
       const room = await client.query<{ id: string }>(
         `insert into rooms(status, started_at, ends_at)
-         values('active', now(), now() + interval '15 minutes') returning id::text`,
+         values('active', now(), now() + ($1::int * interval '1 minute')) returning id::text`,
+        [settings.roomDurationMinutes],
       );
       const roomId = room.rows[0].id;
       const groupIds = group.map((row) => row.user_id);
@@ -353,8 +359,8 @@ export class RoomService {
 
       await client.query(
         `insert into room_messages(room_id, sender_user_id, body)
-         values($1, null, 'Oda hazır. 6 kişi burada — sohbet için 15 dakikan var.')`,
-        [roomId],
+         values($1, null, $2)`,
+        [roomId, `Oda hazır. ${roomSize} kişi burada — sohbet için ${settings.roomDurationMinutes} dakikan var.`],
       );
       await client.query('commit');
       return roomId;
@@ -426,6 +432,7 @@ export class RoomService {
       [roomId, userId],
     );
 
+    const settings = await this.runtimeSettings.get();
     return {
       id: room.id,
       status: room.status,
@@ -438,6 +445,11 @@ export class RoomService {
       myExtensionVote: vote.rows[0]?.vote ?? null,
       mySelectionUserId: selection.rows[0]?.selected_user_id ?? null,
       members: members.rows,
+      config: {
+        extensionMinutes: settings.extensionMinutes,
+        selectionSeconds: settings.selectionSeconds,
+        minimumUsers: settings.minimumRoomUsers,
+      },
       serverTime: new Date().toISOString(),
     };
   }
@@ -458,6 +470,7 @@ export class RoomService {
   }
 
   async sendMessage(userId: string, roomId: string | number, bodyInput: string) {
+    await this.runtimeSettings.assertOperational();
     const body = bodyInput.trim();
     if (!body) throw new BadRequestException('Mesaj boş olamaz.');
     await this.syncExpiredRooms();
@@ -479,6 +492,7 @@ export class RoomService {
   }
 
   async voteExtension(userId: string, roomId: string | number, vote: boolean) {
+    const settings = await this.runtimeSettings.assertOperational();
     await this.syncExpiredRooms();
     await this.assertMember(userId, roomId);
     const room = await this.infra.db.query<{ status: string; extended: boolean; ends_at: Date }>(
@@ -498,33 +512,44 @@ export class RoomService {
        on conflict(room_id,user_id) do update set vote = excluded.vote, updated_at = now()`,
       [roomId, userId, vote],
     );
-    const count = await this.infra.db.query<{ yes: string; total: string }>(
-      `select count(*) filter(where vote)::text as yes, count(*)::text as total
-       from room_extension_votes where room_id = $1`,
+    const count = await this.infra.db.query<{ yes: string; total: string; members: string }>(
+      `select
+         (select count(*) from room_extension_votes where room_id=$1 and vote)::text as yes,
+         (select count(*) from room_extension_votes where room_id=$1)::text as total,
+         (select count(*) from room_members where room_id=$1 and admin_removed_at is null)::text as members`,
       [roomId],
     );
     const yes = Number(count.rows[0]?.yes ?? 0);
+    const memberCount = Math.max(2, Number(count.rows[0]?.members ?? settings.minimumRoomUsers));
+    const requiredYes = Math.max(2, Math.ceil(memberCount * 2 / 3));
     let extended = false;
-    if (yes >= 4) {
+    if (yes >= requiredYes) {
       const update = await this.infra.db.query(
-        `update rooms set ends_at = ends_at + interval '5 minutes', extended = true
+        `update rooms set ends_at = ends_at + ($2::int * interval '1 minute'), extended = true
          where id = $1 and extended = false and status = 'active'
          returning id`,
-        [roomId],
+        [roomId, settings.extensionMinutes],
       );
       extended = update.rowCount === 1;
       if (extended) {
         await this.infra.db.query(
           `insert into room_messages(room_id, sender_user_id, body)
-           values($1, null, 'Oylama tamamlandı. Sohbet +5 dakika uzatıldı.')`,
-          [roomId],
+           values($1, null, $2)`,
+          [roomId, `Oylama tamamlandı. Sohbet +${settings.extensionMinutes} dakika uzatıldı.`],
         );
       }
     }
-    return { ok: true, yesVotes: yes, totalVotes: Number(count.rows[0]?.total ?? 0), extended };
+    return {
+      ok: true,
+      yesVotes: yes,
+      totalVotes: Number(count.rows[0]?.total ?? 0),
+      requiredYesVotes: requiredYes,
+      extended,
+    };
   }
 
   async submitSelection(userId: string, roomId: string | number, selectedUserId: number) {
+    await this.runtimeSettings.assertOperational();
     await this.syncExpiredRooms();
     await this.assertMember(userId, roomId);
     if (String(selectedUserId) === String(userId)) throw new BadRequestException('Kendini seçemezsin.');
@@ -560,9 +585,9 @@ export class RoomService {
     let matchId: string | null = null;
     if (reciprocal.rows[0]?.exists) {
       const inserted = await this.infra.db.query<{ id: string }>(
-        `insert into matches(user_a_id,user_b_id)
-         values($1,$2) on conflict do nothing returning id::text`,
-        [userId, selectedUserId],
+        `insert into matches(user_a_id,user_b_id,source_room_id)
+         values($1,$2,$3) on conflict do nothing returning id::text`,
+        [userId, selectedUserId, roomId],
       );
       if (inserted.rows[0]?.id) {
         matchId = inserted.rows[0].id;
