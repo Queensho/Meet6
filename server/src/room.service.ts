@@ -27,6 +27,32 @@ interface QueueProfileRow {
 export class RoomService {
   constructor(private readonly infra: InfrastructureService) {}
 
+  private configInt(name: string, fallback: number, min = 1, max = 10_000) {
+    const parsed = Number(process.env[name] ?? fallback);
+    if (!Number.isFinite(parsed)) return fallback;
+    return Math.max(min, Math.min(max, Math.floor(parsed)));
+  }
+
+  private get roomRepeatHours() {
+    return this.configInt('MATCHMAKING_ROOM_REPEAT_HOURS', 24, 1, 24 * 30);
+  }
+
+  private get recentMatchDays() {
+    return this.configInt('MATCHMAKING_RECENT_MATCH_DAYS', 7, 1, 365);
+  }
+
+  private get candidatePoolLimit() {
+    return this.configInt('MATCHMAKING_CANDIDATE_POOL', 200, 20, 1000);
+  }
+
+  private get retrySeconds() {
+    return this.configInt('MATCHMAKING_RETRY_SECONDS', 15, 5, 120);
+  }
+
+  private pairKey(a: string | number, b: string | number) {
+    return [String(a), String(b)].sort().join(':');
+  }
+
   private ageFromBirthDate(value: string | Date | null | undefined) {
     if (!value) return 0;
     const date = new Date(value);
@@ -57,10 +83,12 @@ export class RoomService {
     return earth * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
   }
 
-  private compatible(a: QueueProfileRow, b: QueueProfileRow, blocked: Set<string>) {
-    const pairKey1 = `${a.user_id}:${b.user_id}`;
-    const pairKey2 = `${b.user_id}:${a.user_id}`;
-    if (blocked.has(pairKey1) || blocked.has(pairKey2)) return false;
+  private compatible(
+    a: QueueProfileRow,
+    b: QueueProfileRow,
+    forbiddenPairs: Set<string>,
+  ) {
+    if (forbiddenPairs.has(this.pairKey(a.user_id, b.user_id))) return false;
 
     const ageA = this.ageFromBirthDate(a.birth_date);
     const ageB = this.ageFromBirthDate(b.birth_date);
@@ -148,23 +176,48 @@ export class RoomService {
       return { ok: true, state: 'room', room: await this.getRoom(userId, roomId) };
     }
 
-    const queue = await this.infra.db.query<{ position: string; total: string }>(
+    const queue = await this.infra.db.query<{
+      position: string;
+      total: string;
+      joined_at: Date;
+    }>(
       `select
          (select count(*) from matchmaking_queue q2 where q2.joined_at <= q.joined_at)::text as position,
-         (select count(*) from matchmaking_queue)::text as total
+         (select count(*) from matchmaking_queue)::text as total,
+         q.joined_at
        from matchmaking_queue q where q.user_id = $1`,
       [userId],
     );
     if (!queue.rows[0]) return { ok: true, state: 'idle', position: 0, total: 0 };
+
+    const row = queue.rows[0];
+    const waitSeconds = Math.max(
+      0,
+      Math.floor((Date.now() - new Date(row.joined_at).getTime()) / 1000),
+    );
     return {
       ok: true,
       state: 'queued',
-      position: Number(queue.rows[0].position),
-      total: Number(queue.rows[0].total),
+      position: Number(row.position),
+      total: Number(row.total),
+      waitSeconds,
+      nextRetrySeconds: this.retrySeconds,
+      waitingStrategy: 'strict',
+      filters: {
+        roomRepeatHours: this.roomRepeatHours,
+        recentMatchDays: this.recentMatchDays,
+        blockAndReport: 'permanent',
+        preferencesRelaxed: false,
+      },
     };
   }
 
-  private async tryMatchmaking() {
+  async processQueue() {
+    const roomId = await this.tryMatchmaking();
+    return roomId != null;
+  }
+
+  private async tryMatchmaking(): Promise<string | null> {
     const client = await this.infra.db.connect();
     try {
       await client.query('begin');
@@ -182,28 +235,86 @@ export class RoomService {
                 p.display_name, p.birth_date::text, p.gender, p.latitude, p.longitude, p.photo_urls,
                 mp.looking_for, mp.min_age, mp.max_age, mp.distance_km, mp.purpose
          from matchmaking_queue q
+         join users u on u.id = q.user_id and u.status = 'active'
          join profiles p on p.user_id = q.user_id and p.profile_completed = true
          join matching_preferences mp on mp.user_id = q.user_id
          order by q.joined_at asc
-         limit 80
+         limit ${this.candidatePoolLimit}
          for update of q skip locked`,
       );
 
       if (queued.rows.length < 6) {
         await client.query('commit');
-        return;
+        return null;
       }
 
       const ids = queued.rows.map((row) => row.user_id);
-      const blocks = await client.query<{ blocker_user_id: string; blocked_user_id: string }>(
+      const forbiddenPairs = new Set<string>();
+
+      const blocks = await client.query<{
+        blocker_user_id: string;
+        blocked_user_id: string;
+      }>(
         `select blocker_user_id::text, blocked_user_id::text
          from blocked_users
          where blocker_user_id = any($1::bigint[]) or blocked_user_id = any($1::bigint[])`,
         [ids],
       );
-      const blocked = new Set(
-        blocks.rows.map((row) => `${row.blocker_user_id}:${row.blocked_user_id}`),
+      for (const row of blocks.rows) {
+        forbiddenPairs.add(this.pairKey(row.blocker_user_id, row.blocked_user_id));
+      }
+
+      // A report is a permanent matchmaking separation signal, regardless of
+      // moderation status. This is deliberately stricter than content review.
+      const reports = await client.query<{
+        reporter_user_id: string;
+        reported_user_id: string;
+      }>(
+        `select reporter_user_id::text, reported_user_id::text
+         from reports
+         where reporter_user_id = any($1::bigint[]) or reported_user_id = any($1::bigint[])`,
+        [ids],
       );
+      for (const row of reports.rows) {
+        forbiddenPairs.add(this.pairKey(row.reporter_user_id, row.reported_user_id));
+      }
+
+      // People who shared a room recently are kept apart to increase variety.
+      const recentRoomPairs = await client.query<{
+        user_a_id: string;
+        user_b_id: string;
+      }>(
+        `select distinct rm1.user_id::text as user_a_id, rm2.user_id::text as user_b_id
+         from room_members rm1
+         join room_members rm2
+           on rm2.room_id = rm1.room_id and rm1.user_id < rm2.user_id
+         join rooms r on r.id = rm1.room_id
+         where rm1.user_id = any($1::bigint[])
+           and rm2.user_id = any($1::bigint[])
+           and r.started_at >= now() - ($2::int * interval '1 hour')`,
+        [ids, this.roomRepeatHours],
+      );
+      for (const row of recentRoomPairs.rows) {
+        forbiddenPairs.add(this.pairKey(row.user_a_id, row.user_b_id));
+      }
+
+      // Active matches are always separated. Ended matches are separated for
+      // the configured recent-match window before they become eligible again.
+      const recentMatches = await client.query<{
+        user_a_id: string;
+        user_b_id: string;
+      }>(
+        `select user_a_id::text, user_b_id::text
+         from matches
+         where user_a_id = any($1::bigint[])
+           and user_b_id = any($1::bigint[])
+           and (unmatched_at is null
+                or created_at >= now() - ($2::int * interval '1 day'))`,
+        [ids, this.recentMatchDays],
+      );
+      for (const row of recentMatches.rows) {
+        forbiddenPairs.add(this.pairKey(row.user_a_id, row.user_b_id));
+      }
 
       let group: QueueProfileRow[] | null = null;
       for (let seedIndex = 0; seedIndex < queued.rows.length && !group; seedIndex++) {
@@ -218,7 +329,7 @@ export class RoomService {
           });
 
         for (const row of rest) {
-          if (candidateGroup.every((member) => this.compatible(member, row, blocked))) {
+          if (candidateGroup.every((member) => this.compatible(member, row, forbiddenPairs))) {
             candidateGroup.push(row);
           }
           if (candidateGroup.length === 6) break;
@@ -228,7 +339,7 @@ export class RoomService {
 
       if (!group) {
         await client.query('commit');
-        return;
+        return null;
       }
 
       const room = await client.query<{ id: string }>(
@@ -244,13 +355,19 @@ export class RoomService {
           [roomId, memberId],
         );
       }
-      await client.query('delete from matchmaking_queue where user_id = any($1::bigint[])', [groupIds]);
+
+      // Do not delete matched users from matchmaking_queue here. queueStatus()
+      // removes each one after seeing its active room. Keeping them for this
+      // brief handoff lets broadcastQueueStatus() deliver the room over
+      // WebSocket even when the user who triggered matchmaking was not one of
+      // the six selected people.
       await client.query(
         `insert into room_messages(room_id, sender_user_id, body)
          values($1, null, 'Oda hazır. 6 kişi burada — sohbet için 15 dakikan var.')`,
         [roomId],
       );
       await client.query('commit');
+      return roomId;
     } catch (error) {
       await client.query('rollback').catch(() => undefined);
       throw error;
