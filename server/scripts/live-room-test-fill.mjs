@@ -124,7 +124,6 @@ async function openRoomFor(userIds) {
      join rooms r on r.id=rm.room_id
      where rm.user_id = any($1::bigint[])
        and rm.left_at is null
-       and coalesce(rm.admin_removed_at, null) is null
        and r.status in ('active','selection')`,
     [userIds],
   );
@@ -140,13 +139,41 @@ async function bothQueued(userIds) {
   return result.rowCount === userIds.length;
 }
 
+async function runtimeRoomDuration(client) {
+  const table = await client.query(
+    `select to_regclass('public.app_runtime_settings')::text as table_name`,
+  );
+  if (!table.rows[0]?.table_name) return 15;
+  const settings = await client.query(
+    `select room_duration_minutes from app_runtime_settings where id=1`,
+  );
+  return Number(settings.rows[0]?.room_duration_minutes ?? 15);
+}
+
+async function closeStaleMemberships(client, userIds) {
+  if (!userIds.length) return;
+  await client.query(
+    `update room_members rm
+     set left_at=coalesce(r.closed_at, now())
+     from rooms r
+     where rm.room_id=r.id
+       and rm.user_id = any($1::bigint[])
+       and rm.left_at is null
+       and r.status='closed'`,
+    [userIds],
+  );
+}
+
 async function createTestRoom(realUsers) {
   const client = await pool.connect();
   try {
     await client.query('begin');
-    await client.query('select pg_advisory_xact_lock(606061)');
+    // Use the same advisory lock as production matchmaking to avoid races.
+    await client.query('select pg_advisory_xact_lock(606060)');
 
     const realIds = realUsers.map((row) => row.id);
+    await closeStaleMemberships(client, realIds);
+
     const queued = await client.query(
       `select user_id::text from matchmaking_queue
        where user_id = any($1::bigint[])
@@ -171,6 +198,8 @@ async function createTestRoom(realUsers) {
     }
 
     const fillerIds = await upsertFillers(client);
+    await closeStaleMemberships(client, fillerIds);
+
     const fillerOpen = await client.query(
       `select distinct rm.room_id::text
        from room_members rm
@@ -186,10 +215,7 @@ async function createTestRoom(realUsers) {
       );
     }
 
-    const settings = await client.query(
-      `select room_duration_minutes from app_runtime_settings where id=1`,
-    );
-    const durationMinutes = Number(settings.rows[0]?.room_duration_minutes ?? 15);
+    const durationMinutes = await runtimeRoomDuration(client);
 
     const room = await client.query(
       `insert into rooms(status,started_at,ends_at)
@@ -291,7 +317,7 @@ try {
 
     const created = await createTestRoom(users);
     console.log(`✅ Canlı test odası açıldı: room_id=${created.roomId}`);
-    console.log(`✅ Üye sayısı: 6 (2 gerçek + 4 test)`);
+    console.log('✅ Üye sayısı: 6 (2 gerçek + 4 test)');
     console.log(`✅ Süre: ${created.durationMinutes} dk`);
     console.log('✅ İki gerçek kullanıcıya “Odan hazır!” push bildirimi kuyruğa eklendi.');
     console.log('Test bitince ve oda kapandıktan sonra: npm run test:room-clear');
