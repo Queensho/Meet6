@@ -19,6 +19,10 @@ export class ReportUserDto {
   @IsOptional()
   @IsString()
   roomId?: string;
+
+  @IsOptional()
+  @IsString()
+  matchId?: string;
 }
 
 export class UpdateSettingsDto {
