@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import 'api_service.dart';
+import 'realtime_service.dart';
 import 'session_service.dart';
 
 class LiveService {
@@ -69,14 +70,22 @@ class LiveService {
     return _decode(response);
   }
 
-  static Future<Map<String, dynamic>> joinRoomQueue() => _send('POST', '/api/rooms/queue');
-  static Future<Map<String, dynamic>> roomQueueStatus() => _get('/api/rooms/queue');
+  // Oda, kuyruk, eşleşme ve mesajlaşma canlı veri akışları yalnızca
+  // Socket.IO/WebSocket üzerinden gider. HTTP burada sadece profil, ayar,
+  // moderasyon ve destek gibi gerçek zamanlı olmayan işlemler için kalır.
+  static Future<Map<String, dynamic>> joinRoomQueue() => RealtimeService.joinQueue();
+  static Future<Map<String, dynamic>> roomQueueStatus() => RealtimeService.queueStatus();
 
   static Future<void> cancelRoomQueue() async {
-    await _send('DELETE', '/api/rooms/queue');
+    await RealtimeService.cancelQueue();
   }
 
-  static Future<Map<String, dynamic>> room(String roomId) => _get('/api/rooms/$roomId');
+  static Future<Map<String, dynamic>> room(String roomId) async {
+    final result = await RealtimeService.joinRoom(roomId);
+    final raw = result['room'];
+    if (raw is Map) return Map<String, dynamic>.from(raw);
+    throw const ApiException('Oda verisi alınamadı.');
+  }
 
   static Future<Map<String, dynamic>> roomForceSelectionCapability(String roomId) =>
       _get('/api/rooms/$roomId/force-selection-capability');
@@ -87,50 +96,40 @@ class LiveService {
   static Future<List<Map<String, dynamic>>> roomMessages(
     String roomId, {
     int after = 0,
-  }) async {
-    final data = await _get('/api/rooms/$roomId/messages', query: {'after': '$after'});
-    final raw = data['messages'];
-    if (raw is! List) return const [];
-    return raw.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList();
-  }
+  }) =>
+      RealtimeService.roomMessages(roomId, after: after);
 
   static Future<Map<String, dynamic>> sendRoomMessage(String roomId, String body) =>
-      _send('POST', '/api/rooms/$roomId/messages', body: {'body': body});
+      RealtimeService.sendRoomMessage(roomId, body);
 
   static Future<Map<String, dynamic>> voteRoomExtension(String roomId, bool vote) =>
-      _send('PUT', '/api/rooms/$roomId/extension-vote', body: {'vote': vote});
+      RealtimeService.voteRoomExtension(roomId, vote);
 
   static Future<Map<String, dynamic>> submitRoomSelection(
     String roomId,
     String selectedUserId,
   ) =>
-      _send(
-        'PUT',
-        '/api/rooms/$roomId/selection',
-        body: {'selectedUserId': int.parse(selectedUserId)},
-      );
+      RealtimeService.submitRoomSelection(roomId, selectedUserId);
 
   static Future<Map<String, dynamic>> roomSelectionResult(String roomId) =>
       _get('/api/rooms/$roomId/selection-result');
 
-  static Future<Map<String, dynamic>> matches() => _get('/api/matches');
-  static Future<Map<String, dynamic>> matchDetail(String matchId) => _get('/api/matches/$matchId');
+  static Future<Map<String, dynamic>> matches() => RealtimeService.listMatches();
+
+  static Future<Map<String, dynamic>> matchDetail(String matchId) =>
+      RealtimeService.joinMatch(matchId);
 
   static Future<List<Map<String, dynamic>>> privateMessages(
     String matchId, {
     int after = 0,
-  }) async {
-    final data = await _get('/api/matches/$matchId/messages', query: {'after': '$after'});
-    final raw = data['messages'];
-    if (raw is! List) return const [];
-    return raw.whereType<Map>().map((item) => Map<String, dynamic>.from(item)).toList();
-  }
+  }) =>
+      RealtimeService.privateMessages(matchId, after: after);
 
   static Future<Map<String, dynamic>> sendPrivateMessage(String matchId, String body) =>
-      _send('POST', '/api/matches/$matchId/messages', body: {'body': body});
+      RealtimeService.sendPrivateMessage(matchId, body);
 
   static Future<void> markMatchRead(String matchId) async {
-    await _send('POST', '/api/matches/$matchId/read');
+    await RealtimeService.markMatchRead(matchId);
   }
 
   static Future<void> unmatch(String matchId) async {
