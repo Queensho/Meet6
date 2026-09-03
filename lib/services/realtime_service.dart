@@ -93,6 +93,8 @@ class RealtimeService {
       'room:message',
       'room:sync-messages',
       'room:selection-status',
+      'room:closed-by-admin',
+      'room:removed',
       'matches:update',
       'match:created',
       'match:message',
