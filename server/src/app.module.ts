@@ -6,6 +6,7 @@ import { AdminMatchService } from './admin-match.service';
 import { AdminReportService } from './admin-report.service';
 import { AdminRoomService } from './admin-room.service';
 import { AdminService } from './admin.service';
+import { AdminSupportService } from './admin-support.service';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { HealthController } from './health.controller';
@@ -62,6 +63,7 @@ import { SupportService } from './support.service';
     AdminRoomService,
     AdminMatchService,
     AdminReportService,
+    AdminSupportService,
   ],
 })
 export class AppModule {}
