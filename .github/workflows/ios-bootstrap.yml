@@ -1,0 +1,92 @@
+name: Bootstrap iOS Target
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ios-bootstrap.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ios-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Generate iOS target
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -d ios ]; then
+            echo "iOS target already exists; nothing to generate."
+            exit 0
+          fi
+
+          flutter create --platforms=ios --org com.meet6 .
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          root = Path('ios')
+          old = 'com.meet6.meet6'
+          new = 'com.meet6.app'
+          for path in root.rglob('*'):
+              if not path.is_file():
+                  continue
+              try:
+                  text = path.read_text()
+              except UnicodeDecodeError:
+                  continue
+              if old in text:
+                  path.write_text(text.replace(old, new))
+          PY
+
+          PLIST='ios/Runner/Info.plist'
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName Meet6' "$PLIST" || true
+          /usr/libexec/PlistBuddy -c 'Set :CFBundleName Meet6' "$PLIST" || true
+          /usr/libexec/PlistBuddy -c 'Delete :NSLocationWhenInUseUsageDescription' "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c 'Add :NSLocationWhenInUseUsageDescription string Meet6, yakındaki uygun eşleşmeleri göstermek için konumunu kullanır.' "$PLIST"
+          /usr/libexec/PlistBuddy -c 'Delete :NSPhotoLibraryUsageDescription' "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c 'Add :NSPhotoLibraryUsageDescription string Meet6, profil fotoğraflarını seçebilmen için fotoğraf arşivine erişir.' "$PLIST"
+          /usr/libexec/PlistBuddy -c 'Delete :NSCameraUsageDescription' "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c 'Add :NSCameraUsageDescription string Meet6, profil fotoğrafı çekebilmen için kameraya erişir.' "$PLIST"
+          /usr/libexec/PlistBuddy -c 'Delete :UIBackgroundModes' "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c 'Add :UIBackgroundModes array' "$PLIST"
+          /usr/libexec/PlistBuddy -c 'Add :UIBackgroundModes:0 string remote-notification' "$PLIST"
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build iOS without code signing
+        run: flutter build ios --release --no-codesign
+
+      - name: Commit generated iOS target
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-files --error-unmatch ios/Runner/Info.plist >/dev/null 2>&1; then
+            echo "iOS target is already tracked."
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add ios
+          git commit -m 'Add Flutter iOS target'
+          git push
