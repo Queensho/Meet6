@@ -141,6 +141,41 @@ export class RoomsGateway {
     return result.rows.map((row) => row.user_id);
   }
 
+  async connectedUserIdsInRoom(roomId: string) {
+    const connected = new Set<string>();
+    try {
+      const sockets = await (this.server as any).in(`room:${roomId}`).fetchSockets();
+      for (const socket of sockets ?? []) {
+        const userId = socket.data?.userId?.toString();
+        if (userId) connected.add(userId);
+      }
+    } catch (_) {
+      // Admin ekranı socket adapter hazır değilse boş bağlantı setiyle devam eder.
+    }
+    return connected;
+  }
+
+  async adminCloseRoom(roomId: string, reason: string) {
+    const timer = this.roomTimers.get(roomId);
+    if (timer) clearTimeout(timer);
+    this.roomTimers.delete(roomId);
+    this.server.to(`room:${roomId}`).emit('room:closed-by-admin', {
+      roomId,
+      reason,
+      timestamp: new Date().toISOString(),
+    });
+    this.server.in(`room:${roomId}`).socketsLeave(`room:${roomId}`);
+  }
+
+  async adminRemoveMember(roomId: string, userId: string, reason: string) {
+    this.server.to(`user:${userId}`).emit('room:removed', {
+      roomId,
+      reason,
+      timestamp: new Date().toISOString(),
+    });
+    this.server.in(`user:${userId}`).socketsLeave(`room:${roomId}`);
+  }
+
   async broadcastQueueStatus() {
     const queued = await this.infra.db.query<{ user_id: string }>(
       'select user_id::text from matchmaking_queue order by joined_at asc',
@@ -181,9 +216,13 @@ export class RoomsGateway {
       const ids = await this.memberIds(roomId);
       let firstRoom: Record<string, any> | null = null;
       for (const memberId of ids) {
-        const room = await this.rooms.getRoom(memberId, roomId) as Record<string, any>;
-        firstRoom ??= room;
-        this.server.to(`user:${memberId}`).emit('room:update', { roomId, room });
+        try {
+          const room = await this.rooms.getRoom(memberId, roomId) as Record<string, any>;
+          firstRoom ??= room;
+          this.server.to(`user:${memberId}`).emit('room:update', { roomId, room });
+        } catch (_) {
+          // Admin tarafından odadan çıkarılan kullanıcı canlı snapshot alamaz.
+        }
       }
       if (firstRoom) this.scheduleRoomDeadline(firstRoom);
     } catch (_) {
@@ -259,9 +298,20 @@ export class RoomsGateway {
     @MessageBody() payload: { roomId?: string },
   ) {
     return this.safe(async () => {
+      const userId = this.userId(client);
       const roomId = payload?.roomId?.toString() ?? '';
-      const room = await this.rooms.getRoom(this.userId(client), roomId) as Record<string, any>;
-      await client.join(`room:${roomId}`);
+      const roomName = `room:${roomId}`;
+      const alreadyJoined = client.rooms.has(roomName);
+      const room = await this.rooms.getRoom(userId, roomId) as Record<string, any>;
+      await client.join(roomName);
+      if (!alreadyJoined) {
+        await this.infra.db.query(
+          `update room_members
+           set connection_count=connection_count + 1, last_connected_at=now()
+           where room_id=$1 and user_id=$2 and admin_removed_at is null`,
+          [roomId, userId],
+        );
+      }
       this.scheduleRoomDeadline(room);
       return { roomId, room };
     });
