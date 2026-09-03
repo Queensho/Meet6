@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'screens/splash_video_screen.dart';
+import 'screens/splash_screen.dart';
 import 'services/app_navigator.dart';
 import 'theme/app_colors.dart';
 import 'theme/theme_controller.dart';
@@ -140,7 +140,7 @@ class Meet6App extends StatelessWidget {
           builder: (context, child) => RuntimeConfigGate(
             child: child ?? const SizedBox.shrink(),
           ),
-          home: const SplashVideoScreen(),
+          home: const SplashScreen(),
         );
       },
     );
