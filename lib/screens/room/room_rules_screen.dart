@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../services/runtime_app_config_service.dart';
 import '../../theme/app_colors.dart';
 import 'room_searching_screen.dart';
 
@@ -21,190 +22,193 @@ class RoomRulesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.lime,
-      body: LayoutBuilder(
-        builder: (context, viewport) {
-          final desktop = viewport.maxWidth > 520;
-          final width = desktop ? 390.0 : viewport.maxWidth;
-          final height = desktop ? 844.0 : viewport.maxHeight;
+    return ValueListenableBuilder<RuntimeAppConfig>(
+      valueListenable: RuntimeAppConfigService.listenable,
+      builder: (context, runtime, _) => Scaffold(
+        backgroundColor: AppColors.lime,
+        body: LayoutBuilder(
+          builder: (context, viewport) {
+            final desktop = viewport.maxWidth > 520;
+            final width = desktop ? 390.0 : viewport.maxWidth;
+            final height = desktop ? 844.0 : viewport.maxHeight;
 
-          return Container(
-            color: desktop ? const Color(0xFFEFF1F7) : AppColors.lime,
-            alignment: Alignment.center,
-            child: Container(
-              width: width,
-              height: height,
-              clipBehavior: Clip.antiAlias,
-              decoration: BoxDecoration(
-                color: AppColors.lime,
-                borderRadius:
-                    desktop ? BorderRadius.circular(32) : BorderRadius.zero,
-                boxShadow: desktop
-                    ? const [
-                        BoxShadow(
-                          color: Color(0x22000000),
-                          blurRadius: 28,
-                          offset: Offset(0, 14),
-                        ),
-                      ]
-                    : null,
-              ),
-              child: SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(22, 16, 22, 20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          IconButton(
-                            onPressed: () => Navigator.of(context).pop(),
-                            style: IconButton.styleFrom(
-                              backgroundColor: Colors.white.withOpacity(.35),
-                            ),
-                            icon: const Icon(
-                              Icons.arrow_back_rounded,
-                              color: AppColors.navy,
-                            ),
+            return Container(
+              color: desktop ? const Color(0xFFEFF1F7) : AppColors.lime,
+              alignment: Alignment.center,
+              child: Container(
+                width: width,
+                height: height,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: AppColors.lime,
+                  borderRadius:
+                      desktop ? BorderRadius.circular(32) : BorderRadius.zero,
+                  boxShadow: desktop
+                      ? const [
+                          BoxShadow(
+                            color: Color(0x22000000),
+                            blurRadius: 28,
+                            offset: Offset(0, 14),
                           ),
-                          const Spacer(),
-                          const Text.rich(
-                            TextSpan(
-                              style: TextStyle(
-                                fontSize: 26,
-                                height: 1,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: -1.6,
+                        ]
+                      : null,
+                ),
+                child: SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(22, 16, 22, 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            IconButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              style: IconButton.styleFrom(
+                                backgroundColor: Colors.white.withOpacity(.35),
                               ),
-                              children: [
-                                TextSpan(
-                                  text: 'meet',
-                                  style: TextStyle(color: AppColors.navy),
+                              icon: const Icon(
+                                Icons.arrow_back_rounded,
+                                color: AppColors.navy,
+                              ),
+                            ),
+                            const Spacer(),
+                            const Text.rich(
+                              TextSpan(
+                                style: TextStyle(
+                                  fontSize: 26,
+                                  height: 1,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: -1.6,
                                 ),
-                                TextSpan(
-                                  text: '6',
-                                  style: TextStyle(color: AppColors.blue),
+                                children: [
+                                  TextSpan(
+                                    text: 'meet',
+                                    style: TextStyle(color: AppColors.navy),
+                                  ),
+                                  TextSpan(
+                                    text: '6',
+                                    style: TextStyle(color: AppColors.blue),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Spacer(),
+                        Center(
+                          child: Container(
+                            width: 138,
+                            height: 138,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: AppColors.lime,
+                              border: Border.all(color: Colors.white, width: 3),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.white.withOpacity(.68),
+                                  blurRadius: 26,
+                                  spreadRadius: 7,
+                                ),
+                                BoxShadow(
+                                  color: AppColors.navy.withOpacity(.14),
+                                  blurRadius: 32,
+                                  spreadRadius: 8,
                                 ),
                               ],
                             ),
-                          ),
-                        ],
-                      ),
-                      const Spacer(),
-                      Center(
-                        child: Container(
-                          width: 138,
-                          height: 138,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: AppColors.lime,
-                            border: Border.all(color: Colors.white, width: 3),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.white.withOpacity(.68),
-                                blurRadius: 26,
-                                spreadRadius: 7,
+                            alignment: Alignment.center,
+                            child: const Text(
+                              '6',
+                              style: TextStyle(
+                                color: AppColors.navy,
+                                fontSize: 82,
+                                height: .9,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -5,
                               ),
-                              BoxShadow(
-                                color: AppColors.navy.withOpacity(.14),
-                                blurRadius: 32,
-                                spreadRadius: 8,
-                              ),
-                            ],
-                          ),
-                          alignment: Alignment.center,
-                          child: const Text(
-                            '6',
-                            style: TextStyle(
-                              color: AppColors.navy,
-                              fontSize: 82,
-                              height: .9,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -5,
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 28),
-                      const Text(
-                        'Odaya katılmadan önce',
-                        style: TextStyle(
-                          color: AppColors.navy,
-                          fontSize: 28,
-                          height: 1.02,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -1.1,
-                        ),
-                      ),
-                      const SizedBox(height: 7),
-                      const Text(
-                        'Meet6 odaları kısa, gerçek ve güvenli sohbetler için tasarlandı.',
-                        style: TextStyle(
-                          color: AppColors.navy,
-                          fontSize: 13,
-                          height: 1.35,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      const _RuleTile(
-                        icon: Icons.groups_2_rounded,
-                        title: '6 kişi, 15 dakika',
-                        subtitle: 'Sen + 5 kişi aynı odada sohbet eder.',
-                      ),
-                      const _RuleTile(
-                        icon: Icons.favorite_rounded,
-                        title: 'Saygılı ve doğal ol',
-                        subtitle: 'Hakaret, taciz ve rahatsız edici davranışlara yer yok.',
-                      ),
-                      const _RuleTile(
-                        icon: Icons.visibility_off_rounded,
-                        title: 'Seçimler gizlidir',
-                        subtitle: 'Süre bitince bir kişiyi seçersin; yalnızca karşılıklıysa eşleşirsiniz.',
-                      ),
-                      const _RuleTile(
-                        icon: Icons.timer_rounded,
-                        title: 'Süre bitince sohbet kapanır',
-                        subtitle: 'Oda sonunda seçim aşaması otomatik başlar.',
-                        last: true,
-                      ),
-                      const Spacer(),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 58,
-                        child: FilledButton(
-                          onPressed: () => _startSearch(context),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: AppColors.navy,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
-                            ),
+                        const SizedBox(height: 28),
+                        const Text(
+                          'Odaya katılmadan önce',
+                          style: TextStyle(
+                            color: AppColors.navy,
+                            fontSize: 28,
+                            height: 1.02,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -1.1,
                           ),
-                          child: const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                'Kabul et ve oda ara',
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w900,
+                        ),
+                        const SizedBox(height: 7),
+                        const Text(
+                          'Meet6 odaları kısa, gerçek ve güvenli sohbetler için tasarlandı.',
+                          style: TextStyle(
+                            color: AppColors.navy,
+                            fontSize: 13,
+                            height: 1.35,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        _RuleTile(
+                          icon: Icons.groups_2_rounded,
+                          title: '${runtime.minimumUsers} kişi, ${runtime.roomDurationMinutes} dakika',
+                          subtitle: 'Sen + ${runtime.minimumUsers - 1} kişi aynı odada sohbet eder.',
+                        ),
+                        const _RuleTile(
+                          icon: Icons.favorite_rounded,
+                          title: 'Saygılı ve doğal ol',
+                          subtitle: 'Hakaret, taciz ve rahatsız edici davranışlara yer yok.',
+                        ),
+                        _RuleTile(
+                          icon: Icons.visibility_off_rounded,
+                          title: 'Seçimler gizlidir',
+                          subtitle: 'Sohbet bitince ${runtime.selectionSeconds} saniyelik gizli seçim başlar; yalnızca karşılıklı seçim eşleşir.',
+                        ),
+                        _RuleTile(
+                          icon: Icons.timer_rounded,
+                          title: 'Süre bitince sohbet kapanır',
+                          subtitle: 'Gerekirse oylamayla +${runtime.extensionMinutes} dakika uzatılabilir.',
+                          last: true,
+                        ),
+                        const Spacer(),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 58,
+                          child: FilledButton(
+                            onPressed: () => _startSearch(context),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppColors.navy,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                            ),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  'Kabul et ve oda ara',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w900,
+                                  ),
                                 ),
-                              ),
-                              SizedBox(width: 10),
-                              Icon(Icons.arrow_forward_rounded),
-                            ],
+                                SizedBox(width: 10),
+                                Icon(Icons.arrow_forward_rounded),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
