@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 
+import { AdminController } from './admin.controller';
+import { AdminService } from './admin.service';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { HealthController } from './health.controller';
@@ -37,6 +39,7 @@ import { SupportService } from './support.service';
     SocialController,
     SupportController,
     PushController,
+    AdminController,
   ],
   providers: [
     InfrastructureService,
@@ -50,6 +53,7 @@ import { SupportService } from './support.service';
     RoomsGateway,
     PrivateMessageGateway,
     MatchmakingSchedulerService,
+    AdminService,
   ],
 })
 export class AppModule {}

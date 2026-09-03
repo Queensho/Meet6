@@ -71,6 +71,13 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Build admin web
+        run: >-
+          flutter build web --release
+          -t lib/admin_main.dart
+          --base-href /
+          --dart-define=MEET6_ENV=development
+
       - name: Build web
         run: >-
           flutter build web --release
