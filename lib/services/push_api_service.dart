@@ -39,9 +39,6 @@ class PushApiService {
     return decoded;
   }
 
-  static Future<Map<String, dynamic>> status() =>
-      _request('GET', '/api/push/status');
-
   static Future<Map<String, dynamic>> registerDevice({
     required String token,
     required String platform,
@@ -65,13 +62,4 @@ class PushApiService {
       body: {'token': token},
     );
   }
-
-  static Future<Map<String, dynamic>> sendTestNotification({
-    String kind = 'home',
-  }) =>
-      _request(
-        'POST',
-        '/api/push/test',
-        body: {'kind': kind},
-      );
 }

@@ -3,13 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../models/matching_preferences.dart';
-import '../../services/push_api_service.dart';
 import '../../services/push_notification_service.dart';
 import '../../services/realtime_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/main_bottom_nav.dart';
 import '../matches/matches_screen.dart';
 import '../messages/messages_screen.dart';
+import '../notifications/notifications_screen.dart';
 import '../preferences/matching_preferences_screen.dart';
 import '../profile/profile_screen.dart';
 import '../room/room_rules_screen.dart';
@@ -47,7 +47,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   late MatchingPreferences preferences;
-  bool _pushDiagnosing = false;
 
   @override
   void initState() {
@@ -74,104 +73,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _queueDeepLinkTest(String kind, String label) async {
-    try {
-      final response = await PushApiService.sendTestNotification(kind: kind);
-      if (!mounted) return;
-      final delay = response['delaySeconds'];
-      final seconds = delay is num ? delay.toInt() : 5;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '$label bildirimi $seconds sn içinde gelecek. Uygulamayı arka plana al.',
-          ),
-        ),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$label testi başlatılamadı: $error')),
-      );
-    }
-  }
-
-  Future<void> _diagnosePush() async {
-    if (_pushDiagnosing) return;
-    setState(() => _pushDiagnosing = true);
-
-    String result;
-    try {
-      result = await PushNotificationService.diagnoseAndRegister();
-    } catch (error) {
-      result = '❌ Push teşhisi çalıştırılamadı\n$error';
-    }
-
-    if (!mounted) return;
-    setState(() => _pushDiagnosing = false);
-
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Push bildirimi teşhisi'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SelectableText(result),
-              const SizedBox(height: 18),
-              const Text(
-                'Deep-link cihaz testi',
-                style: TextStyle(fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Bir testi başlat, uygulamayı arka plana al ve gelen bildirime dokun.',
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.of(dialogContext).pop();
-                      unawaited(_queueDeepLinkTest('room', 'Oda'));
-                    },
-                    icon: const Icon(Icons.groups_2_outlined),
-                    label: const Text('Oda'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.of(dialogContext).pop();
-                      unawaited(_queueDeepLinkTest('match', 'Eşleşme'));
-                    },
-                    icon: const Icon(Icons.favorite_border_rounded),
-                    label: const Text('Eşleşme'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.of(dialogContext).pop();
-                      unawaited(_queueDeepLinkTest('message', 'Mesaj'));
-                    },
-                    icon: const Icon(Icons.chat_bubble_outline_rounded),
-                    label: const Text('Mesaj'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Tamam'),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _openPreferences() async {
     final result = await Navigator.of(context).push<MatchingPreferences>(
       MaterialPageRoute(
@@ -180,6 +81,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
     if (result == null || !mounted) return;
     setState(() => preferences = result);
+  }
+
+  void _openNotifications() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+    );
   }
 
   void _enterRoom() {
@@ -288,10 +195,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       const SizedBox(width: 9),
                       _TopButton(
-                        icon: _pushDiagnosing
-                            ? Icons.sync_rounded
-                            : Icons.notifications_none_rounded,
-                        onTap: _diagnosePush,
+                        icon: Icons.notifications_none_rounded,
+                        onTap: _openNotifications,
                       ),
                     ],
                   ),
@@ -324,46 +229,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  GestureDetector(
-                    onTap: _openPreferences,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: .42),
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(
-                          color: AppColors.navy.withValues(alpha: .12),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.radar_rounded,
-                            size: 17,
-                            color: AppColors.navy,
-                          ),
-                          const SizedBox(width: 7),
-                          Text(
-                            preferences.distanceLabel,
-                            style: const TextStyle(
-                              color: AppColors.navy,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          const Icon(
-                            Icons.tune_rounded,
-                            size: 15,
-                            color: AppColors.navy,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
                   GestureDetector(
                     onTap: _enterRoom,
                     child: Container(

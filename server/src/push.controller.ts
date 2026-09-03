@@ -1,8 +1,7 @@
-import { Body, Controller, Delete, Get, Headers, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Headers, Post } from '@nestjs/common';
 
 import { AuthService } from './auth.service';
 import {
-  PushTestDto,
   RegisterPushDeviceDto,
   UnregisterPushDeviceDto,
 } from './push.dto';
@@ -17,11 +16,6 @@ export class PushController {
 
   private async userId(authorization?: string) {
     return (await this.auth.userIdFromAuthorization(authorization)).userId;
-  }
-
-  @Get('status')
-  async status(@Headers('authorization') authorization?: string) {
-    return this.push.status(await this.userId(authorization));
   }
 
   @Post('devices')
@@ -43,16 +37,5 @@ export class PushController {
     @Body() body: UnregisterPushDeviceDto,
   ) {
     return this.push.unregisterDevice(await this.userId(authorization), body.token);
-  }
-
-  @Post('test')
-  async test(
-    @Headers('authorization') authorization: string | undefined,
-    @Body() body: PushTestDto,
-  ) {
-    return this.push.queueTest(
-      await this.userId(authorization),
-      body?.kind ?? 'home',
-    );
   }
 }

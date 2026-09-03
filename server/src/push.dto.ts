@@ -22,10 +22,3 @@ export class UnregisterPushDeviceDto {
   @MaxLength(4096)
   token!: string;
 }
-
-export class PushTestDto {
-  @IsOptional()
-  @IsString()
-  @IsIn(['home', 'room', 'match', 'message'])
-  kind?: 'home' | 'room' | 'match' | 'message';
-}
