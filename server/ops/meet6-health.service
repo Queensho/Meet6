@@ -1,0 +1,17 @@
+[Unit]
+Description=Meet6 API health check
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/default/meet6-ops
+ExecStart=/usr/local/sbin/meet6-healthcheck
+User=root
+Group=root
+Nice=10
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/var/lib/meet6-ops
+NoNewPrivileges=true

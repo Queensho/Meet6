@@ -1,0 +1,12 @@
+[Unit]
+Description=Check Meet6 API health every minute
+
+[Timer]
+OnBootSec=2m
+OnUnitActiveSec=1m
+AccuracySec=10s
+Persistent=true
+Unit=meet6-health.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,15 @@
+[Unit]
+Description=Meet6 operations alert for %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/default/meet6-ops
+ExecStart=/usr/local/sbin/meet6-notify "Meet6 systemd unit failed: %i on %H"
+User=root
+Group=root
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+NoNewPrivileges=true

@@ -1,0 +1,12 @@
+[Unit]
+Description=Scan Meet6 application errors every 5 minutes
+
+[Timer]
+OnBootSec=5m
+OnUnitActiveSec=5m
+AccuracySec=30s
+Persistent=true
+Unit=meet6-error-watch.service
+
+[Install]
+WantedBy=timers.target

@@ -35,7 +35,16 @@ jobs:
         run: npm run build
 
       - name: Validate production ops scripts
-        run: bash -n server/scripts/backup-production.sh server/scripts/verify-backup.sh
+        run: |
+          bash -n \
+            server/scripts/backup-production.sh \
+            server/scripts/verify-backup.sh \
+            server/scripts/install-backup-timer.sh \
+            server/scripts/notify-ops.sh \
+            server/scripts/healthcheck-production.sh \
+            server/scripts/error-watch-production.sh \
+            server/scripts/install-production-ops.sh
+          node --check server/ecosystem.config.cjs
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2

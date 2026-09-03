@@ -2,6 +2,7 @@
 Description=Meet6 production backup
 After=network-online.target postgresql.service
 Wants=network-online.target
+OnFailure=meet6-ops-alert@%n.service
 
 [Service]
 Type=oneshot
@@ -13,11 +14,15 @@ Environment=DB_NAME=meet6
 Environment=DB_USER=postgres
 Environment=UPLOAD_ROOT=/var/www/meet6/uploads
 Environment=BACKUP_RETENTION_DAYS=14
-ExecStart=/usr/bin/env bash /var/www/meet6/server/scripts/backup-production.sh
+ExecStart=/usr/local/sbin/meet6-backup
+ExecStartPost=/usr/local/sbin/meet6-backup-verify /var/backups/meet6/latest
+TimeoutStartSec=2h
 Nice=10
 IOSchedulingClass=best-effort
 IOSchedulingPriority=7
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=full
+ReadOnlyPaths=/var/www/meet6/uploads
+ReadWritePaths=/var/backups/meet6 /var/lock
 NoNewPrivileges=true

@@ -57,12 +57,17 @@ fi
 
 tar -tzf "$STAGING_DIR/uploads.tar.gz" >/dev/null
 
+DB_BYTES="$(stat -c '%s' "$STAGING_DIR/database.dump")"
+UPLOAD_BYTES="$(stat -c '%s' "$STAGING_DIR/uploads.tar.gz")"
+
 cat > "$STAGING_DIR/metadata.txt" <<EOF
 created_at_utc=$STAMP
 database=$DB_NAME
 upload_root=$UPLOAD_ROOT
 hostname=$(hostname)
 retention_days=$BACKUP_RETENTION_DAYS
+database_dump_bytes=$DB_BYTES
+uploads_archive_bytes=$UPLOAD_BYTES
 EOF
 
 (
@@ -72,10 +77,11 @@ EOF
 )
 
 mv "$STAGING_DIR" "$FINAL_DIR"
+ln -sfn "$STAMP" "$BACKUP_ROOT/latest"
 trap - EXIT
 
 # Remove abandoned staging directories older than one day and completed backups
-# older than the configured retention period.
+# older than the configured retention period. The latest symlink is preserved.
 find "$BACKUP_ROOT" -mindepth 1 -maxdepth 1 -type d -name '.staging-*' -mtime +1 -exec rm -rf -- {} +
 find "$BACKUP_ROOT" \
   -mindepth 1 \

@@ -1,16 +1,20 @@
 import 'reflect-metadata';
 
+import { randomUUID } from 'node:crypto';
+
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 
 import { AppModule } from './app.module';
 import { InfrastructureService } from './infrastructure.service';
+import { OpsExceptionFilter } from './ops-exception.filter';
 
 type MiddlewareRequest = {
   method: string;
   path: string;
   ip?: string;
+  opsRequestId?: string;
   socket: { remoteAddress?: string };
 };
 
@@ -21,6 +25,31 @@ type MiddlewareResponse = {
 };
 
 type MiddlewareNext = () => void;
+
+function logProcessError(event: string, error: unknown) {
+  const normalized = error instanceof Error
+    ? { message: error.message, stack: error.stack ?? null }
+    : { message: String(error), stack: null };
+
+  // eslint-disable-next-line no-console
+  console.error(JSON.stringify({
+    timestamp: new Date().toISOString(),
+    level: 'error',
+    event,
+    service: 'meet6-api',
+    ...normalized,
+  }));
+}
+
+process.on('unhandledRejection', (reason) => {
+  logProcessError('unhandled_rejection', reason);
+  setImmediate(() => process.exit(1));
+});
+
+process.on('uncaughtException', (error) => {
+  logProcessError('uncaught_exception', error);
+  setImmediate(() => process.exit(1));
+});
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -34,10 +63,12 @@ async function bootstrap() {
   app.set('trust proxy', 1);
 
   app.use((
-    _req: MiddlewareRequest,
+    req: MiddlewareRequest,
     res: MiddlewareResponse,
     next: MiddlewareNext,
   ) => {
+    req.opsRequestId = randomUUID();
+    res.setHeader('X-Request-Id', req.opsRequestId);
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Referrer-Policy', 'no-referrer');
@@ -164,6 +195,7 @@ async function bootstrap() {
       transform: true,
     }),
   );
+  app.useGlobalFilters(new OpsExceptionFilter());
 
   const port = Number(process.env.PORT ?? 3100);
   await app.listen(port, '127.0.0.1');
@@ -172,4 +204,7 @@ async function bootstrap() {
   console.log(`Meet6 API listening on 127.0.0.1:${port}`);
 }
 
-void bootstrap();
+void bootstrap().catch((error: unknown) => {
+  logProcessError('bootstrap_failure', error);
+  process.exit(1);
+});
