@@ -10,10 +10,7 @@ import '../../widgets/form_components.dart';
 import '../../widgets/phone_frame.dart';
 
 class EditProfileScreen extends StatefulWidget {
-  const EditProfileScreen({
-    super.key,
-    required this.initial,
-  });
+  const EditProfileScreen({super.key, required this.initial});
 
   final ServerProfile initial;
 
@@ -59,20 +56,21 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   void initState() {
     super.initState();
-    final i = widget.initial;
-    nameController = TextEditingController(text: i.name);
-    birthDateIso = i.birthDate;
-    birthDateController = TextEditingController(text: _displayDate(i.birthDate));
-    bioController = TextEditingController(text: i.bio);
-    answerController = TextEditingController(text: i.promptAnswer);
-    interests = i.interests.toSet();
-    prompt = promptOptions.contains(i.prompt) ? i.prompt : promptOptions.first;
-    gender = i.gender;
+    final initial = widget.initial;
+    nameController = TextEditingController(text: initial.name);
+    birthDateIso = initial.birthDate;
+    birthDateController = TextEditingController(text: _displayDate(initial.birthDate));
+    bioController = TextEditingController(text: initial.bio);
+    answerController = TextEditingController(text: initial.promptAnswer);
+    interests = initial.interests.toSet();
+    prompt = promptOptions.contains(initial.prompt) ? initial.prompt : promptOptions.first;
+    gender = initial.gender;
+    final seed = DateTime.now().microsecondsSinceEpoch;
     photos = List.generate(
       4,
       (index) => _EditablePhoto(
-        id: 'photo-$index-${DateTime.now().microsecondsSinceEpoch}',
-        existingUrl: index < i.photoUrls.length ? i.photoUrls[index] : null,
+        id: 'profile-photo-$seed-$index',
+        existingUrl: index < initial.photoUrls.length ? initial.photoUrls[index] : null,
       ),
     );
   }
@@ -92,29 +90,30 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     var score = 0;
     if (nameController.text.trim().length >= 2) score += 10;
     if (DateTime.tryParse(birthDateIso) != null) score += 10;
-    if (gender.isNotEmpty) score += 10;
+    if (gender.trim().isNotEmpty) score += 10;
     if (bioController.text.trim().length >= 3) score += 10;
     if (widget.initial.latitude != null && widget.initial.longitude != null) score += 10;
     if (interests.isNotEmpty) score += 10;
     if (prompt.trim().isNotEmpty && answerController.text.trim().length >= 3) score += 10;
-    score += photoCount.clamp(0, 3) * 10;
-    return score.clamp(0, 100);
+    score += (photoCount > 3 ? 3 : photoCount) * 10;
+    return score > 100 ? 100 : score;
   }
 
   String get completionHint {
     if (completionPercent == 100) return 'Profilin eşleşmeye hazır.';
     if (photoCount < 3) return 'En az ${3 - photoCount} fotoğraf daha ekle.';
+    if (nameController.text.trim().length < 2) return 'Adını tamamla.';
+    if (DateTime.tryParse(birthDateIso) == null) return 'Doğum tarihini seç.';
+    if (gender.trim().isEmpty) return 'Cinsiyet seçimini tamamla.';
     if (bioController.text.trim().length < 3) return 'Kısa bir bio ekle.';
+    if (widget.initial.latitude == null || widget.initial.longitude == null) return 'Konum bilgisini tamamla.';
     if (interests.isEmpty) return 'En az 1 ilgi alanı seç.';
     if (answerController.text.trim().length < 3) return 'Profil sorusunu cevapla.';
     return 'Eksik alanları tamamla.';
   }
 
   bool get canSave =>
-      !saving &&
-      !photoPicking &&
-      completionPercent == 100 &&
-      photoCount >= 3;
+      !saving && !photoPicking && completionPercent == 100 && photoCount >= 3;
 
   String _displayDate(String iso) {
     final date = DateTime.tryParse(iso);
@@ -145,7 +144,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _pickPhoto(int index) async {
-    if (photoPicking || saving) return;
+    if (photoPicking || saving || index < 0 || index >= photos.length) return;
     setState(() => photoPicking = true);
     try {
       final picked = await ProfilePhotoService.pickAndPrepare(context, imagePicker);
@@ -172,13 +171,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   void _compactPhotos() {
-    final filled = photos.where((photo) => photo.hasPhoto).toList();
-    final empty = photos.where((photo) => !photo.hasPhoto).toList();
+    final filled = photos.where((photo) => photo.hasPhoto).toList(growable: false);
+    final empty = photos.where((photo) => !photo.hasPhoto).toList(growable: false);
     photos = [...filled, ...empty];
   }
 
   void _removePhoto(int index) {
-    if (saving) return;
+    if (saving || index < 0 || index >= photos.length) return;
     setState(() {
       photos[index]
         ..picked = null
@@ -192,15 +191,21 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     setState(() {
       final photo = photos.removeAt(index);
       photos.insert(0, photo);
+      _compactPhotos();
     });
   }
 
   void _reorderPhoto(int oldIndex, int newIndex) {
-    if (saving || oldIndex < 0 || oldIndex >= photos.length || !photos[oldIndex].hasPhoto) return;
+    if (saving || oldIndex < 0 || oldIndex >= photos.length || !photos[oldIndex].hasPhoto) {
+      return;
+    }
     if (newIndex > oldIndex) newIndex--;
     final lastFilledIndex = photoCount - 1;
-    newIndex = newIndex.clamp(0, lastFilledIndex);
+    if (lastFilledIndex < 0) return;
+    if (newIndex < 0) newIndex = 0;
+    if (newIndex > lastFilledIndex) newIndex = lastFilledIndex;
     if (oldIndex == newIndex) return;
+
     setState(() {
       final photo = photos.removeAt(oldIndex);
       photos.insert(newIndex, photo);
@@ -212,13 +217,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (!canSave) return;
     setState(() => saving = true);
     try {
-      final pendingEntries = photos.where((photo) => photo.picked != null).toList();
-      if (pendingEntries.isNotEmpty) {
+      final pending = photos.where((photo) => photo.picked != null).toList(growable: false);
+      if (pending.isNotEmpty) {
         final uploadedUrls = await ApiService.uploadProfilePhotos(
-          pendingEntries.map((photo) => photo.picked!).toList(),
+          pending.map((photo) => photo.picked!).toList(growable: false),
         );
-        for (var index = 0; index < pendingEntries.length; index++) {
-          pendingEntries[index]
+        for (var index = 0; index < pending.length; index++) {
+          pending[index]
             ..existingUrl = uploadedUrls[index]
             ..picked = null;
         }
@@ -240,7 +245,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         longitude: widget.initial.longitude,
         profilePrompt: prompt,
         profileAnswer: answerController.text.trim(),
-        interests: interests.toList(),
+        interests: interests.toList(growable: false),
         photoUrls: photoUrls,
         profileCompleted: true,
       );
@@ -336,7 +341,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
-  Widget _photoSlot(int index) {
+  Widget _photoTile(int index) {
     final scheme = Theme.of(context).colorScheme;
     final photo = photos[index];
     final hasPhoto = photo.hasPhoto;
@@ -446,19 +451,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 color: scheme.surface.withOpacity(.92),
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.drag_indicator_rounded, color: scheme.onSurfaceVariant, size: 17),
+              child: Icon(
+                Icons.drag_indicator_rounded,
+                color: scheme.onSurfaceVariant,
+                size: 17,
+              ),
             ),
           ),
       ],
     );
 
-    return hasPhoto
-        ? ReorderableDragStartListener(
-            key: ValueKey(photo.id),
-            index: index,
-            child: tile,
-          )
-        : KeyedSubtree(key: ValueKey(photo.id), child: tile);
+    if (!hasPhoto) return tile;
+    return ReorderableDragStartListener(index: index, child: tile);
   }
 
   @override
@@ -549,9 +553,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           child: child,
                         ),
                         itemBuilder: (context, index) => Padding(
-                          key: ValueKey('wrap-${photos[index].id}'),
+                          key: ValueKey(photos[index].id),
                           padding: const EdgeInsets.only(right: 10),
-                          child: _photoSlot(index),
+                          child: _photoTile(index),
                         ),
                       ),
                     ),
@@ -616,7 +620,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    const FieldLabel('İlgi alanları'),
+                    Row(
+                      children: [
+                        const FieldLabel('İlgi alanları'),
+                        const Spacer(),
+                        Text(
+                          '${interests.length}/5',
+                          style: const TextStyle(
+                            color: AppColors.blue,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 9),
                     Wrap(
                       spacing: 8,
@@ -649,7 +666,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       ),
                       items: promptOptions
                           .map((value) => DropdownMenuItem(value: value, child: Text(value)))
-                          .toList(),
+                          .toList(growable: false),
                       onChanged: (value) => setState(() => prompt = value ?? prompt),
                     ),
                     const SizedBox(height: 8),
@@ -674,7 +691,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           foregroundColor: dark ? AppColors.navy : Colors.white,
                           disabledBackgroundColor: scheme.surfaceContainerHigh,
                           disabledForegroundColor: scheme.onSurfaceVariant,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(18),
+                          ),
                         ),
                         child: Text(
                           saving
@@ -698,11 +717,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 }
 
 class _EditablePhoto {
-  _EditablePhoto({
-    required this.id,
-    this.existingUrl,
-    this.picked,
-  });
+  _EditablePhoto({required this.id, this.existingUrl, this.picked});
 
   final String id;
   String? existingUrl;
