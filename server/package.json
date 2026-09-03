@@ -8,7 +8,9 @@
     "start:dev": "nest start --watch",
     "migrate": "node scripts/migrate.mjs",
     "e2e:live": "node scripts/e2e-live.mjs",
-    "e2e:realtime": "node scripts/e2e-realtime.mjs"
+    "e2e:realtime": "node scripts/e2e-realtime.mjs",
+    "backup:production": "bash scripts/backup-production.sh",
+    "backup:verify": "bash scripts/verify-backup.sh"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.6",
