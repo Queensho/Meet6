@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../models/matching_preferences.dart';
+import '../../services/push_api_service.dart';
 import '../../services/push_notification_service.dart';
 import '../../services/realtime_service.dart';
 import '../../theme/app_colors.dart';
@@ -73,6 +74,27 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _queueDeepLinkTest(String kind, String label) async {
+    try {
+      final response = await PushApiService.sendTestNotification(kind: kind);
+      if (!mounted) return;
+      final delay = response['delaySeconds'];
+      final seconds = delay is num ? delay.toInt() : 5;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '$label bildirimi $seconds sn içinde gelecek. Uygulamayı arka plana al.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$label testi başlatılamadı: $error')),
+      );
+    }
+  }
+
   Future<void> _diagnosePush() async {
     if (_pushDiagnosing) return;
     setState(() => _pushDiagnosing = true);
@@ -89,12 +111,60 @@ class _HomeScreenState extends State<HomeScreen> {
 
     await showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Push bildirimi teşhisi'),
-        content: SelectableText(result),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SelectableText(result),
+              const SizedBox(height: 18),
+              const Text(
+                'Deep-link cihaz testi',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Bir testi başlat, uygulamayı arka plana al ve gelen bildirime dokun.',
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.of(dialogContext).pop();
+                      unawaited(_queueDeepLinkTest('room', 'Oda'));
+                    },
+                    icon: const Icon(Icons.groups_2_outlined),
+                    label: const Text('Oda'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.of(dialogContext).pop();
+                      unawaited(_queueDeepLinkTest('match', 'Eşleşme'));
+                    },
+                    icon: const Icon(Icons.favorite_border_rounded),
+                    label: const Text('Eşleşme'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.of(dialogContext).pop();
+                      unawaited(_queueDeepLinkTest('message', 'Mesaj'));
+                    },
+                    icon: const Icon(Icons.chat_bubble_outline_rounded),
+                    label: const Text('Mesaj'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => Navigator.of(dialogContext).pop(),
             child: const Text('Tamam'),
           ),
         ],
