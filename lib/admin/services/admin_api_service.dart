@@ -14,6 +14,12 @@ class AdminApiService {
   static Future<Map<String, dynamic>> dashboard({int periodDays = 7}) =>
       _request('GET', '/api/admin/dashboard?period=${periodDays == 30 ? 30 : 7}');
 
+  static Future<Map<String, dynamic>> settings() =>
+      _request('GET', '/api/admin/settings');
+
+  static Future<Map<String, dynamic>> updateSettings(Map<String, dynamic> settings) =>
+      _request('POST', '/api/admin/settings', body: settings);
+
   static Future<Map<String, dynamic>> users({String search = '', String status = 'all', int page = 1, int limit = 20}) {
     final uri = Uri(path: '/api/admin/users', queryParameters: {'search': search, 'status': status, 'page': '$page', 'limit': '$limit'});
     return _request('GET', uri.toString());
