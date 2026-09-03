@@ -21,13 +21,18 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController pulse;
   StreamSubscription<RealtimeEvent>? realtimeSub;
+  Timer? searchCycleTimer;
   bool leavingForRoom = false;
   bool loading = true;
   bool firstConnectionSeen = false;
   bool joining = false;
+  bool cycleRestarting = false;
   String? error;
   int queueTotal = 0;
   int queuePosition = 0;
+  int searchCycle = 1;
+  int cycleDurationSeconds = 15;
+  int cycleSecondsLeft = 15;
 
   @override
   void initState() {
@@ -48,12 +53,14 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
       await _joinQueue();
     } on ApiException catch (e) {
       if (!mounted) return;
+      searchCycleTimer?.cancel();
       setState(() {
         loading = false;
         error = e.message;
       });
     } catch (_) {
       if (!mounted) return;
+      searchCycleTimer?.cancel();
       setState(() {
         loading = false;
         error = 'Oda servisine bağlanılamadı. Tekrar dene.';
@@ -80,21 +87,69 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
     }
   }
 
-  Future<void> _joinQueue() async {
+  Future<void> _joinQueue({bool newCycle = false}) async {
     if (joining || leavingForRoom) return;
     joining = true;
     try {
       final data = await RealtimeService.joinQueue();
       if (!mounted) return;
       await _handleStatus(data);
+      if (!leavingForRoom && data['state']?.toString() != 'room') {
+        _startSearchCycle(data, increment: newCycle);
+      }
     } on ApiException catch (e) {
       if (!mounted) return;
+      searchCycleTimer?.cancel();
       setState(() {
         loading = false;
         error = e.message;
       });
     } finally {
       joining = false;
+    }
+  }
+
+  void _startSearchCycle(
+    Map<String, dynamic> data, {
+    required bool increment,
+  }) {
+    if (!mounted || leavingForRoom) return;
+    searchCycleTimer?.cancel();
+
+    final rawSeconds = (data['nextRetrySeconds'] as num?)?.toInt() ?? 15;
+    final seconds = rawSeconds.clamp(5, 120).toInt();
+
+    setState(() {
+      if (increment) searchCycle++;
+      cycleDurationSeconds = seconds;
+      cycleSecondsLeft = seconds;
+      error = null;
+    });
+
+    searchCycleTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted || leavingForRoom) {
+        timer.cancel();
+        return;
+      }
+      if (cycleSecondsLeft <= 1) {
+        timer.cancel();
+        setState(() => cycleSecondsLeft = 0);
+        unawaited(_restartSearchCycle());
+      } else {
+        setState(() => cycleSecondsLeft--);
+      }
+    });
+  }
+
+  Future<void> _restartSearchCycle() async {
+    if (cycleRestarting || leavingForRoom || !mounted) return;
+    cycleRestarting = true;
+    try {
+      // joinQueue idempotenttir: kullanıcıyı kuyruktan çıkarıp sona atmaz.
+      // Sadece matchmaking'i yeniden tetikler ve yeni aday grubunu dener.
+      await _joinQueue(newCycle: true);
+    } finally {
+      cycleRestarting = false;
     }
   }
 
@@ -107,12 +162,14 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
       final roomId = room['id']?.toString() ?? '';
       if (roomId.isEmpty || leavingForRoom) return;
       leavingForRoom = true;
+      searchCycleTimer?.cancel();
       if (mounted) {
         setState(() {
           loading = false;
           error = null;
           queueTotal = 6;
           queuePosition = 1;
+          cycleSecondsLeft = 0;
         });
       }
       await Future<void>.delayed(const Duration(milliseconds: 350));
@@ -138,15 +195,22 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
   }
 
   Future<void> _cancel() async {
+    searchCycleTimer?.cancel();
     try {
       await RealtimeService.cancelQueue();
     } catch (_) {}
     if (mounted) Navigator.of(context).pop();
   }
 
+  String get _cycleTimeText {
+    final seconds = cycleSecondsLeft.clamp(0, cycleDurationSeconds).toInt();
+    return '${(seconds ~/ 60).toString().padLeft(2, '0')}:${(seconds % 60).toString().padLeft(2, '0')}';
+  }
+
   @override
   void dispose() {
     realtimeSub?.cancel();
+    searchCycleTimer?.cancel();
     pulse.dispose();
     if (!leavingForRoom) {
       unawaited(RealtimeService.cancelQueue().catchError((_) => <String, dynamic>{}));
@@ -190,9 +254,14 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                           children: [
                             TextSpan(
                               text: 'meet',
-                              style: TextStyle(color: dark ? Colors.white : AppColors.navy),
+                              style: TextStyle(
+                                color: dark ? Colors.white : AppColors.navy,
+                              ),
                             ),
-                            const TextSpan(text: '6', style: TextStyle(color: AppColors.blue)),
+                            const TextSpan(
+                              text: '6',
+                              style: TextStyle(color: AppColors.blue),
+                            ),
                           ],
                         ),
                       ),
@@ -238,7 +307,10 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                               decoration: BoxDecoration(
                                 color: AppColors.lime,
                                 shape: BoxShape.circle,
-                                border: Border.all(color: AppColors.navy, width: 3),
+                                border: Border.all(
+                                  color: AppColors.navy,
+                                  width: 3,
+                                ),
                                 boxShadow: [
                                   BoxShadow(
                                     color: AppColors.lime.withOpacity(.28),
@@ -289,19 +361,84 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                                 : 'Tercihlerine uyan kullanıcılar bekleniyor.'),
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: dark ? Colors.white70 : AppColors.navy.withOpacity(.66),
+                      color: dark
+                          ? Colors.white70
+                          : AppColors.navy.withOpacity(.66),
                       fontSize: 12.5,
                       height: 1.4,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(height: 22),
+                  if (!leavingForRoom &&
+                      (error == null || error == 'Bağlantı yenileniyor...')) ...[
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: dark
+                            ? Colors.white.withOpacity(.08)
+                            : Colors.white.withOpacity(.42),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: dark
+                              ? Colors.white.withOpacity(.12)
+                              : AppColors.navy.withOpacity(.10),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.timer_outlined,
+                            size: 19,
+                            color: dark ? AppColors.lime : AppColors.navy,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Arama turu $searchCycle',
+                              style: TextStyle(
+                                color: dark ? Colors.white : AppColors.navy,
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            _cycleTimeText,
+                            style: TextStyle(
+                              color: dark ? AppColors.lime : AppColors.navy,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w900,
+                              fontFeatures: const [FontFeature.tabularFigures()],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Süre dolarsa sıranı kaybetmeden otomatik yeni oda aranır.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: dark
+                            ? Colors.white54
+                            : AppColors.navy.withOpacity(.52),
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 18),
                   if (error != null && error != 'Bağlantı yenileniyor...')
                     FilledButton.icon(
                       onPressed: () {
                         setState(() {
                           loading = true;
                           error = null;
+                          searchCycle = 1;
                         });
                         _startRealtime();
                       },
@@ -319,7 +456,9 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                       decoration: BoxDecoration(
                         color: scheme.surface.withOpacity(dark ? .72 : .52),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: scheme.outlineVariant.withOpacity(.7)),
+                        border: Border.all(
+                          color: scheme.outlineVariant.withOpacity(.7),
+                        ),
                       ),
                       child: Row(
                         children: [
@@ -333,7 +472,10 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                               ),
                             )
                           else
-                            const Icon(Icons.check_circle_rounded, color: AppColors.blue),
+                            const Icon(
+                              Icons.check_circle_rounded,
+                              color: AppColors.blue,
+                            ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
@@ -353,10 +495,12 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                     ),
                   const Spacer(),
                   Text(
-                    'Oda yalnızca 6 gerçek kullanıcı hazır olduğunda başlar.',
+                    'Oda yalnızca 6 uygun kullanıcı hazır olduğunda başlar.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: dark ? Colors.white54 : AppColors.navy.withOpacity(.55),
+                      color: dark
+                          ? Colors.white54
+                          : AppColors.navy.withOpacity(.55),
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                     ),
