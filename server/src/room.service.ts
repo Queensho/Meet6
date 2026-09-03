@@ -107,7 +107,7 @@ export class RoomService {
       `update rooms
        set status = 'selection',
            selection_started_at = coalesce(selection_started_at, now()),
-           selection_ends_at = coalesce(selection_ends_at, now() + interval '5 minutes')
+           selection_ends_at = coalesce(selection_ends_at, now() + interval '10 seconds')
        where status = 'active' and ends_at <= now()`,
     );
     await this.infra.db.query(
@@ -139,7 +139,7 @@ export class RoomService {
       `select rm.room_id
        from room_members rm
        join rooms r on r.id = rm.room_id
-       where rm.user_id = $1 and rm.left_at is null
+       where rm.user_id = $1 and rm.left_at is null and rm.admin_removed_at is null
          and r.status in ('active','selection')
        order by rm.room_id desc
        limit 1`,
@@ -264,8 +264,6 @@ export class RoomService {
         forbiddenPairs.add(this.pairKey(row.blocker_user_id, row.blocked_user_id));
       }
 
-      // A report is a permanent matchmaking separation signal, regardless of
-      // moderation status. This is deliberately stricter than content review.
       const reports = await client.query<{
         reporter_user_id: string;
         reported_user_id: string;
@@ -279,7 +277,6 @@ export class RoomService {
         forbiddenPairs.add(this.pairKey(row.reporter_user_id, row.reported_user_id));
       }
 
-      // People who shared a room recently are kept apart to increase variety.
       const recentRoomPairs = await client.query<{
         user_a_id: string;
         user_b_id: string;
@@ -298,8 +295,6 @@ export class RoomService {
         forbiddenPairs.add(this.pairKey(row.user_a_id, row.user_b_id));
       }
 
-      // Active matches are always separated. Ended matches are separated for
-      // the configured recent-match window before they become eligible again.
       const recentMatches = await client.query<{
         user_a_id: string;
         user_b_id: string;
@@ -356,11 +351,6 @@ export class RoomService {
         );
       }
 
-      // Do not delete matched users from matchmaking_queue here. queueStatus()
-      // removes each one after seeing its active room. Keeping them for this
-      // brief handoff lets broadcastQueueStatus() deliver the room over
-      // WebSocket even when the user who triggered matchmaking was not one of
-      // the six selected people.
       await client.query(
         `insert into room_messages(room_id, sender_user_id, body)
          values($1, null, 'Oda hazır. 6 kişi burada — sohbet için 15 dakikan var.')`,
@@ -379,7 +369,8 @@ export class RoomService {
   private async assertMember(userId: string, roomId: string | number) {
     const result = await this.infra.db.query<{ exists: boolean }>(
       `select exists(
-         select 1 from room_members where room_id = $1 and user_id = $2
+         select 1 from room_members
+         where room_id = $1 and user_id = $2 and admin_removed_at is null
        ) as exists`,
       [roomId, userId],
     );
@@ -413,7 +404,7 @@ export class RoomService {
        from room_members rm
        join users u on u.id = rm.user_id
        join profiles p on p.user_id = u.id
-       where rm.room_id = $1
+       where rm.room_id = $1 and rm.admin_removed_at is null
        order by rm.joined_at asc`,
       [roomId],
     );
@@ -543,7 +534,10 @@ export class RoomService {
       throw new BadRequestException('Seçim aşaması henüz başlamadı.');
     }
     const target = await this.infra.db.query<{ exists: boolean }>(
-      `select exists(select 1 from room_members where room_id = $1 and user_id = $2) as exists`,
+      `select exists(
+         select 1 from room_members
+         where room_id = $1 and user_id = $2 and admin_removed_at is null
+       ) as exists`,
       [roomId, selectedUserId],
     );
     if (!target.rows[0]?.exists) throw new BadRequestException('Seçilen kişi bu odada değil.');
