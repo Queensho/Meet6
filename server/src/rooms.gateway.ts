@@ -14,7 +14,7 @@ import { SocialService } from './social.service';
 
 @WebSocketGateway({
   namespace: '/rooms',
-  transports: ['websocket', 'polling'],
+  transports: ['websocket'],
   cors: {
     origin: ['https://queensho.github.io'],
     credentials: true,
@@ -59,6 +59,21 @@ export class RoomsGateway {
     }
   }
 
+  private numericAfter(value: unknown) {
+    const parsed = Number(value ?? 0);
+    if (!Number.isFinite(parsed) || parsed < 0) return 0;
+    return Math.floor(parsed);
+  }
+
+  private async emitMatchesSnapshot(userId: string) {
+    try {
+      const snapshot = await this.social.listMatches(userId);
+      this.server.to(`user:${userId}`).emit('matches:update', snapshot);
+    } catch (_) {
+      // Kullanıcı eşleşme listesine erişemiyorsa canlı akışı bozma.
+    }
+  }
+
   async handleConnection(client: Socket) {
     try {
       const authToken = client.handshake.auth?.token?.toString();
@@ -81,6 +96,7 @@ export class RoomsGateway {
         socketId: client.id,
         timestamp: new Date().toISOString(),
       });
+      void this.emitMatchesSnapshot(userId);
     } catch (error) {
       client.emit('auth:error', { message: this.errorMessage(error) });
       client.disconnect(true);
@@ -199,6 +215,11 @@ export class RoomsGateway {
     };
   }
 
+  @SubscribeMessage('matches:list')
+  matchesList(@ConnectedSocket() client: Socket) {
+    return this.safe(async () => this.social.listMatches(this.userId(client)));
+  }
+
   @SubscribeMessage('queue:join')
   queueJoin(@ConnectedSocket() client: Socket) {
     return this.safe(async () => {
@@ -237,6 +258,21 @@ export class RoomsGateway {
       await client.join(`room:${roomId}`);
       this.scheduleRoomDeadline(room);
       return { roomId, room };
+    });
+  }
+
+  @SubscribeMessage('room:messages')
+  roomMessages(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: { roomId?: string; after?: number | string },
+  ) {
+    return this.safe(async () => {
+      const roomId = payload?.roomId?.toString() ?? '';
+      return this.rooms.messages(
+        this.userId(client),
+        roomId,
+        this.numericAfter(payload?.after),
+      );
     });
   }
 
@@ -302,6 +338,8 @@ export class RoomsGateway {
         const event = { roomId, matchId: result.matchId.toString() };
         this.server.to(`user:${userId}`).emit('match:created', event);
         this.server.to(`user:${selectedUserId}`).emit('match:created', event);
+        void this.emitMatchesSnapshot(userId);
+        void this.emitMatchesSnapshot(String(selectedUserId));
       }
       return result;
     });
@@ -317,6 +355,21 @@ export class RoomsGateway {
       const detail = await this.social.matchDetail(this.userId(client), matchId) as Record<string, any>;
       await client.join(`match:${matchId}`);
       return detail;
+    });
+  }
+
+  @SubscribeMessage('match:messages')
+  matchMessages(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: { matchId?: string; after?: number | string },
+  ) {
+    return this.safe(async () => {
+      const matchId = payload?.matchId?.toString() ?? '';
+      return this.social.privateMessages(
+        this.userId(client),
+        matchId,
+        this.numericAfter(payload?.after),
+      );
     });
   }
 
@@ -348,6 +401,8 @@ export class RoomsGateway {
       const event = { matchId, message: result.message };
       this.server.to(`match:${matchId}`).emit('match:message', event);
       if (otherId) this.server.to(`user:${otherId}`).emit('user:message', event);
+      void this.emitMatchesSnapshot(userId);
+      if (otherId) void this.emitMatchesSnapshot(otherId);
       return result;
     });
   }
@@ -366,6 +421,16 @@ export class RoomsGateway {
         readerUserId: userId,
         readAt: new Date().toISOString(),
       });
+      const pair = await this.infra.db.query<{ user_a_id: string; user_b_id: string }>(
+        'select user_a_id::text, user_b_id::text from matches where id=$1',
+        [matchId],
+      );
+      const row = pair.rows[0];
+      void this.emitMatchesSnapshot(userId);
+      if (row) {
+        const otherId = row.user_a_id === userId ? row.user_b_id : row.user_a_id;
+        void this.emitMatchesSnapshot(otherId);
+      }
       return result;
     });
   }
