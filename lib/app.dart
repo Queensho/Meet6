@@ -4,6 +4,7 @@ import 'screens/session_gate.dart';
 import 'services/app_navigator.dart';
 import 'theme/app_colors.dart';
 import 'theme/theme_controller.dart';
+import 'widgets/runtime_config_gate.dart';
 
 class Meet6App extends StatelessWidget {
   const Meet6App({super.key});
@@ -136,6 +137,9 @@ class Meet6App extends StatelessWidget {
           darkTheme: _darkTheme(),
           themeMode: mode,
           themeAnimationDuration: const Duration(milliseconds: 220),
+          builder: (context, child) => RuntimeConfigGate(
+            child: child ?? const SizedBox.shrink(),
+          ),
           home: const SessionGate(),
         );
       },
