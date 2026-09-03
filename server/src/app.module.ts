@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 
 import { AdminController } from './admin.controller';
+import { AdminGovernanceService } from './admin-governance.service';
 import { AdminMatchService } from './admin-match.service';
 import { AdminReportService } from './admin-report.service';
 import { AdminRoomService } from './admin-room.service';
@@ -64,6 +65,7 @@ import { SupportService } from './support.service';
     AdminMatchService,
     AdminReportService,
     AdminSupportService,
+    AdminGovernanceService,
   ],
 })
 export class AppModule {}
