@@ -35,7 +35,6 @@ class _MessagesScreenState extends State<MessagesScreen> {
   bool loading = true;
   String? error;
   StreamSubscription<RealtimeEvent>? realtimeSub;
-  Timer? refreshDebounce;
 
   @override
   void initState() {
@@ -46,14 +45,15 @@ class _MessagesScreenState extends State<MessagesScreen> {
   }
 
   Future<void> _startRealtime() async {
+    await realtimeSub?.cancel();
     realtimeSub = RealtimeService.events.listen((event) {
       if (!mounted) return;
-      if (event.type == 'user:message' ||
-          event.type == 'match:created' ||
-          event.type == 'match:read' ||
-          event.type == 'connection:connected') {
-        refreshDebounce?.cancel();
-        refreshDebounce = Timer(const Duration(milliseconds: 120), _load);
+      if (event.type == 'matches:update') {
+        _applySnapshot(event.data);
+        return;
+      }
+      if (event.type == 'connection:connected') {
+        unawaited(_load());
       }
     });
     try {
@@ -61,20 +61,25 @@ class _MessagesScreenState extends State<MessagesScreen> {
     } catch (_) {}
   }
 
+  void _applySnapshot(Map<String, dynamic> data) {
+    final raw = data['matches'];
+    if (!mounted) return;
+    final all = raw is List
+        ? raw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
+        : <Map<String, dynamic>>[];
+    setState(() {
+      chats = all;
+      unreadTotal = (data['unreadTotal'] as num?)?.toInt() ?? 0;
+      loading = false;
+      error = null;
+    });
+  }
+
   Future<void> _load() async {
     try {
       final data = await LiveService.matches();
-      final raw = data['matches'];
       if (!mounted) return;
-      final all = raw is List
-          ? raw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
-          : <Map<String, dynamic>>[];
-      setState(() {
-        chats = all;
-        unreadTotal = (data['unreadTotal'] as num?)?.toInt() ?? 0;
-        loading = false;
-        error = null;
-      });
+      _applySnapshot(data);
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -99,7 +104,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
         ),
       ),
     );
-    if (mounted) _load();
+    if (mounted) unawaited(_load());
   }
 
   void _goHome() {
@@ -160,7 +165,6 @@ class _MessagesScreenState extends State<MessagesScreen> {
   @override
   void dispose() {
     realtimeSub?.cancel();
-    refreshDebounce?.cancel();
     super.dispose();
   }
 
