@@ -5,21 +5,107 @@ import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 
 import { AppModule } from './app.module';
+import { InfrastructureService } from './infrastructure.service';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     cors: false,
   });
 
+  // nginx is the only public entry point in production. Trust exactly one proxy
+  // hop so req.ip resolves to the real client IP from X-Forwarded-For.
+  app.set('trust proxy', 1);
+
+  app.use((_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('X-Permitted-Cross-Domain-Policies', 'none');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), payment=()');
+    res.setHeader(
+      'Content-Security-Policy',
+      "default-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+    );
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000');
+    next();
+  });
+
   const origins = (process.env.CORS_ORIGINS ?? 'https://queensho.github.io')
-      .split(',')
-      .map((value) => value.trim())
-      .filter(Boolean);
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
 
   app.enableCors({
     origin: origins,
     credentials: true,
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Authorization', 'Content-Type', 'Accept'],
+    maxAge: 600,
   });
+
+  const infrastructure = app.get(InfrastructureService);
+  const rateLimitEnabled = process.env.RATE_LIMIT_ENABLED !== 'false';
+
+  if (rateLimitEnabled) {
+    app.use(async (req, res, next) => {
+      if (req.method === 'OPTIONS' || !req.path.startsWith('/api/')) {
+        next();
+        return;
+      }
+
+      if (req.path === '/api/health') {
+        next();
+        return;
+      }
+
+      const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+      const isRequestCode = req.path === '/api/auth/request-code';
+      const isVerifyCode = req.path === '/api/auth/verify-code';
+
+      const windowSeconds = isRequestCode || isVerifyCode ? 10 * 60 : 60;
+      const limit = isRequestCode ? 5 : isVerifyCode ? 15 : 240;
+      const bucket = isRequestCode
+        ? 'auth-request-code'
+        : isVerifyCode
+          ? 'auth-verify-code'
+          : 'api';
+      const key = `meet6:rate:${bucket}:${clientIp}`;
+
+      try {
+        const count = await infrastructure.redis.incr(key);
+        if (count === 1) {
+          await infrastructure.redis.expire(key, windowSeconds);
+        }
+
+        const ttl = Math.max(
+          0,
+          await infrastructure.redis.ttl(key),
+        );
+        const remaining = Math.max(0, limit - count);
+
+        res.setHeader('RateLimit-Limit', String(limit));
+        res.setHeader('RateLimit-Remaining', String(remaining));
+        res.setHeader('RateLimit-Reset', String(ttl));
+
+        if (count > limit) {
+          res.setHeader('Retry-After', String(Math.max(1, ttl)));
+          res.status(429).json({
+            statusCode: 429,
+            message: 'Too many requests. Please try again later.',
+            error: 'Too Many Requests',
+          });
+          return;
+        }
+      } catch (error) {
+        // Availability wins if Redis is temporarily unavailable. The rest of
+        // the API still depends on authenticated sessions and nginx controls.
+        // eslint-disable-next-line no-console
+        console.warn('Rate limiter unavailable; request allowed', error);
+      }
+
+      next();
+    });
+  }
 
   const uploadRoot = process.env.UPLOAD_ROOT ?? '/var/www/meet6/uploads';
   app.useStaticAssets(uploadRoot, {
@@ -32,6 +118,7 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
+      forbidNonWhitelisted: true,
       transform: true,
     }),
   );
