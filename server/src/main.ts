@@ -27,6 +27,8 @@ async function bootstrap() {
     cors: false,
   });
 
+  app.disable('x-powered-by');
+
   // nginx is the only public entry point in production. Trust exactly one proxy
   // hop so req.ip resolves to the real client IP from X-Forwarded-For.
   app.set('trust proxy', 1);
@@ -54,6 +56,10 @@ async function bootstrap() {
     .map((value) => value.trim())
     .filter(Boolean);
 
+  if (process.env.NODE_ENV === 'production' && origins.includes('*')) {
+    throw new Error('Wildcard CORS origin is forbidden in production');
+  }
+
   app.enableCors({
     origin: origins,
     credentials: true,
@@ -64,6 +70,10 @@ async function bootstrap() {
 
   const infrastructure = app.get(InfrastructureService);
   const rateLimitEnabled = process.env.RATE_LIMIT_ENABLED !== 'false';
+
+  if (process.env.NODE_ENV === 'production' && !rateLimitEnabled) {
+    throw new Error('RATE_LIMIT_ENABLED=false is forbidden in production');
+  }
 
   if (rateLimitEnabled) {
     app.use(async (
@@ -84,8 +94,9 @@ async function bootstrap() {
       const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
       const isRequestCode = req.path === '/api/auth/request-code';
       const isVerifyCode = req.path === '/api/auth/verify-code';
+      const isAuthSensitive = isRequestCode || isVerifyCode;
 
-      const windowSeconds = isRequestCode || isVerifyCode ? 10 * 60 : 60;
+      const windowSeconds = isAuthSensitive ? 10 * 60 : 60;
       const limit = isRequestCode ? 5 : isVerifyCode ? 15 : 240;
       const bucket = isRequestCode
         ? 'auth-request-code'
@@ -117,10 +128,21 @@ async function bootstrap() {
           return;
         }
       } catch (error) {
-        // Availability wins if Redis is temporarily unavailable. The rest of
-        // the API still depends on authenticated sessions and nginx controls.
+        // Authentication endpoints fail closed so a Redis outage cannot disable
+        // brute-force protection. Other authenticated API traffic remains
+        // available while Redis recovers.
         // eslint-disable-next-line no-console
-        console.warn('Rate limiter unavailable; request allowed', error);
+        console.warn('Rate limiter unavailable', error);
+
+        if (isAuthSensitive) {
+          res.setHeader('Retry-After', '30');
+          res.status(503).json({
+            statusCode: 503,
+            message: 'Authentication is temporarily unavailable. Please try again shortly.',
+            error: 'Service Unavailable',
+          });
+          return;
+        }
       }
 
       next();
