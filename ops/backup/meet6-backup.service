@@ -1,0 +1,21 @@
+[Unit]
+Description=Meet6 production backup
+Wants=network-online.target
+After=network-online.target postgresql.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/var/www/meet6
+EnvironmentFile=/var/www/meet6/.env
+ExecStart=/usr/bin/env bash /var/www/meet6/ops/backup/meet6-backup.sh
+UMask=0077
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+
+[Install]
+WantedBy=multi-user.target
