@@ -7,6 +7,7 @@
     "start": "node dist/main.js",
     "start:dev": "nest start --watch",
     "migrate": "node scripts/migrate.mjs",
+    "admin:grant": "node scripts/grant-admin.mjs",
     "e2e:live": "node scripts/e2e-live.mjs",
     "e2e:realtime": "node scripts/e2e-realtime.mjs",
     "e2e:socket-smoke": "node scripts/e2e-socket-smoke.mjs",
