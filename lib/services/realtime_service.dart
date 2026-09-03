@@ -50,9 +50,6 @@ class RealtimeService {
     final data = _map(raw);
     _events.add(RealtimeEvent(type, data));
 
-    // HTTP kullanan test/yardımcı istemci altıncı kişiyi ekleyip odayı
-    // oluşturursa backend room:update yayınlar. Arama ekranı bunu da gerçek
-    // queue:matched olayı gibi ele alır; böylece polling'e geri dönmeyiz.
     if (type == 'room:update') {
       final rawRoom = data['room'];
       if (rawRoom is Map) {
@@ -64,9 +61,6 @@ class RealtimeService {
       }
     }
 
-    // user:message yalnızca mesajın alıcısının kullanıcı kanalına yayınlanır.
-    // Uygulama olayı aldığı anda teslim ACK'i göndererek "Teslim edildi"
-    // durumunu sohbet ekranı açık olmasa da gerçek cihaz teslimine bağlarız.
     if (type == 'user:message') {
       final matchId = data['matchId']?.toString() ?? '';
       final rawMessage = data['message'];
@@ -87,6 +81,7 @@ class RealtimeService {
     const forwarded = [
       'server:ready',
       'auth:error',
+      'app:config',
       'queue:status',
       'queue:matched',
       'room:update',
@@ -214,9 +209,7 @@ class RealtimeService {
         await Future<void>.delayed(Duration(milliseconds: 350 * (attempt + 1)));
         try {
           await connect();
-        } catch (_) {
-          // Sonraki deneme Socket.IO reconnect döngüsünü tekrar kullanır.
-        }
+        } catch (_) {}
       }
     }
     throw lastError ?? const ApiException('Gerçek zamanlı işlem başarısız oldu.');
