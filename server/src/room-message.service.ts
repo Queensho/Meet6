@@ -88,6 +88,34 @@ export class RoomMessageService {
         [roomId, userId, body, clientMessageId],
       );
 
+      const sender = await client.query<{ display_name: string | null }>(
+        `select display_name from profiles where user_id=$1`,
+        [userId],
+      );
+      const senderName = sender.rows[0]?.display_name?.trim() || 'Meet6';
+      const pushBody = body.length > 480 ? `${body.slice(0, 477)}...` : body;
+      const messageId = inserted.rows[0]?.id?.toString() ?? '';
+
+      await client.query(
+        `insert into notifications(user_id,type,title,body,data)
+         select rm.user_id,
+                'room_message',
+                $3,
+                $4,
+                jsonb_build_object(
+                  'roomId', $1::text,
+                  'senderUserId', $2::text,
+                  'messageId', $5::text
+                )
+         from room_members rm
+         join users u on u.id=rm.user_id and u.status='active'
+         where rm.room_id=$1
+           and rm.user_id<>$2
+           and rm.left_at is null
+           and rm.admin_removed_at is null`,
+        [roomId, userId, `${senderName} · Meet6 odası`, pushBody, messageId],
+      );
+
       await client.query('commit');
       return { ok: true, message: inserted.rows[0], deduplicated: false };
     } catch (error) {
