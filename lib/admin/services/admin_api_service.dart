@@ -117,6 +117,54 @@ class AdminApiService {
         body: {'reason': reason},
       );
 
+  static Future<Map<String, dynamic>> reports({
+    String status = 'open',
+    String search = '',
+    int page = 1,
+    int limit = 20,
+  }) {
+    final uri = Uri(path: '/api/admin/reports', queryParameters: {
+      'status': status,
+      'search': search,
+      'page': '$page',
+      'limit': '$limit',
+    });
+    return _request('GET', uri.toString());
+  }
+
+  static Future<Map<String, dynamic>> reportDetail(String reportId) =>
+      _request('GET', '/api/admin/reports/$reportId');
+
+  static Future<Map<String, dynamic>> reportAction(
+    String reportId, {
+    required String action,
+    String? note,
+    String? reason,
+  }) =>
+      _request(
+        'POST',
+        '/api/admin/reports/$reportId/action',
+        body: {
+          'action': action,
+          if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+          if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
+        },
+      );
+
+  static Future<Map<String, dynamic>> markReportEvidence(
+    String reportId,
+    String evidenceId,
+    bool keyEvidence,
+  ) =>
+      _request(
+        'POST',
+        '/api/admin/reports/$reportId/evidence',
+        body: {
+          'messageId': evidenceId,
+          'keyEvidence': keyEvidence,
+        },
+      );
+
   static String mediaUrl(String? value) {
     final raw = value?.trim() ?? '';
     if (raw.isEmpty) return '';
