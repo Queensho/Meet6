@@ -69,3 +69,17 @@ export class AdminReportEvidenceDto {
   @IsBoolean()
   keyEvidence!: boolean;
 }
+
+export class AdminSupportActionDto {
+  @IsIn(['reply', 'close', 'reopen', 'set_priority'])
+  action!: 'reply' | 'close' | 'reopen' | 'set_priority';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  response?: string;
+
+  @IsOptional()
+  @IsIn(['low', 'normal', 'high'])
+  priority?: 'low' | 'normal' | 'high';
+}
