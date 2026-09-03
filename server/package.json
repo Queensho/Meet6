@@ -10,6 +10,7 @@
     "e2e:live": "node scripts/e2e-live.mjs",
     "e2e:realtime": "node scripts/e2e-realtime.mjs",
     "e2e:socket-smoke": "node scripts/e2e-socket-smoke.mjs",
+    "e2e:private-message-features": "node scripts/e2e-private-message-features.mjs",
     "backup:production": "bash scripts/backup-production.sh",
     "backup:verify": "bash scripts/verify-backup.sh"
   },
