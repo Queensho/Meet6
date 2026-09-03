@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -80,13 +80,26 @@ jobs:
           --dart-define=MEET6_ENV=production
           --dart-define=MEET6_API_BASE_URL=https://api.meet6.com.tr
 
+      - name: Stamp admin build
+        run: echo "$GITHUB_SHA" > build/web/.admin-source-sha
+
       - name: Upload admin web artifact
         uses: actions/upload-artifact@v4
         with:
           name: meet6-admin-web
           path: build/web
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 7
+
+      - name: Publish admin web branch
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: admin-web
+          publish_dir: ./build/web
+          force_orphan: true
+          enable_jekyll: true
 
       - name: Build web
         run: >-
