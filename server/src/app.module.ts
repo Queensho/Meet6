@@ -6,6 +6,7 @@ import { AuthService } from './auth.service';
 import { HealthController } from './health.controller';
 import { InfrastructureService } from './infrastructure.service';
 import { MatchmakingSchedulerService } from './matchmaking-scheduler.service';
+import { PrivateMessageGateway } from './private-message.gateway';
 import { ProfileController } from './profile.controller';
 import { ProfileService } from './profile.service';
 import { PushController } from './push.controller';
@@ -47,6 +48,7 @@ import { SupportService } from './support.service';
     SupportService,
     PushService,
     RoomsGateway,
+    PrivateMessageGateway,
     MatchmakingSchedulerService,
   ],
 })
