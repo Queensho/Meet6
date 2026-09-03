@@ -9,6 +9,7 @@ import type { Server, Socket } from 'socket.io';
 
 import { AuthService } from './auth.service';
 import { InfrastructureService } from './infrastructure.service';
+import { RoomMessageService } from './room-message.service';
 import { RoomService } from './room.service';
 import { SocialService } from './social.service';
 
@@ -16,7 +17,11 @@ import { SocialService } from './social.service';
   namespace: '/rooms',
   transports: ['websocket'],
   cors: {
-    origin: ['https://queensho.github.io'],
+    origin: [
+      'https://www.meet6.com.tr',
+      'https://meet6.com.tr',
+      'https://queensho.github.io',
+    ],
     credentials: true,
   },
 })
@@ -29,6 +34,7 @@ export class RoomsGateway {
   constructor(
     private readonly auth: AuthService,
     private readonly rooms: RoomService,
+    private readonly roomMessageDelivery: RoomMessageService,
     private readonly social: SocialService,
     private readonly infra: InfrastructureService,
   ) {}
@@ -289,12 +295,24 @@ export class RoomsGateway {
   @SubscribeMessage('room:send')
   roomSend(
     @ConnectedSocket() client: Socket,
-    @MessageBody() payload: { roomId?: string; body?: string },
+    @MessageBody() payload: { roomId?: string; body?: string; clientMessageId?: string },
   ) {
     return this.safe(async () => {
       const userId = this.userId(client);
       const roomId = payload?.roomId?.toString() ?? '';
-      const result = await this.rooms.sendMessage(userId, roomId, payload?.body ?? '') as Record<string, any>;
+      const clientMessageId = payload?.clientMessageId?.toString().trim() ?? '';
+      const result = clientMessageId
+        ? await this.roomMessageDelivery.sendMessage(
+            userId,
+            roomId,
+            payload?.body ?? '',
+            clientMessageId,
+          ) as Record<string, any>
+        : await this.rooms.sendMessage(
+            userId,
+            roomId,
+            payload?.body ?? '',
+          ) as Record<string, any>;
       const profile = await this.infra.db.query<{ display_name: string; photo_urls: string[] }>(
         'select display_name, photo_urls from profiles where user_id=$1',
         [userId],
@@ -305,7 +323,7 @@ export class RoomsGateway {
         photo_urls: profile.rows[0]?.photo_urls ?? [],
       };
       this.server.to(`room:${roomId}`).emit('room:message', { roomId, message });
-      return { message };
+      return { message, deduplicated: result.deduplicated === true };
     });
   }
 
