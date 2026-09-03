@@ -22,9 +22,11 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final phoneController = TextEditingController();
   bool submitting = false;
+  bool legalAccepted = false;
 
   bool get canContinue =>
       !submitting &&
+      legalAccepted &&
       phoneController.text.replaceAll(RegExp(r'[^0-9]'), '').length >= 10;
 
   @override
@@ -145,31 +147,13 @@ class _LoginScreenState extends State<LoginScreen> {
                     LoginForm(
                       controller: phoneController,
                       enabled: canContinue,
+                      legalAccepted: legalAccepted,
                       onChanged: () => setState(() {}),
+                      onLegalAcceptedChanged: (value) {
+                        setState(() => legalAccepted = value);
+                      },
+                      onOpenLegal: _openLegal,
                       onContinue: _continue,
-                    ),
-                    const SizedBox(height: 8),
-                    Center(
-                      child: TextButton.icon(
-                        onPressed: submitting ? null : _openLegal,
-                        icon: const Icon(Icons.verified_user_outlined, size: 16),
-                        label: const Text(
-                          '18+ · Yasal & KVKK',
-                          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800),
-                        ),
-                      ),
-                    ),
-                    Center(
-                      child: Text(
-                        'Meet6 yalnızca 18 yaş ve üzeri kullanıcılar içindir.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: scheme.onSurfaceVariant,
-                          fontSize: 9.8,
-                          height: 1.3,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
                     ),
                     if (submitting) ...[
                       const SizedBox(height: 10),
