@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -322,7 +320,7 @@ class _BenefitRow extends StatelessWidget {
             style: TextStyle(
               color: Theme.of(context).colorScheme.onSurface,
               fontSize: 13.5,
-              fontWeight: FontWeight.w750,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ),
