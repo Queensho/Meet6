@@ -114,16 +114,27 @@ class ProfileStepOne extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Center(
-          child: Text(
-            hasPhoto ? 'Fotoğrafı değiştir' : 'Profil fotoğrafı ekle',
-            style: TextStyle(
-              color: hasPhoto ? AppColors.blue : scheme.onSurfaceVariant,
-              fontSize: 12.5,
-              fontWeight: FontWeight.w800,
+          child: Semantics(
+            button: true,
+            label: hasPhoto ? 'Profil fotoğrafını değiştir' : 'Profil fotoğrafı ekle',
+            child: InkWell(
+              onTap: onPickPhoto,
+              borderRadius: BorderRadius.circular(10),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                child: Text(
+                  hasPhoto ? 'Fotoğrafı değiştir' : 'Profil fotoğrafı ekle',
+                  style: TextStyle(
+                    color: hasPhoto ? AppColors.blue : scheme.onSurfaceVariant,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
             ),
           ),
         ),
-        const SizedBox(height: 22),
+        const SizedBox(height: 17),
         const FieldLabel('Adın'),
         const SizedBox(height: 7),
         TextField(
