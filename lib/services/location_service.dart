@@ -36,7 +36,16 @@ class LocationServiceException implements Exception {
 class LocationService {
   const LocationService();
 
+  static Future<AppLocation> Function()? debugGetCurrentLocationOverride;
+
+  static void debugResetTestHooks() {
+    debugGetCurrentLocationOverride = null;
+  }
+
   Future<AppLocation> getCurrentLocation() async {
+    final fake = debugGetCurrentLocationOverride;
+    if (fake != null) return fake();
+
     final serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       throw const LocationServiceException(
