@@ -27,7 +27,7 @@ export class BillingController {
   @Post('revenuecat/webhook')
   async revenueCatWebhook(
     @Headers('authorization') authorization: string | undefined,
-    @Body() body: Record<string, unknown>,
+    @Body() body: any,
   ) {
     return this.billing.handleRevenueCatWebhook(authorization, body);
   }
