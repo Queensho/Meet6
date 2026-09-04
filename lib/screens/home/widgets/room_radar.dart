@@ -32,10 +32,13 @@ class _RoomRadarState extends State<RoomRadar>
   @override
   void initState() {
     super.initState();
+    // Avatarlar tam tur atmasın. Tam 360° dönüşte bazı anlarda alt CTA ile
+    // üst üste geliyor ve radar dengesiz görünüyordu. Altıgen yerleşimi koruyup
+    // yalnızca hafif bir salınım veriyoruz.
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 16),
-    )..repeat();
+      duration: const Duration(milliseconds: 4200),
+    )..repeat(reverse: true);
   }
 
   @override
@@ -51,14 +54,16 @@ class _RoomRadarState extends State<RoomRadar>
       child: LayoutBuilder(
         builder: (context, constraints) {
           final size = math.min(constraints.maxWidth, constraints.maxHeight);
-          final avatarSize = (size * .165).clamp(46.0, 62.0).toDouble();
-          final orbitRadius = size * .355;
+          final avatarSize = (size * .15).clamp(44.0, 58.0).toDouble();
+          final orbitRadius = size * .365;
           final center = size / 2;
 
           return AnimatedBuilder(
             animation: _controller,
             builder: (context, child) {
-              final orbitAngle = _controller.value * math.pi * 2;
+              // Yaklaşık ±3° salınım. Avatarlar hiçbir zaman alt/üst merkez
+              // noktasına kaymadığı için merkez 6 ve “6’ya dokun” etiketi açık kalır.
+              final orbitWiggle = (_controller.value - .5) * .105;
               final pulseProgress = (_controller.value * 4) % 1.0;
 
               return Stack(
@@ -74,7 +79,7 @@ class _RoomRadarState extends State<RoomRadar>
                     _buildOrbitAvatar(
                       asset: _avatarAssets[index],
                       index: index,
-                      orbitAngle: orbitAngle,
+                      orbitWiggle: orbitWiggle,
                       center: center,
                       radius: orbitRadius,
                       avatarSize: avatarSize,
@@ -171,12 +176,17 @@ class _RoomRadarState extends State<RoomRadar>
   Widget _buildOrbitAvatar({
     required String asset,
     required int index,
-    required double orbitAngle,
+    required double orbitWiggle,
     required double center,
     required double radius,
     required double avatarSize,
   }) {
-    final angle = orbitAngle + (math.pi * 2 / _avatarAssets.length) * index;
+    // -120° başlangıç açısı ile altı avatar eşit aralıklı bir altıgen oluşturur:
+    // üst-sol, üst-sağ, sağ, alt-sağ, alt-sol, sol. Böylece tam üst ve tam
+    // altta avatar bulunmaz; CTA ve merkez daireyle çakışma olmaz.
+    const startAngle = -2 * math.pi / 3;
+    final angle = startAngle + orbitWiggle +
+        (math.pi * 2 / _avatarAssets.length) * index;
     final left = center + math.cos(angle) * radius - avatarSize / 2;
     final top = center + math.sin(angle) * radius - avatarSize / 2;
 
@@ -205,6 +215,7 @@ class _RoomRadarState extends State<RoomRadar>
             child: Image.asset(
               asset,
               fit: BoxFit.cover,
+              alignment: Alignment.center,
               filterQuality: FilterQuality.high,
               errorBuilder: (_, __, ___) => Container(
                 color: AppColors.softSurface,
