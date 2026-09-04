@@ -22,7 +22,7 @@ concurrency:
 jobs:
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     services:
       postgres:
@@ -131,6 +131,26 @@ jobs:
       - name: Run matchmaking policy E2E
         working-directory: server
         run: node scripts/e2e-matchmaking-policy.mjs
+
+      - name: Run 24-user concurrent load smoke
+        working-directory: server
+        env:
+          LOAD_USERS: '24'
+          LOAD_CONNECT_RAMP_MS: '1200'
+          LOAD_QUEUE_RAMP_MS: '800'
+          LOAD_SETTLE_MS: '2000'
+          LOAD_ACK_TIMEOUT_MS: '60000'
+          LOAD_REPORT_PATH: /tmp/meet6-load-smoke-report.json
+        run: npm run load:matchmaking
+
+      - name: Upload load smoke report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: meet6-load-smoke-report
+          path: /tmp/meet6-load-smoke-report.json
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Upload API log on failure
         if: failure()
