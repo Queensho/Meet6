@@ -1,0 +1,137 @@
+name: Production Ops CI
+
+on:
+  pull_request:
+    paths:
+      - 'server/ops/**'
+      - 'server/scripts/**'
+      - 'server/OPERATIONS.md'
+      - '.github/workflows/ops-ci.yml'
+      - '.github/workflows/external-uptime.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'server/ops/**'
+      - 'server/scripts/**'
+      - 'server/OPERATIONS.md'
+      - '.github/workflows/ops-ci.yml'
+      - '.github/workflows/external-uptime.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate production shell syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' script; do
+            bash -n "$script"
+          done < <(find server/scripts -maxdepth 1 -type f -name '*.sh' -print0)
+
+      - name: Exercise off-site upload and recovery flow
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          work="$RUNNER_TEMP/meet6-ops-test"
+          backup="$work/backups/20260904T033000Z"
+          fakebin="$work/bin"
+          remote="$work/remote"
+          mkdir -p "$backup" "$fakebin" "$remote" "$work/etc"
+
+          printf 'db-backup-fixture\n' > "$backup/database.dump"
+          printf 'uploads-fixture\n' > "$backup/uploads.tar.gz"
+          printf 'created_at_utc=20260904T033000Z\n' > "$backup/metadata.txt"
+          (
+            cd "$backup"
+            sha256sum database.dump uploads.tar.gz metadata.txt > SHA256SUMS
+          )
+          ln -s 20260904T033000Z "$work/backups/latest"
+          : > "$work/etc/rclone.conf"
+
+          cat > "$fakebin/rclone" <<'SH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          cmd="$1"
+          shift
+          map_remote() {
+            local value="$1"
+            if [[ "$value" == fake:* ]]; then
+              printf '%s/%s\n' "$FAKE_REMOTE_ROOT" "${value#fake:}"
+            else
+              printf '%s\n' "$value"
+            fi
+          }
+          case "$cmd" in
+            copy)
+              src="$(map_remote "$1")"
+              dst="$(map_remote "$2")"
+              mkdir -p "$dst"
+              cp -a "$src"/. "$dst"/
+              ;;
+            copyto)
+              src="$(map_remote "$1")"
+              dst="$(map_remote "$2")"
+              mkdir -p "$(dirname "$dst")"
+              cp "$src" "$dst"
+              ;;
+            check)
+              src="$(map_remote "$1")"
+              dst="$(map_remote "$2")"
+              for file in database.dump uploads.tar.gz metadata.txt SHA256SUMS; do
+                [[ -f "$src/$file" && -f "$dst/$file" ]]
+                [[ "$(stat -c '%s' "$src/$file")" == "$(stat -c '%s' "$dst/$file")" ]]
+              done
+              ;;
+            *)
+              echo "Unsupported fake rclone command: $cmd" >&2
+              exit 2
+              ;;
+          esac
+          SH
+          chmod +x "$fakebin/rclone"
+
+          cat > "$fakebin/verify-backup" <<'SH'
+          #!/usr/bin/env bash
+          set -euo pipefail
+          dir="$1"
+          for file in database.dump uploads.tar.gz metadata.txt SHA256SUMS; do
+            [[ -s "$dir/$file" ]]
+          done
+          (cd "$dir" && sha256sum -c SHA256SUMS >/dev/null)
+          SH
+          chmod +x "$fakebin/verify-backup"
+
+          export PATH="$fakebin:$PATH"
+          export FAKE_REMOTE_ROOT="$remote"
+          export OFFSITE_RCLONE_REMOTE='fake:production/backups'
+          export RCLONE_CONFIG="$work/etc/rclone.conf"
+          export BACKUP_HEARTBEAT_URL=''
+
+          server/scripts/offsite-backup-production.sh "$work/backups/latest"
+          test -s "$remote/production/backups/20260904T033000Z/database.dump"
+          test -s "$remote/production/backups/latest.txt"
+
+          export VERIFY_BIN="$fakebin/verify-backup"
+          server/scripts/fetch-offsite-backup.sh \
+            20260904T033000Z \
+            "$work/recovered"
+          test -s "$work/recovered/database.dump"
+
+      - name: Verify backup service chains off-site copy
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -F 'EnvironmentFile=-/etc/default/meet6-ops' server/ops/meet6-backup.service
+          grep -F 'ExecStartPost=/usr/local/sbin/meet6-offsite-backup /var/backups/meet6/latest' server/ops/meet6-backup.service
+          grep -F 'OFFSITE_BACKUP_REQUIRED' server/ops/meet6-ops.env.example
