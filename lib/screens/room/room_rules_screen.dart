@@ -73,7 +73,7 @@ class RoomRulesScreen extends StatelessWidget {
                               ),
                             ),
                             const Spacer(),
-                            const Meet6MiniBrand(height: 26),
+                            const Meet6MiniBrand(height: 26, forceLogo2: true),
                           ],
                         ),
                         const Spacer(),
