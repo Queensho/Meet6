@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
+import { BillingService } from './billing.service';
 import { InfrastructureService } from './infrastructure.service';
 import { RuntimeSettings, RuntimeSettingsService } from './runtime-settings.service';
 
@@ -22,6 +23,8 @@ interface QueueProfileRow {
   distance_km: number;
   purpose: string;
   joined_at: Date;
+  priority_tier: number;
+  requested_room_duration_minutes: number;
 }
 
 @Injectable()
@@ -29,6 +32,7 @@ export class RoomService {
   constructor(
     private readonly infra: InfrastructureService,
     private readonly runtimeSettings: RuntimeSettingsService,
+    private readonly billing: BillingService,
   ) {}
 
   private configInt(name: string, fallback: number, min = 1, max = 10_000) {
@@ -146,7 +150,7 @@ export class RoomService {
     return result.rows[0]?.room_id ?? null;
   }
 
-  async joinQueue(userId: string) {
+  async joinQueue(userId: string, requestedRoomDurationMinutes = 15) {
     const settings = await this.runtimeSettings.assertOperational();
     await this.ensureProfileReady(userId);
     const existingRoomId = await this.currentOpenRoomId(userId);
@@ -154,10 +158,17 @@ export class RoomService {
       return { ok: true, state: 'room', room: await this.getRoom(userId, existingRoomId) };
     }
 
+    const access = await this.billing.assertRequestedRoomDuration(
+      userId,
+      requestedRoomDurationMinutes,
+    );
     await this.infra.db.query(
-      `insert into matchmaking_queue(user_id) values($1)
-       on conflict(user_id) do nothing`,
-      [userId],
+      `insert into matchmaking_queue(user_id,priority_tier,requested_room_duration_minutes)
+       values($1,$2,$3)
+       on conflict(user_id) do update set
+         priority_tier=excluded.priority_tier,
+         requested_room_duration_minutes=excluded.requested_room_duration_minutes`,
+      [userId, access.priorityTier, access.roomDurationMinutes],
     );
     await this.tryMatchmaking(settings);
     return this.queueStatus(userId);
@@ -180,11 +191,21 @@ export class RoomService {
       position: string;
       total: string;
       joined_at: Date;
+      priority_tier: number;
+      requested_room_duration_minutes: number;
     }>(
       `select
-         (select count(*) from matchmaking_queue q2 where q2.joined_at <= q.joined_at)::text as position,
-         (select count(*) from matchmaking_queue)::text as total,
-         q.joined_at
+         (select count(*)
+          from matchmaking_queue q2
+          where q2.requested_room_duration_minutes=q.requested_room_duration_minutes
+            and (
+              q2.priority_tier > q.priority_tier
+              or (q2.priority_tier=q.priority_tier and q2.joined_at <= q.joined_at)
+            ))::text as position,
+         (select count(*)
+          from matchmaking_queue q2
+          where q2.requested_room_duration_minutes=q.requested_room_duration_minutes)::text as total,
+         q.joined_at, q.priority_tier, q.requested_room_duration_minutes
        from matchmaking_queue q where q.user_id = $1`,
       [userId],
     );
@@ -202,7 +223,9 @@ export class RoomService {
       total: Number(row.total),
       waitSeconds,
       nextRetrySeconds: this.retrySeconds,
-      waitingStrategy: 'strict',
+      waitingStrategy: row.priority_tier > 0 ? 'premium-priority' : 'strict',
+      premiumPriority: row.priority_tier > 0,
+      requestedRoomDurationMinutes: Number(row.requested_room_duration_minutes),
       filters: {
         roomRepeatHours: settings.roomRepeatHours,
         matchedUsers: 'permanent',
@@ -234,15 +257,37 @@ export class RoomService {
            and rm.left_at is null and r.status in ('active','selection')`,
       );
 
+      // Keep queue entitlements fresh while users wait. An expired premium user
+      // loses priority immediately and a stale 30-minute request falls back to 15.
+      await client.query(
+        `update matchmaking_queue q
+         set priority_tier = case when exists(
+               select 1 from user_subscriptions s
+               where s.user_id=q.user_id
+                 and s.status in ('active','grace_period','billing_issue')
+                 and (s.expires_at is null or s.expires_at > now())
+             ) then 1 else 0 end,
+             requested_room_duration_minutes = case
+               when q.requested_room_duration_minutes=30 and not exists(
+                 select 1 from user_subscriptions s
+                 where s.user_id=q.user_id
+                   and s.status in ('active','grace_period','billing_issue')
+                   and (s.expires_at is null or s.expires_at > now())
+               ) then 15
+               else q.requested_room_duration_minutes
+             end`,
+      );
+
       const queued = await client.query<QueueProfileRow>(
-        `select q.user_id::text, q.joined_at,
+        `select q.user_id::text, q.joined_at, q.priority_tier,
+                q.requested_room_duration_minutes,
                 p.display_name, p.birth_date::text, p.gender, p.latitude, p.longitude, p.photo_urls,
                 mp.looking_for, mp.min_age, mp.max_age, mp.distance_km, mp.purpose
          from matchmaking_queue q
          join users u on u.id = q.user_id and u.status = 'active'
          join profiles p on p.user_id = q.user_id and p.profile_completed = true
          join matching_preferences mp on mp.user_id = q.user_id
-         order by q.joined_at asc
+         order by q.priority_tier desc, q.joined_at asc
          limit ${this.candidatePoolLimit}
          for update of q skip locked`,
       );
@@ -317,12 +362,19 @@ export class RoomService {
       let group: QueueProfileRow[] | null = null;
       for (let seedIndex = 0; seedIndex < queued.rows.length && !group; seedIndex++) {
         const candidateGroup = [queued.rows[seedIndex]];
+        const requestedDuration = Number(candidateGroup[0].requested_room_duration_minutes);
         const rest = queued.rows
-          .filter((_, index) => index !== seedIndex)
+          .filter((row, index) =>
+            index !== seedIndex
+            && Number(row.requested_room_duration_minutes) === requestedDuration,
+          )
           .sort((a, b) => {
             const samePurposeA = a.purpose === candidateGroup[0].purpose ? 0 : 1;
             const samePurposeB = b.purpose === candidateGroup[0].purpose ? 0 : 1;
             if (samePurposeA !== samePurposeB) return samePurposeA - samePurposeB;
+            if (Number(a.priority_tier) !== Number(b.priority_tier)) {
+              return Number(b.priority_tier) - Number(a.priority_tier);
+            }
             return a.joined_at.getTime() - b.joined_at.getTime();
           });
 
@@ -340,10 +392,12 @@ export class RoomService {
         return null;
       }
 
+      const roomDurationMinutes = Number(group[0].requested_room_duration_minutes) === 30 ? 30 : 15;
       const room = await client.query<{ id: string }>(
-        `insert into rooms(status, started_at, ends_at)
-         values('active', now(), now() + ($1::int * interval '1 minute')) returning id::text`,
-        [settings.roomDurationMinutes],
+        `insert into rooms(status, started_at, ends_at, room_duration_minutes)
+         values('active', now(), now() + ($1::int * interval '1 minute'), $1)
+         returning id::text`,
+        [roomDurationMinutes],
       );
       const roomId = room.rows[0].id;
       const groupIds = group.map((row) => row.user_id);
@@ -358,7 +412,7 @@ export class RoomService {
       await client.query(
         `insert into room_messages(room_id, sender_user_id, body)
          values($1, null, $2)`,
-        [roomId, `Oda hazır. ${roomSize} kişi burada — sohbet için ${settings.roomDurationMinutes} dakikan var.`],
+        [roomId, `Oda hazır. ${roomSize} kişi burada — sohbet için ${roomDurationMinutes} dakikan var.`],
       );
       await client.query('commit');
       return roomId;
@@ -392,9 +446,10 @@ export class RoomService {
       extended: boolean;
       selection_started_at: Date | null;
       selection_ends_at: Date | null;
+      room_duration_minutes: number;
     }>(
       `select id::text, status, started_at, ends_at, extended,
-              selection_started_at, selection_ends_at
+              selection_started_at, selection_ends_at, room_duration_minutes
        from rooms where id = $1`,
       [roomId],
     );
@@ -444,6 +499,7 @@ export class RoomService {
       mySelectionUserId: selection.rows[0]?.selected_user_id ?? null,
       members: members.rows,
       config: {
+        roomDurationMinutes: Number(room.room_duration_minutes),
         extensionMinutes: settings.extensionMinutes,
         selectionSeconds: settings.selectionSeconds,
         minimumUsers: settings.minimumRoomUsers,
