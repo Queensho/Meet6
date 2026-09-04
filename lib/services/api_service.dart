@@ -5,6 +5,7 @@ import 'package:http_parser/http_parser.dart';
 
 import '../config/app_config.dart';
 import '../models/picked_profile_photo.dart';
+import 'observability_service.dart';
 import 'session_service.dart';
 
 class ApiException implements Exception {
@@ -21,11 +22,13 @@ class AuthResult {
   const AuthResult({
     required this.sessionId,
     required this.userId,
+    required this.isNewUser,
     required this.profileCompleted,
   });
 
   final String sessionId;
   final String userId;
+  final bool isNewUser;
   final bool profileCompleted;
 }
 
@@ -72,11 +75,17 @@ class ApiService {
         )
         .timeout(const Duration(seconds: 15));
     final data = _decode(response);
-    return AuthResult(
+    final result = AuthResult(
       sessionId: data['sessionId'] as String,
       userId: data['userId'] as String,
+      isNewUser: data['isNewUser'] == true,
       profileCompleted: data['profileCompleted'] == true,
     );
+    await ObservabilityService.setUserId(result.userId);
+    if (result.isNewUser) {
+      await ObservabilityService.registrationCompleted(result.userId);
+    }
+    return result;
   }
 
   static Future<Map<String, dynamic>> getMe({String? sessionId}) async {
@@ -169,6 +178,9 @@ class ApiService {
         )
         .timeout(const Duration(seconds: 20));
     _decode(response);
+    if (profileCompleted) {
+      await ObservabilityService.profileCompleted();
+    }
   }
 
   static Future<void> updateProfileLocation({
@@ -243,9 +255,8 @@ class ApiService {
         .timeout(const Duration(seconds: 20));
     _decode(response);
 
-    // Kullanıcı silindikten sonra push token satırı zaten FK cascade ile gider.
-    // Burada yalnızca cihazdaki push/realtime çalışma durumunu sıfırlarız.
     await _runSessionEndCleanup();
+    await ObservabilityService.clearUser();
   }
 
   static Future<void> logout() async {
@@ -263,6 +274,8 @@ class ApiService {
           .timeout(const Duration(seconds: 10));
     } catch (_) {
       // Local logout must still work when the network is unavailable.
+    } finally {
+      await ObservabilityService.clearUser();
     }
   }
 
