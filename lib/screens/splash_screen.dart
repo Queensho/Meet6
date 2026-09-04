@@ -1,16 +1,15 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:video_player/video_player.dart';
 
+import '../theme/app_colors.dart';
 import 'onboarding_gate.dart';
 
-/// Meet6 açılış splash'i.
-///
-/// Android/iOS native launch ekranları MP4 oynatamadığı için native ekran yalnızca
-/// ilk kareyi beklerken siyah zemini gösterir. Flutter hazır olur olmaz Splash.mp4
-/// hiçbir kontrol, buton veya video arayüzü göstermeden splash animasyonu olarak
-/// tam ekran oynar ve bitince uygulama akışına geçer.
+/// Meet6 açılış akışı:
+/// - Uygulamanın cihazdaki ilk açılışında Splash.mp4 bir kez oynar.
+/// - Sonraki açılışlarda kısa süre lime zemin üzerinde Logo3 gösterilir.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -19,42 +18,65 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  late final VideoPlayerController _controller;
+  static const _videoSeenKey = 'meet6_intro_video_seen_v1';
+  static const _staticSplashDuration = Duration(milliseconds: 1100);
+
+  VideoPlayerController? _controller;
   Timer? _fallbackTimer;
-  bool _ready = false;
+  bool _showVideo = false;
+  bool _videoReady = false;
   bool _finished = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = VideoPlayerController.asset('assets/images/Splash.mp4');
-    _controller.addListener(_watchPlayback);
-    unawaited(_initialize());
+    unawaited(_resolveSplash());
   }
 
-  Future<void> _initialize() async {
+  Future<void> _resolveSplash() async {
     try {
-      await _controller.initialize();
-      await _controller.setLooping(false);
-      await _controller.setVolume(0);
-      if (!mounted || _finished) return;
-      setState(() => _ready = true);
-      await _controller.play();
+      final preferences = await SharedPreferences.getInstance();
+      final videoSeen = preferences.getBool(_videoSeenKey) ?? false;
 
-      final duration = _controller.value.duration;
+      if (videoSeen) {
+        _fallbackTimer = Timer(_staticSplashDuration, _finish);
+        return;
+      }
+
+      // İlk açılış olarak işaretle; video bir sonraki uygulama açılışında tekrar etmez.
+      await preferences.setBool(_videoSeenKey, true);
+      if (!mounted || _finished) return;
+
+      setState(() => _showVideo = true);
+      final controller = VideoPlayerController.asset('assets/images/Splash.mp4');
+      _controller = controller;
+      controller.addListener(_watchPlayback);
+
+      await controller.initialize();
+      await controller.setLooping(false);
+      await controller.setVolume(0);
+      if (!mounted || _finished) return;
+
+      setState(() => _videoReady = true);
+      await controller.play();
+
+      final duration = controller.value.duration;
       final fallback = duration > Duration.zero
           ? duration + const Duration(milliseconds: 700)
           : const Duration(seconds: 6);
       _fallbackTimer = Timer(fallback, _finish);
     } catch (_) {
-      _fallbackTimer = Timer(const Duration(milliseconds: 250), _finish);
+      // Tercih veya video başlatılamazsa kullanıcı açılış ekranında takılmaz.
+      _fallbackTimer?.cancel();
+      _fallbackTimer = Timer(_staticSplashDuration, _finish);
     }
   }
 
   void _watchPlayback() {
-    if (_finished || !_controller.value.isInitialized) return;
-    final duration = _controller.value.duration;
-    final position = _controller.value.position;
+    final controller = _controller;
+    if (_finished || controller == null || !controller.value.isInitialized) return;
+    final duration = controller.value.duration;
+    final position = controller.value.position;
     if (duration > Duration.zero &&
         position >= duration - const Duration(milliseconds: 100)) {
       _finish();
@@ -71,8 +93,11 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void dispose() {
     _fallbackTimer?.cancel();
-    _controller.removeListener(_watchPlayback);
-    _controller.dispose();
+    final controller = _controller;
+    if (controller != null) {
+      controller.removeListener(_watchPlayback);
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -80,22 +105,38 @@ class _SplashScreenState extends State<SplashScreen> {
   Widget build(BuildContext context) {
     if (_finished) return const OnboardingGate();
 
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: SizedBox.expand(
-        child: _ready
-            ? ClipRect(
-                child: FittedBox(
-                  fit: BoxFit.cover,
-                  alignment: Alignment.center,
-                  child: SizedBox(
-                    width: _controller.value.size.width,
-                    height: _controller.value.size.height,
-                    child: VideoPlayer(_controller),
+    if (_showVideo) {
+      return Scaffold(
+        backgroundColor: Colors.black,
+        body: SizedBox.expand(
+          child: _videoReady && _controller != null
+              ? ClipRect(
+                  child: FittedBox(
+                    fit: BoxFit.cover,
+                    alignment: Alignment.center,
+                    child: SizedBox(
+                      width: _controller!.value.size.width,
+                      height: _controller!.value.size.height,
+                      child: VideoPlayer(_controller!),
+                    ),
                   ),
-                ),
-              )
-            : const ColoredBox(color: Colors.black),
+                )
+              : const ColoredBox(color: Colors.black),
+        ),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: AppColors.lime,
+      body: Center(
+        child: FractionallySizedBox(
+          widthFactor: .56,
+          child: Image.asset(
+            'assets/images/Logo3.png',
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.high,
+          ),
+        ),
       ),
     );
   }
