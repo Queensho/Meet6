@@ -36,6 +36,23 @@ class PushNotificationService {
   static String get _platform =>
       defaultTargetPlatform == TargetPlatform.iOS ? 'ios' : 'android';
 
+  static bool _isActionableData(Map<String, dynamic> data) {
+    final type = data['type']?.toString() ?? '';
+    final roomId = data['roomId']?.toString() ?? '';
+    final matchId = data['matchId']?.toString() ?? '';
+
+    if (type == 'room_found' || type == 'room_message') {
+      return roomId.isNotEmpty;
+    }
+    if (type == 'match' || type == 'message' || type == 'private_message') {
+      return matchId.isNotEmpty;
+    }
+    return type == 'support_reply' ||
+        type == 'moderation_warning' ||
+        type == 'moderation_ban' ||
+        type == 'moderation_unban';
+  }
+
   static Future<void> _registerToken(String token) async {
     final clean = token.trim();
     if (clean.isEmpty) return;
@@ -81,12 +98,18 @@ class PushNotificationService {
   static void _showForegroundAlert(RemoteMessage message) {
     final type = message.data['type']?.toString() ?? '';
     final roomId = message.data['roomId']?.toString() ?? '';
+    final matchId = message.data['matchId']?.toString() ?? '';
 
-    // Kullanıcı zaten aynı canlı oda ekranındaysa mesaj sohbet içinde WebSocket
-    // üzerinden anında görünür. Aynı mesajı ayrıca banner olarak göstermeyiz.
+    // Aynı sohbet ekrandayken mesaj zaten WebSocket ile anında görünür.
+    // Aynı olayı ikinci kez foreground banner olarak göstermeyiz.
     if (type == 'room_message' &&
         roomId.isNotEmpty &&
         RealtimeService.activeRoomId == roomId) {
+      return;
+    }
+    if ((type == 'message' || type == 'private_message') &&
+        matchId.isNotEmpty &&
+        RealtimeService.activeMatchId == matchId) {
       return;
     }
 
@@ -104,6 +127,12 @@ class PushNotificationService {
 
     final messenger = ScaffoldMessenger.maybeOf(context);
     if (messenger == null) return;
+
+    final routeData = <String, dynamic>{
+      ...message.data,
+      'title': title,
+      'body': body,
+    };
 
     _foregroundBannerTimer?.cancel();
     messenger.clearMaterialBanners();
@@ -172,7 +201,7 @@ class PushNotificationService {
           ],
         ),
         actions: [
-          if (message.data.isNotEmpty)
+          if (_isActionableData(routeData))
             TextButton(
               onPressed: () {
                 messenger.hideCurrentMaterialBanner();
@@ -204,7 +233,15 @@ class PushNotificationService {
   }
 
   static Future<void> _openNotification(RemoteMessage message) async {
-    final data = Map<String, dynamic>.from(message.data);
+    final data = <String, dynamic>{...message.data};
+    final notificationTitle = message.notification?.title;
+    final notificationBody = message.notification?.body;
+    if (notificationTitle != null && notificationTitle.trim().isNotEmpty) {
+      data['title'] ??= notificationTitle;
+    }
+    if (notificationBody != null && notificationBody.trim().isNotEmpty) {
+      data['body'] ??= notificationBody;
+    }
     if (data.isEmpty) return;
 
     final notificationId = data['notificationId']?.toString();
@@ -258,10 +295,12 @@ class PushNotificationService {
       }
 
       if (defaultTargetPlatform == TargetPlatform.iOS) {
+        // Foreground'da Meet6 kendi banner'ını gösterir. Native iOS alert/sound
+        // kapalı tutularak aynı bildirimin iki kez görünmesi engellenir.
         await messaging.setForegroundNotificationPresentationOptions(
-          alert: true,
+          alert: false,
           badge: true,
-          sound: true,
+          sound: false,
         );
       }
 
@@ -279,6 +318,22 @@ class PushNotificationService {
     } finally {
       _initializing = false;
     }
+  }
+
+  static Future<void> unregisterCurrentDevice() async {
+    if (supportedPlatform) {
+      try {
+        await Firebase.initializeApp();
+        final token = await FirebaseMessaging.instance.getToken();
+        if (token != null && token.trim().isNotEmpty) {
+          await PushApiService.unregisterDevice(token.trim());
+        }
+      } catch (_) {
+        // Çıkış işlemi push temizliğindeki geçici bir hatayla engellenmez.
+      }
+    }
+    await resetRuntimeState();
+    RealtimeService.disconnect();
   }
 
   static Future<void> resetRuntimeState() async {
