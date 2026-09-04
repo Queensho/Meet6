@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../services/api_service.dart';
 import '../../../theme/app_colors.dart';
+import '../../premium/premium_profile_card.dart';
 
 class ProfileHero extends StatelessWidget {
   const ProfileHero({
@@ -67,6 +68,12 @@ class ProfileHero extends StatelessWidget {
                     ),
                   ),
                 ),
+              ),
+              const Positioned(
+                top: 18,
+                left: 0,
+                right: 0,
+                child: Center(child: PremiumProfileCard()),
               ),
             ],
           ),
