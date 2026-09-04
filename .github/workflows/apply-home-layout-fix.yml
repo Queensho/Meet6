@@ -1,0 +1,37 @@
+name: Apply Home Layout Fix
+
+on:
+  push:
+    branches: [fix/home-active-room-layout]
+    paths:
+      - '.release/home-layout-fix.patch'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: fix/home-active-room-layout
+          fetch-depth: 0
+
+      - name: Apply patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f .release/home-layout-fix.patch ]; then
+            echo "Patch already consumed"
+            exit 0
+          fi
+          git apply --check .release/home-layout-fix.patch
+          git apply .release/home-layout-fix.patch
+          rm -f .release/home-layout-fix.patch .github/workflows/apply-home-layout-fix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Fix active room home layout"
+          git push origin HEAD:fix/home-active-room-layout
