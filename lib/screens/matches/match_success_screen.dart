@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../services/api_service.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/brand.dart';
 import '../../widgets/phone_frame.dart';
 import '../messages/private_chat_screen.dart';
 
@@ -79,19 +80,7 @@ class _MatchSuccessScreenState extends State<MatchSuccessScreen>
                 children: [
                   const Align(
                     alignment: Alignment.centerLeft,
-                    child: Text.rich(
-                      TextSpan(
-                        style: TextStyle(
-                          fontSize: 30,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -1.8,
-                        ),
-                        children: [
-                          TextSpan(text: 'meet', style: TextStyle(color: AppColors.navy)),
-                          TextSpan(text: '6', style: TextStyle(color: AppColors.blue)),
-                        ],
-                      ),
-                    ),
+                    child: Meet6MiniBrand(height: 30),
                   ),
                   const Spacer(),
                   ScaleTransition(
