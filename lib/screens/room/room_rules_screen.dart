@@ -267,7 +267,7 @@ class _RoomRulesScreenState extends State<RoomRulesScreen> {
                               ),
                               const SizedBox(height: 10),
                               Row(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Expanded(
                                     child: _ModeCard(
@@ -499,7 +499,7 @@ class _ModeCard extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeOutCubic,
-        constraints: const BoxConstraints(minHeight: 178),
+        height: 178,
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: selected ? AppColors.navy : Colors.white.withOpacity(.38),
@@ -534,7 +534,7 @@ class _ModeCard extends StatelessWidget {
                   ),
                   child: Icon(
                     icon,
-                    color: selected ? AppColors.lime : AppColors.lime,
+                    color: AppColors.lime,
                     size: 27,
                   ),
                 ),
