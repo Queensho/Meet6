@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { rm } from 'node:fs/promises';
 import * as path from 'node:path';
 
+import { ContentSafetyService } from './content-safety.service';
 import { InfrastructureService } from './infrastructure.service';
 import { UpdatePreferencesDto, UpdateProfileDto } from './profile.dto';
 
@@ -15,22 +15,32 @@ type UploadedPhoto = {
 
 @Injectable()
 export class ProfileService {
-  constructor(private readonly infra: InfrastructureService) {}
+  constructor(
+    private readonly infra: InfrastructureService,
+    private readonly safety: ContentSafetyService,
+  ) {}
 
   async getMe(userId: string) {
-    const user = await this.infra.db.query(
-      `select u.id, u.phone_e164, u.status, u.created_at, u.last_seen_at,
-              p.display_name, p.birth_date, p.gender, p.bio, p.city, p.country,
-              p.latitude, p.longitude, p.profile_prompt, p.profile_answer,
-              p.interests, p.photo_urls, coalesce(p.profile_completed, false) as profile_completed,
-              mp.looking_for, mp.min_age, mp.max_age, mp.distance_km, mp.purpose
-       from users u
-       left join profiles p on p.user_id = u.id
-       left join matching_preferences mp on mp.user_id = u.id
-       where u.id = $1`,
-      [userId],
-    );
-    return { ok: true, user: user.rows[0] ?? null };
+    const [user, moderation] = await Promise.all([
+      this.infra.db.query(
+        `select u.id, u.phone_e164, u.status, u.created_at, u.last_seen_at,
+                p.display_name, p.birth_date, p.gender, p.bio, p.city, p.country,
+                p.latitude, p.longitude, p.profile_prompt, p.profile_answer,
+                p.interests, p.photo_urls, coalesce(p.profile_completed, false) as profile_completed,
+                mp.looking_for, mp.min_age, mp.max_age, mp.distance_km, mp.purpose
+         from users u
+         left join profiles p on p.user_id = u.id
+         left join matching_preferences mp on mp.user_id = u.id
+         where u.id = $1`,
+        [userId],
+      ),
+      this.safety.listUserPhotos(userId).catch(() => ({ ok: true, photos: [] })),
+    ]);
+    return {
+      ok: true,
+      user: user.rows[0] ?? null,
+      photoModeration: moderation.photos,
+    };
   }
 
   private detectImageType(buffer: Buffer): string | null {
@@ -77,11 +87,14 @@ export class ProfileService {
       'image/heif': 'heif',
     };
 
-    const root = process.env.UPLOAD_ROOT ?? '/var/www/meet6/uploads';
-    const userDir = path.join(root, 'profile', userId);
-    await mkdir(userDir, { recursive: true });
+    const moderation: Array<{
+      moderationId: string;
+      status: string;
+      url: string | null;
+      reason: string | null;
+      duplicate: boolean;
+    }> = [];
 
-    const urls: string[] = [];
     for (const finalFile of files) {
       if (!finalFile.buffer?.length || finalFile.size > 8 * 1024 * 1024) {
         throw new BadRequestException('Fotoğraf boyutu en fazla 8 MB olabilir.');
@@ -93,15 +106,57 @@ export class ProfileService {
           'Dosya gerçek bir JPG, PNG, WEBP veya HEIC görseli değil.',
         );
       }
-      const filename = `${Date.now()}-${randomUUID()}.${ext}`;
-      await writeFile(path.join(userDir, filename), finalFile.buffer, { flag: 'wx' });
-      urls.push(`/uploads/profile/${userId}/${filename}`);
+      moderation.push(await this.safety.processProfilePhoto(
+        userId,
+        { ...finalFile, mimetype: detected },
+        ext,
+      ));
     }
 
-    return { ok: true, urls };
+    const urls = moderation
+      .filter((item) => item.status === 'approved' && item.url)
+      .map((item) => item.url as string);
+    const pendingReview = moderation.filter((item) => item.status === 'review');
+    const rejected = moderation.filter((item) => item.status === 'rejected');
+
+    return {
+      ok: true,
+      urls,
+      moderation,
+      pendingReview,
+      rejected,
+    };
   }
 
-  private validateCompletedProfile(userId: string, body: UpdateProfileDto) {
+  private async assertApprovedPhotoUrls(userId: string, urls: string[]) {
+    if (!urls.length) return;
+    const [current, approved] = await Promise.all([
+      this.infra.db.query<{ photo_urls: string[] }>(
+        `select coalesce(photo_urls,'{}'::text[]) as photo_urls
+         from profiles where user_id=$1`,
+        [userId],
+      ),
+      this.infra.db.query<{ public_url: string }>(
+        `select public_url
+         from photo_moderation_items
+         where user_id=$1 and status='approved'
+           and public_url is not null and public_url=any($2::text[])`,
+        [userId, urls],
+      ).catch(() => ({ rows: [] as { public_url: string }[] })),
+    ]);
+
+    const allowed = new Set<string>([
+      ...(current.rows[0]?.photo_urls ?? []),
+      ...approved.rows.map((row) => row.public_url),
+    ]);
+    const ownPrefix = `/uploads/profile/${userId}/`;
+    const invalid = urls.find((url) => !url.startsWith(ownPrefix) || !allowed.has(url));
+    if (invalid) {
+      throw new BadRequestException('Yalnızca onaylanmış Meet6 profil fotoğrafları kullanılabilir.');
+    }
+  }
+
+  private validateCompletedProfile(body: UpdateProfileDto) {
     if (body.profileCompleted !== true) return;
 
     const requiredStrings: Array<[string | undefined, string]> = [
@@ -122,11 +177,7 @@ export class ProfileService {
       throw new BadRequestException('En az 1 ilgi alanı zorunlu.');
     }
     if (!body.photoUrls || body.photoUrls.length < 1 || body.photoUrls.length > 4) {
-      throw new BadRequestException('Profili tamamlamak için 1 ile 4 arasında fotoğraf gerekli.');
-    }
-    const ownPrefix = `/uploads/profile/${userId}/`;
-    if (body.photoUrls.some((url) => !url.startsWith(ownPrefix))) {
-      throw new BadRequestException('Profil fotoğrafları kendi Meet6 yüklemelerin olmalı.');
+      throw new BadRequestException('Profili tamamlamak için 1 ile 4 arasında onaylanmış fotoğraf gerekli.');
     }
 
     const birth = new Date(body.birthDate!);
@@ -144,7 +195,10 @@ export class ProfileService {
     if (body.photoUrls != null && body.photoUrls.length > 4) {
       throw new BadRequestException('En fazla 4 profil fotoğrafı olabilir.');
     }
-    this.validateCompletedProfile(userId, body);
+    if (body.photoUrls != null) {
+      await this.assertApprovedPhotoUrls(userId, body.photoUrls);
+    }
+    this.validateCompletedProfile(body);
 
     await this.infra.db.query(
       `insert into profiles(
@@ -222,8 +276,12 @@ export class ProfileService {
 
   async deleteAccount(userId: string) {
     const root = process.env.UPLOAD_ROOT ?? '/var/www/meet6/uploads';
+    const quarantineRoot = process.env.MODERATION_QUARANTINE_ROOT ?? '/var/lib/meet6/quarantine';
     await this.infra.db.query('delete from users where id = $1', [userId]);
-    await rm(path.join(root, 'profile', userId), { recursive: true, force: true });
+    await Promise.all([
+      rm(path.join(root, 'profile', userId), { recursive: true, force: true }),
+      rm(path.join(quarantineRoot, 'profile', userId), { recursive: true, force: true }),
+    ]);
     return { ok: true };
   }
 }
