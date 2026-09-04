@@ -40,8 +40,6 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   bool submitting = false;
   String? locationError;
 
-  int get extraPhotoCount => extraPhotos.whereType<PickedProfilePhoto>().length;
-
   bool get canAdvance {
     if (submitting || photoPicking) return false;
     if (step == 1) {
@@ -53,8 +51,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     if (step == 2) {
       return draft.lookingFor != null && draft.hasLocation && draft.purpose != null;
     }
-    return extraPhotoCount >= 2 &&
-        bioController.text.trim().length >= 3 &&
+    return bioController.text.trim().length >= 3 &&
         draft.interests.isNotEmpty &&
         draft.prompt.trim().isNotEmpty &&
         promptAnswerController.text.trim().length >= 3;
@@ -91,16 +88,72 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     }
   }
 
+  Future<List<PickedProfilePhoto>> _pickManyPhotos(int maxCount) async {
+    if (photoPicking || submitting || maxCount <= 0) return const [];
+    setState(() => photoPicking = true);
+    try {
+      return await ProfilePhotoService.pickAndPrepareMany(
+        context,
+        imagePicker,
+        maxCount: maxCount,
+      );
+    } on ProfilePhotoException catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+      }
+      return const [];
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Fotoğraflar hazırlanamadı. Tekrar dene.')),
+        );
+      }
+      return const [];
+    } finally {
+      if (mounted) setState(() => photoPicking = false);
+    }
+  }
+
   Future<void> _pickMainPhoto() async {
-    final picked = await _pickPhoto();
-    if (picked == null || !mounted) return;
-    setState(() => mainPhoto = picked);
+    if (mainPhoto != null) {
+      final picked = await _pickPhoto();
+      if (picked == null || !mounted) return;
+      setState(() => mainPhoto = picked);
+      return;
+    }
+
+    final picked = await _pickManyPhotos(4);
+    if (picked.isEmpty || !mounted) return;
+    setState(() {
+      mainPhoto = picked.first;
+      for (var i = 1; i < picked.length && i <= 3; i++) {
+        extraPhotos[i - 1] = picked[i];
+      }
+    });
   }
 
   Future<void> _pickExtraPhoto(int index) async {
-    final picked = await _pickPhoto();
-    if (picked == null || !mounted) return;
-    setState(() => extraPhotos[index] = picked);
+    if (index < 0 || index >= extraPhotos.length) return;
+
+    if (extraPhotos[index] != null) {
+      final picked = await _pickPhoto();
+      if (picked == null || !mounted) return;
+      setState(() => extraPhotos[index] = picked);
+      return;
+    }
+
+    final emptyIndices = <int>[
+      index,
+      ...List.generate(extraPhotos.length, (i) => i)
+          .where((i) => i != index && extraPhotos[i] == null),
+    ];
+    final picked = await _pickManyPhotos(emptyIndices.length);
+    if (picked.isEmpty || !mounted) return;
+    setState(() {
+      for (var i = 0; i < picked.length && i < emptyIndices.length; i++) {
+        extraPhotos[emptyIndices[i]] = picked[i];
+      }
+    });
   }
 
   void _removeExtraPhoto(int index) {
