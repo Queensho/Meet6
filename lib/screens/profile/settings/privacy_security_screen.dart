@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../services/api_service.dart';
+import '../../../services/live_service.dart';
 import '../../../theme/app_colors.dart';
 import 'widgets/settings_page_shell.dart';
 
@@ -17,94 +19,231 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
   bool blurLocation = true;
   bool hideExactDistance = true;
   bool readReceipts = true;
+  bool loading = true;
+  bool saving = false;
+  String? error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  void _applyValues(Map<String, dynamic> values) {
+    showOnline = values['show_online'] != false;
+    allowRoomInvites = values['allow_room_invites'] != false;
+    allowPrivateMessages = values['allow_private_messages'] != false;
+    blurLocation = values['precise_location'] != true;
+    hideExactDistance = values['hide_exact_distance'] != false;
+    readReceipts = values['read_receipts'] != false;
+  }
+
+  Future<void> _load({bool showSpinner = true}) async {
+    if (showSpinner && mounted) {
+      setState(() {
+        loading = true;
+        error = null;
+      });
+    }
+    try {
+      final response = await LiveService.settings();
+      final raw = response['settings'];
+      if (!mounted) return;
+      setState(() {
+        if (raw is Map) _applyValues(Map<String, dynamic>.from(raw));
+        loading = false;
+        error = null;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        error = e.message;
+      });
+    }
+  }
+
+  Future<void> _save({
+    bool? showOnlineValue,
+    bool? preciseLocationValue,
+    bool? allowRoomInvitesValue,
+    bool? allowPrivateMessagesValue,
+    bool? hideExactDistanceValue,
+    bool? readReceiptsValue,
+  }) async {
+    if (saving) return;
+    setState(() {
+      saving = true;
+      error = null;
+    });
+    try {
+      final response = await LiveService.updateSettings(
+        showOnline: showOnlineValue,
+        preciseLocation: preciseLocationValue,
+        allowRoomInvites: allowRoomInvitesValue,
+        allowPrivateMessages: allowPrivateMessagesValue,
+        hideExactDistance: hideExactDistanceValue,
+        readReceipts: readReceiptsValue,
+      );
+      final raw = response['settings'];
+      if (!mounted) return;
+      setState(() {
+        if (raw is Map) _applyValues(Map<String, dynamic>.from(raw));
+        error = null;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => error = e.message);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message), behavior: SnackBarBehavior.floating),
+      );
+      await _load(showSpinner: false);
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return SettingsPageShell(
       title: 'Gizlilik ve güvenlik',
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 18, 18, 30),
-        physics: const BouncingScrollPhysics(),
-        children: [
-          const _InfoBanner(),
-          const SizedBox(height: 18),
-          const _SectionTitle('Görünürlük'),
-          _Card(
-            children: [
-              _SwitchRow(
-                icon: Icons.circle_outlined,
-                title: 'Çevrimiçi durumumu göster',
-                subtitle: 'Diğer kişiler aktif olduğunu görebilir.',
-                value: showOnline,
-                onChanged: (value) => setState(() => showOnline = value),
-              ),
-              _SwitchRow(
-                icon: Icons.location_off_outlined,
-                title: 'Konumumu yaklaşık göster',
-                subtitle: 'Tam konum yerine yalnızca şehir ve yaklaşık mesafe kullanılır.',
-                value: blurLocation,
-                onChanged: (value) => setState(() => blurLocation = value),
-              ),
-              _SwitchRow(
-                icon: Icons.straighten_outlined,
-                title: 'Tam mesafeyi gizle',
-                subtitle: 'Örn. 2,3 km yerine “5 km içinde” gösterilir.',
-                value: hideExactDistance,
-                onChanged: (value) => setState(() => hideExactDistance = value),
-                last: true,
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          const _SectionTitle('İletişim'),
-          _Card(
-            children: [
-              _SwitchRow(
-                icon: Icons.groups_outlined,
-                title: 'Oda davetlerine izin ver',
-                subtitle: 'Uygun olduğunda oda önerileri ve davetleri al.',
-                value: allowRoomInvites,
-                onChanged: (value) => setState(() => allowRoomInvites = value),
-              ),
-              _SwitchRow(
-                icon: Icons.chat_bubble_outline_rounded,
-                title: 'Özel mesajlara izin ver',
-                subtitle: 'Yalnızca eşleştiğin kişiler özel mesaj gönderebilir.',
-                value: allowPrivateMessages,
-                onChanged: (value) => setState(() => allowPrivateMessages = value),
-              ),
-              _SwitchRow(
-                icon: Icons.done_all_rounded,
-                title: 'Okundu bilgisini göster',
-                subtitle: 'Özel mesajlarda okundu durumunu paylaş.',
-                value: readReceipts,
-                onChanged: (value) => setState(() => readReceipts = value),
-                last: true,
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          _ActionTile(
-            icon: Icons.security_rounded,
-            title: 'Güvenlik merkezi',
-            subtitle: 'Raporlama, engelleme ve güvenli kullanım ipuçları',
-            onTap: () => _showInfo(
-              context,
-              'Güvenlik merkezi için temel arayüz hazır. Raporlama backend ile bağlanacak.',
+      child: loading
+          ? const Center(child: CircularProgressIndicator(color: AppColors.blue))
+          : ListView(
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 30),
+              physics: const BouncingScrollPhysics(),
+              children: [
+                if (saving) ...[
+                  const LinearProgressIndicator(minHeight: 2, color: AppColors.blue),
+                  const SizedBox(height: 10),
+                ],
+                if (error != null) ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0x22E76A60),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Text(
+                      error!,
+                      style: const TextStyle(
+                        color: Color(0xFFE76A60),
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                const _InfoBanner(),
+                const SizedBox(height: 18),
+                const _SectionTitle('Görünürlük'),
+                _Card(
+                  children: [
+                    _SwitchRow(
+                      icon: Icons.circle_outlined,
+                      title: 'Çevrimiçi durumumu göster',
+                      subtitle: 'Diğer kişiler aktif olduğunu görebilir.',
+                      value: showOnline,
+                      onChanged: saving
+                          ? null
+                          : (value) {
+                              setState(() => showOnline = value);
+                              _save(showOnlineValue: value);
+                            },
+                    ),
+                    _SwitchRow(
+                      icon: Icons.location_off_outlined,
+                      title: 'Konumumu yaklaşık göster',
+                      subtitle: 'Tam konum yerine yalnızca şehir ve yaklaşık mesafe kullanılır.',
+                      value: blurLocation,
+                      onChanged: saving
+                          ? null
+                          : (value) {
+                              setState(() => blurLocation = value);
+                              _save(preciseLocationValue: !value);
+                            },
+                    ),
+                    _SwitchRow(
+                      icon: Icons.straighten_outlined,
+                      title: 'Tam mesafeyi gizle',
+                      subtitle: 'Örn. 2,3 km yerine “5 km içinde” gösterilir.',
+                      value: hideExactDistance,
+                      onChanged: saving
+                          ? null
+                          : (value) {
+                              setState(() => hideExactDistance = value);
+                              _save(hideExactDistanceValue: value);
+                            },
+                      last: true,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                const _SectionTitle('İletişim'),
+                _Card(
+                  children: [
+                    _SwitchRow(
+                      icon: Icons.groups_outlined,
+                      title: 'Oda davetlerine izin ver',
+                      subtitle: 'Uygun olduğunda oda önerileri ve davetleri al.',
+                      value: allowRoomInvites,
+                      onChanged: saving
+                          ? null
+                          : (value) {
+                              setState(() => allowRoomInvites = value);
+                              _save(allowRoomInvitesValue: value);
+                            },
+                    ),
+                    _SwitchRow(
+                      icon: Icons.chat_bubble_outline_rounded,
+                      title: 'Özel mesajlara izin ver',
+                      subtitle: 'Yalnızca eşleştiğin kişiler özel mesaj gönderebilir.',
+                      value: allowPrivateMessages,
+                      onChanged: saving
+                          ? null
+                          : (value) {
+                              setState(() => allowPrivateMessages = value);
+                              _save(allowPrivateMessagesValue: value);
+                            },
+                    ),
+                    _SwitchRow(
+                      icon: Icons.done_all_rounded,
+                      title: 'Okundu bilgisini göster',
+                      subtitle: 'Özel mesajlarda okundu durumunu paylaş.',
+                      value: readReceipts,
+                      onChanged: saving
+                          ? null
+                          : (value) {
+                              setState(() => readReceipts = value);
+                              _save(readReceiptsValue: value);
+                            },
+                      last: true,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                _ActionTile(
+                  icon: Icons.security_rounded,
+                  title: 'Güvenlik merkezi',
+                  subtitle: 'Raporlama, engelleme ve güvenli kullanım ipuçları',
+                  onTap: () => _showInfo(
+                    context,
+                    'Güvenlik merkezi için temel arayüz hazır. Raporlama backend ile bağlanacak.',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                _ActionTile(
+                  icon: Icons.download_outlined,
+                  title: 'Verilerimi indir',
+                  subtitle: 'Hesabınla ilgili veri kopyası iste',
+                  onTap: () => _showInfo(
+                    context,
+                    'Veri indirme talebi hesap backend’i bağlandığında gerçek dosya oluşturacak.',
+                  ),
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 10),
-          _ActionTile(
-            icon: Icons.download_outlined,
-            title: 'Verilerimi indir',
-            subtitle: 'Hesabınla ilgili veri kopyası iste',
-            onTap: () => _showInfo(
-              context,
-              'Veri indirme talebi hesap backend’i bağlandığında gerçek dosya oluşturacak.',
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -200,7 +339,7 @@ class _SwitchRow extends StatelessWidget {
   final String title;
   final String subtitle;
   final bool value;
-  final ValueChanged<bool> onChanged;
+  final ValueChanged<bool>? onChanged;
   final bool last;
 
   @override
