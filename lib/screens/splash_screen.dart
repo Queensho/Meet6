@@ -23,6 +23,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
   VideoPlayerController? _controller;
   Timer? _fallbackTimer;
+  bool _decisionReady = false;
   bool _showVideo = false;
   bool _videoReady = false;
   bool _finished = false;
@@ -39,6 +40,8 @@ class _SplashScreenState extends State<SplashScreen> {
       final videoSeen = preferences.getBool(_videoSeenKey) ?? false;
 
       if (videoSeen) {
+        if (!mounted || _finished) return;
+        setState(() => _decisionReady = true);
         _fallbackTimer = Timer(_staticSplashDuration, _finish);
         return;
       }
@@ -47,7 +50,10 @@ class _SplashScreenState extends State<SplashScreen> {
       await preferences.setBool(_videoSeenKey, true);
       if (!mounted || _finished) return;
 
-      setState(() => _showVideo = true);
+      setState(() {
+        _decisionReady = true;
+        _showVideo = true;
+      });
       final controller = VideoPlayerController.asset('assets/images/Splash.mp4');
       _controller = controller;
       controller.addListener(_watchPlayback);
@@ -67,6 +73,12 @@ class _SplashScreenState extends State<SplashScreen> {
       _fallbackTimer = Timer(fallback, _finish);
     } catch (_) {
       // Tercih veya video başlatılamazsa kullanıcı açılış ekranında takılmaz.
+      if (mounted && !_finished) {
+        setState(() {
+          _decisionReady = true;
+          _showVideo = false;
+        });
+      }
       _fallbackTimer?.cancel();
       _fallbackTimer = Timer(_staticSplashDuration, _finish);
     }
@@ -105,11 +117,11 @@ class _SplashScreenState extends State<SplashScreen> {
   Widget build(BuildContext context) {
     if (_finished) return const OnboardingGate();
 
-    if (_showVideo) {
+    if (!_decisionReady || _showVideo) {
       return Scaffold(
         backgroundColor: Colors.black,
         body: SizedBox.expand(
-          child: _videoReady && _controller != null
+          child: _showVideo && _videoReady && _controller != null
               ? ClipRect(
                   child: FittedBox(
                     fit: BoxFit.cover,
