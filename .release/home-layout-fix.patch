@@ -1,0 +1,174 @@
+diff --git a/lib/screens/home/home_screen.dart b/lib/screens/home/home_screen.dart
+index 4cdce2f..0000000 100644
+--- a/lib/screens/home/home_screen.dart
++++ b/lib/screens/home/home_screen.dart
+@@ -454,22 +454,29 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+                     ],
+                   ),
+                   const SizedBox(height: 12),
+-                  if (room != null) ...[
+-                    _ActiveRoomCard(
+-                      room: room,
+-                      leaving: activeRoomLeaving,
+-                      onReturn: _openActiveRoom,
+-                      onLeave: () => _leaveActiveRoom(),
+-                    ),
+-                    const SizedBox(height: 10),
+-                  ],
+                   Expanded(
+                     flex: 6,
+-                    child: Padding(
+-                      padding: const EdgeInsets.symmetric(horizontal: 2),
+-                      child: RoomRadar(onTap: _enterRoom),
++                    child: Stack(
++                      clipBehavior: Clip.none,
++                      children: [
++                        Positioned.fill(
++                          child: Padding(
++                            padding: const EdgeInsets.symmetric(horizontal: 2),
++                            child: RoomRadar(onTap: _enterRoom),
++                          ),
++                        ),
++                        if (room != null)
++                          Positioned(
++                            top: 2,
++                            left: 0,
++                            right: 0,
++                            child: _ActiveRoomCard(
++                              room: room,
++                              leaving: activeRoomLeaving,
++                              onReturn: _openActiveRoom,
++                              onLeave: () => _leaveActiveRoom(),
++                            ),
++                          ),
++                      ],
+                     ),
+                   ),
+                   const SizedBox(height: 8),
+@@ -526,11 +533,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+                                 Text(
+                                   room == null
+                                       ? 'Odaya girmek için 6’ya dokun'
+-                                      : 'Aktif odan var · dokun ve seçenekleri gör',
++                                      : 'Oda seçenekleri',
++                                  maxLines: 1,
++                                  overflow: TextOverflow.ellipsis,
+                                   style: const TextStyle(
+                                     color: AppColors.navy,
+                                     fontSize: 14,
+@@ -541,8 +551,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+                                 Text(
+                                   room == null
+                                       ? 'Sana uygun ${runtime.minimumUsers - 1} kişiyle sohbet başlar.'
+-                                      : 'Mevcut odaya dön veya ayrılıp yeni oda ara.',
++                                      : 'Odaya dön veya yeni oda ara.',
++                                  maxLines: 1,
++                                  overflow: TextOverflow.ellipsis,
+                                   style: const TextStyle(
+                                     color: AppColors.navy,
+                                     fontSize: 11.5,
+@@ -648,18 +660,18 @@ class _ActiveRoomCard extends StatelessWidget {
+       label: '$title. $subtitle',
+       child: Container(
+         width: double.infinity,
+-        padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
++        padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
+         decoration: BoxDecoration(
+           color: AppColors.navy,
+-          borderRadius: BorderRadius.circular(22),
++          borderRadius: BorderRadius.circular(18),
+           boxShadow: [
+             BoxShadow(
+-              color: AppColors.navy.withValues(alpha: .16),
+-              blurRadius: 14,
+-              offset: const Offset(0, 5),
++              color: AppColors.navy.withValues(alpha: .14),
++              blurRadius: 10,
++              offset: const Offset(0, 4),
+             ),
+           ],
+         ),
+@@ -667,8 +679,8 @@ class _ActiveRoomCard extends StatelessWidget {
+           children: [
+             Container(
+-              width: 42,
+-              height: 42,
++              width: 36,
++              height: 36,
+               decoration: const BoxDecoration(
+                 color: AppColors.lime,
+                 shape: BoxShape.circle,
+@@ -681,10 +693,10 @@ class _ActiveRoomCard extends StatelessWidget {
+                         ? Icons.mic_rounded
+                         : Icons.forum_rounded,
+                 color: AppColors.navy,
+-                size: 22,
++                size: 19,
+               ),
+             ),
+-            const SizedBox(width: 11),
++            const SizedBox(width: 9),
+             Expanded(
+               child: Column(
+                 crossAxisAlignment: CrossAxisAlignment.start,
+@@ -694,7 +706,7 @@ class _ActiveRoomCard extends StatelessWidget {
+                     'AKTİF ODAN',
+                     style: TextStyle(
+                       color: AppColors.lime,
+-                      fontSize: 9,
++                      fontSize: 8,
+                       fontWeight: FontWeight.w900,
+                       letterSpacing: .8,
+                     ),
+@@ -706,7 +718,7 @@ class _ActiveRoomCard extends StatelessWidget {
+                     overflow: TextOverflow.ellipsis,
+                     style: const TextStyle(
+                       color: Colors.white,
+-                      fontSize: 13.5,
++                      fontSize: 12.2,
+                       fontWeight: FontWeight.w900,
+                     ),
+                   ),
+@@ -718,7 +730,7 @@ class _ActiveRoomCard extends StatelessWidget {
+                     overflow: TextOverflow.ellipsis,
+                     style: const TextStyle(
+                       color: Colors.white70,
+-                      fontSize: 10.5,
++                      fontSize: 9.8,
+                       fontWeight: FontWeight.w600,
+                     ),
+                   ),
+@@ -735,8 +747,8 @@ class _ActiveRoomCard extends StatelessWidget {
+                   style: FilledButton.styleFrom(
+                     backgroundColor: AppColors.lime,
+                     foregroundColor: AppColors.navy,
+-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
++                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                     minimumSize: Size.zero,
+                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                   ),
+@@ -744,7 +756,7 @@ class _ActiveRoomCard extends StatelessWidget {
+                   child: Text(
+                     selection ? 'Seç' : 'Dön',
+-                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900),
++                    style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w900),
+                   ),
+                 ),
+-                const SizedBox(height: 3),
++                const SizedBox(height: 1),
+                 TextButton(
+                   onPressed: leaving ? null : onLeave,
+                   style: TextButton.styleFrom(
+                     foregroundColor: Colors.white70,
+-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
++                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                     minimumSize: Size.zero,
+                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                   ),
+@@ -754,7 +766,7 @@ class _ActiveRoomCard extends StatelessWidget {
+                   child: Text(
+                     leaving ? 'Ayrılıyor...' : 'Ayrıl',
+-                    style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700),
++                    style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.w700),
+                   ),
+                 ),
