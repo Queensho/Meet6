@@ -80,7 +80,7 @@ class _MatchSuccessScreenState extends State<MatchSuccessScreen>
                 children: [
                   const Align(
                     alignment: Alignment.centerLeft,
-                    child: Meet6MiniBrand(height: 30),
+                    child: Meet6MiniBrand(height: 30, forceLogo2: true),
                   ),
                   const Spacer(),
                   ScaleTransition(
