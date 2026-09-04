@@ -58,10 +58,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         _items = items;
         _loading = false;
       });
-
-      if (items.any((item) => item['read_at'] == null)) {
-        unawaited(NotificationApiService.markAllRead().catchError((_) {}));
-      }
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -96,11 +92,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   void _open(Map<String, dynamic> item) {
+    final notificationId = item['id']?.toString() ?? '';
+    if (notificationId.isNotEmpty && item['read_at'] == null) {
+      setState(() => item['read_at'] = DateTime.now().toUtc().toIso8601String());
+      unawaited(NotificationApiService.markRead(notificationId).catchError((_) {}));
+    }
+
     if (!_actionable(item)) return;
     final data = <String, dynamic>{
       ..._data(item),
       'type': item['type']?.toString() ?? '',
-      'notificationId': item['id']?.toString() ?? '',
+      'notificationId': notificationId,
       'title': item['title']?.toString() ?? 'Meet6',
       'body': item['body']?.toString() ?? '',
     };
@@ -262,7 +264,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             borderRadius: BorderRadius.circular(20),
                             child: InkWell(
                               borderRadius: BorderRadius.circular(20),
-                              onTap: actionable ? () => _open(item) : null,
+                              onTap: () => _open(item),
                               child: Container(
                                 padding: const EdgeInsets.all(14),
                                 decoration: BoxDecoration(
