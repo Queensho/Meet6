@@ -183,7 +183,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   Row(
                     children: [
-                      const Meet6MiniBrand(height: 31),
+                      const Meet6MiniBrand(height: 31, forceLogo2: true),
                       const Spacer(),
                       _TopButton(
                         icon: Icons.tune_rounded,
