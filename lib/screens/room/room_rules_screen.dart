@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../services/runtime_app_config_service.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/brand.dart';
 import 'room_searching_screen.dart';
 
 class RoomRulesScreen extends StatelessWidget {
@@ -72,26 +73,7 @@ class RoomRulesScreen extends StatelessWidget {
                               ),
                             ),
                             const Spacer(),
-                            const Text.rich(
-                              TextSpan(
-                                style: TextStyle(
-                                  fontSize: 26,
-                                  height: 1,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: -1.6,
-                                ),
-                                children: [
-                                  TextSpan(
-                                    text: 'meet',
-                                    style: TextStyle(color: AppColors.navy),
-                                  ),
-                                  TextSpan(
-                                    text: '6',
-                                    style: TextStyle(color: AppColors.blue),
-                                  ),
-                                ],
-                              ),
-                            ),
+                            const Meet6MiniBrand(height: 26),
                           ],
                         ),
                         const Spacer(),
