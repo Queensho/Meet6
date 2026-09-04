@@ -35,6 +35,8 @@ import { SocialController } from './social.controller';
 import { SocialService } from './social.service';
 import { SupportController } from './support.controller';
 import { SupportService } from './support.service';
+import { VoiceRoomController } from './voice-room.controller';
+import { VoiceRoomService } from './voice-room.service';
 
 @Module({
   imports: [
@@ -50,6 +52,7 @@ import { SupportService } from './support.service';
     ProfileController,
     BillingController,
     RoomController,
+    VoiceRoomController,
     RoomControlController,
     SocialController,
     SupportController,
@@ -64,6 +67,7 @@ import { SupportService } from './support.service';
     ProfileService,
     BillingService,
     RoomService,
+    VoiceRoomService,
     RoomMessageService,
     SocialService,
     ReportService,
