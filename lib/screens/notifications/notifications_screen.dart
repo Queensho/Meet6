@@ -89,7 +89,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return type == 'support_reply' ||
         type == 'moderation_warning' ||
         type == 'moderation_ban' ||
-        type == 'moderation_unban';
+        type == 'moderation_unban' ||
+        type == 'room_closed' ||
+        type == 'room_removed' ||
+        type == 'report_update';
   }
 
   void _open(Map<String, dynamic> item) {
@@ -112,6 +115,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         return Icons.groups_2_rounded;
       case 'room_message':
         return Icons.forum_rounded;
+      case 'room_closed':
+        return Icons.meeting_room_outlined;
+      case 'room_removed':
+        return Icons.block_rounded;
       case 'match':
         return Icons.favorite_rounded;
       case 'message':
@@ -125,6 +132,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         return Icons.block_rounded;
       case 'moderation_unban':
         return Icons.verified_user_outlined;
+      case 'report_update':
+        return Icons.shield_outlined;
       default:
         return Icons.notifications_rounded;
     }
