@@ -50,6 +50,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late MatchingPreferences preferences;
+  Timer? notificationPermissionTimer;
 
   @override
   void initState() {
@@ -70,7 +71,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     unawaited(RuntimeAppConfigService.load(force: true));
     _startAuthenticatedServices();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Future<void>.delayed(const Duration(milliseconds: 900), () {
+      if (!mounted) return;
+      notificationPermissionTimer?.cancel();
+      notificationPermissionTimer = Timer(const Duration(milliseconds: 900), () {
         if (!mounted) return;
         unawaited(NotificationPermissionOnboarding.maybeShow(context));
       });
@@ -94,6 +97,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    notificationPermissionTimer?.cancel();
+    notificationPermissionTimer = null;
     WidgetsBinding.instance.removeObserver(this);
     RuntimeAppConfigService.listenable.removeListener(_runtimeChanged);
     super.dispose();

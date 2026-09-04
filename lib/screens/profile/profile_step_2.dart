@@ -191,8 +191,10 @@ class ProfileStepTwo extends StatelessWidget {
         const SizedBox(height: 18),
         Row(
           children: [
-            const FieldLabel('Konumuna göre maksimum mesafe'),
-            const Spacer(),
+            const Expanded(
+              child: FieldLabel('Konumuna göre maksimum mesafe'),
+            ),
+            const SizedBox(width: 10),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(

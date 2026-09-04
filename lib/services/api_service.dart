@@ -32,10 +32,35 @@ class AuthResult {
   final bool profileCompleted;
 }
 
+class ApiServiceTestHooks {
+  const ApiServiceTestHooks({
+    this.requestOtp,
+    this.verifyOtp,
+    this.getMe,
+    this.uploadProfilePhotos,
+    this.updateProfile,
+    this.updatePreferences,
+  });
+
+  final Future<void> Function(String phone)? requestOtp;
+  final Future<AuthResult> Function(String phone, String code)? verifyOtp;
+  final Future<Map<String, dynamic>> Function(String? sessionId)? getMe;
+  final Future<List<String>> Function(List<PickedProfilePhoto> photos)? uploadProfilePhotos;
+  final Future<void> Function(Map<String, dynamic> payload)? updateProfile;
+  final Future<void> Function(Map<String, dynamic> payload)? updatePreferences;
+}
+
 class ApiService {
   const ApiService._();
 
   static Future<void> Function()? beforeLogout;
+
+  // Null in production. Widget/integration tests install deterministic fakes here.
+  static ApiServiceTestHooks? debugTestHooks;
+
+  static void debugResetTestHooks() {
+    debugTestHooks = null;
+  }
 
   static String get baseUrl => AppConfig.apiBaseUrl;
 
@@ -56,6 +81,9 @@ class ApiService {
       };
 
   static Future<void> requestOtp(String phone) async {
+    final fake = debugTestHooks?.requestOtp;
+    if (fake != null) return fake(phone);
+
     final response = await http
         .post(
           _uri('/api/auth/request-code'),
@@ -67,6 +95,9 @@ class ApiService {
   }
 
   static Future<AuthResult> verifyOtp(String phone, String code) async {
+    final fake = debugTestHooks?.verifyOtp;
+    if (fake != null) return fake(phone, code);
+
     final response = await http
         .post(
           _uri('/api/auth/verify-code'),
@@ -89,6 +120,9 @@ class ApiService {
   }
 
   static Future<Map<String, dynamic>> getMe({String? sessionId}) async {
+    final fake = debugTestHooks?.getMe;
+    if (fake != null) return fake(sessionId);
+
     final token = sessionId ?? await SessionService.loadAuthSessionId();
     if (token == null || token.isEmpty) {
       throw const ApiException('Oturum bulunamadı.');
@@ -105,6 +139,9 @@ class ApiService {
     if (photos.isEmpty || photos.length > 4) {
       throw const ApiException('1 ile 4 arasında fotoğraf seçmelisin.');
     }
+
+    final fake = debugTestHooks?.uploadProfilePhotos;
+    if (fake != null) return fake(photos);
 
     final token = await SessionService.loadAuthSessionId();
     if (token == null || token.isEmpty) {
@@ -154,27 +191,32 @@ class ApiService {
     required List<String> photoUrls,
     bool profileCompleted = true,
   }) async {
+    final payload = <String, dynamic>{
+      'displayName': displayName,
+      'birthDate': birthDate,
+      'gender': gender,
+      'bio': bio,
+      'city': city,
+      'country': country,
+      'latitude': latitude,
+      'longitude': longitude,
+      'profilePrompt': profilePrompt,
+      'profileAnswer': profileAnswer,
+      'interests': interests,
+      'photoUrls': photoUrls,
+      'profileCompleted': profileCompleted,
+    };
+
+    final fake = debugTestHooks?.updateProfile;
+    if (fake != null) return fake(payload);
+
     final token = await SessionService.loadAuthSessionId();
     if (token == null) throw const ApiException('Oturum bulunamadı.');
     final response = await http
         .put(
           _uri('/api/me/profile'),
           headers: _headers(sessionId: token),
-          body: jsonEncode({
-            'displayName': displayName,
-            'birthDate': birthDate,
-            'gender': gender,
-            'bio': bio,
-            'city': city,
-            'country': country,
-            'latitude': latitude,
-            'longitude': longitude,
-            'profilePrompt': profilePrompt,
-            'profileAnswer': profileAnswer,
-            'interests': interests,
-            'photoUrls': photoUrls,
-            'profileCompleted': profileCompleted,
-          }),
+          body: jsonEncode(payload),
         )
         .timeout(const Duration(seconds: 20));
     _decode(response);
@@ -213,19 +255,24 @@ class ApiService {
     required int distanceKm,
     required String purpose,
   }) async {
+    final payload = <String, dynamic>{
+      'lookingFor': lookingFor,
+      'minAge': minAge.round(),
+      'maxAge': maxAge.round(),
+      'distanceKm': distanceKm,
+      'purpose': purpose,
+    };
+
+    final fake = debugTestHooks?.updatePreferences;
+    if (fake != null) return fake(payload);
+
     final token = await SessionService.loadAuthSessionId();
     if (token == null) throw const ApiException('Oturum bulunamadı.');
     final response = await http
         .put(
           _uri('/api/me/preferences'),
           headers: _headers(sessionId: token),
-          body: jsonEncode({
-            'lookingFor': lookingFor,
-            'minAge': minAge.round(),
-            'maxAge': maxAge.round(),
-            'distanceKm': distanceKm,
-            'purpose': purpose,
-          }),
+          body: jsonEncode(payload),
         )
         .timeout(const Duration(seconds: 15));
     _decode(response);

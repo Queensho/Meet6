@@ -13,10 +13,29 @@ class ProfilePhotoService {
   static const int _maxInputBytes = 12 * 1024 * 1024;
   static const int _targetLongEdge = 1200;
 
+  static Future<PickedProfilePhoto?> Function(
+    BuildContext context,
+    ImagePicker picker,
+  )? debugPickOverride;
+
+  static Future<List<PickedProfilePhoto>> Function(
+    BuildContext context,
+    ImagePicker picker,
+    int maxCount,
+  )? debugPickManyOverride;
+
+  static void debugResetTestHooks() {
+    debugPickOverride = null;
+    debugPickManyOverride = null;
+  }
+
   static Future<PickedProfilePhoto?> pickAndPrepare(
     BuildContext context,
     ImagePicker picker,
   ) async {
+    final fake = debugPickOverride;
+    if (fake != null) return fake(context, picker);
+
     final picked = await picker.pickImage(
       source: ImageSource.gallery,
       imageQuality: 100,
@@ -31,6 +50,9 @@ class ProfilePhotoService {
     int maxCount = 4,
   }) async {
     if (maxCount <= 0) return const [];
+
+    final fake = debugPickManyOverride;
+    if (fake != null) return fake(context, picker, maxCount);
 
     final pickedFiles = await picker.pickMultiImage(imageQuality: 100);
     if (pickedFiles.isEmpty) return const [];
