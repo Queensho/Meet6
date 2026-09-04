@@ -17,7 +17,7 @@ import 'realtime_service.dart';
 
 @pragma('vm:entry-point')
 Future<void> meet6FirebaseBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp();
+  if (Firebase.apps.isEmpty) await Firebase.initializeApp();
 }
 
 class PushNotificationService {
@@ -191,7 +191,6 @@ class PushNotificationService {
     final matchId = message.data['matchId']?.toString() ?? '';
 
     if (_isMessageType(type)) {
-      // Kullanıcı zaten aynı sohbeti görüyorsa ekstra sistem bildirimi üretme.
       if (type == 'room_message' &&
           roomId.isNotEmpty &&
           RealtimeService.activeRoomId == roomId) {
@@ -203,8 +202,6 @@ class PushNotificationService {
         return;
       }
 
-      // Mesajlarda Meet6 MaterialBanner kullanılmaz. Android'de doğrudan
-      // işletim sisteminin normal heads-up/kilit ekranı bildirimini göster.
       unawaited(_showAndroidSystemMessageNotification(message));
       return;
     }
@@ -379,7 +376,7 @@ class PushNotificationService {
     _initializing = true;
 
     try {
-      await Firebase.initializeApp();
+      if (Firebase.apps.isEmpty) await Firebase.initializeApp();
       FirebaseMessaging.onBackgroundMessage(meet6FirebaseBackgroundHandler);
       ApiService.beforeLogout = unregisterCurrentDevice;
       await _setupMessageHandling();
@@ -397,8 +394,6 @@ class PushNotificationService {
       }
 
       if (defaultTargetPlatform == TargetPlatform.iOS) {
-        // Foreground'da Meet6 kendi banner'ını gösterir. Native iOS alert/sound
-        // kapalı tutularak aynı bildirimin iki kez görünmesi engellenir.
         await messaging.setForegroundNotificationPresentationOptions(
           alert: false,
           badge: true,
@@ -425,7 +420,7 @@ class PushNotificationService {
   static Future<void> unregisterCurrentDevice() async {
     if (supportedPlatform) {
       try {
-        await Firebase.initializeApp();
+        if (Firebase.apps.isEmpty) await Firebase.initializeApp();
         final token = await FirebaseMessaging.instance.getToken();
         if (token != null && token.trim().isNotEmpty) {
           await PushApiService.unregisterDevice(token.trim());
