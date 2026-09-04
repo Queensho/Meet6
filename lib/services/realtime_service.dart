@@ -20,12 +20,14 @@ class RealtimeService {
   static String? _token;
   static Completer<void>? _connecting;
   static String? _activeRoomId;
+  static String? _activeMatchId;
   static final _events = StreamController<RealtimeEvent>.broadcast();
   static final Random _random = Random.secure();
 
   static Stream<RealtimeEvent> get events => _events.stream;
   static bool get connected => _socket?.connected == true;
   static String? get activeRoomId => _activeRoomId;
+  static String? get activeMatchId => _activeMatchId;
 
   static Map<String, dynamic> _map(dynamic raw) {
     if (raw is Map<String, dynamic>) return raw;
@@ -275,8 +277,11 @@ class RealtimeService {
 
   static Future<Map<String, dynamic>> listMatches() => _ack('matches:list');
 
-  static Future<Map<String, dynamic>> joinMatch(String matchId) =>
-      _ack('match:join', {'matchId': matchId});
+  static Future<Map<String, dynamic>> joinMatch(String matchId) async {
+    final result = await _ack('match:join', {'matchId': matchId});
+    _activeMatchId = matchId;
+    return result;
+  }
 
   static Future<List<Map<String, dynamic>>> privateMessages(
     String matchId, {
@@ -292,7 +297,11 @@ class RealtimeService {
   static Future<void> leaveMatch(String matchId) async {
     try {
       await _ack('match:leave', {'matchId': matchId});
-    } catch (_) {}
+    } catch (_) {
+      // Bağlantı kopmuş olsa bile yerel aktif-sohbet durumu temizlenir.
+    } finally {
+      if (_activeMatchId == matchId) _activeMatchId = null;
+    }
   }
 
   static Future<Map<String, dynamic>> sendPrivateMessage(String matchId, String body) =>
@@ -325,5 +334,6 @@ class RealtimeService {
     _token = null;
     _connecting = null;
     _activeRoomId = null;
+    _activeMatchId = null;
   }
 }
