@@ -7,7 +7,12 @@ import 'theme/theme_controller.dart';
 import 'widgets/runtime_config_gate.dart';
 
 class Meet6App extends StatelessWidget {
-  const Meet6App({super.key});
+  const Meet6App({
+    super.key,
+    required this.showIntroVideo,
+  });
+
+  final bool showIntroVideo;
 
   ThemeData _lightTheme() {
     const background = Color(0xFFF8F9FD);
@@ -140,7 +145,7 @@ class Meet6App extends StatelessWidget {
           builder: (context, child) => RuntimeConfigGate(
             child: child ?? const SizedBox.shrink(),
           ),
-          home: const SplashScreen(),
+          home: SplashScreen(showIntroVideo: showIntroVideo),
         );
       },
     );
