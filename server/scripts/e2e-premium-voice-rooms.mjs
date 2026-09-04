@@ -106,14 +106,14 @@ async function main() {
     [ids],
   );
 
-  // A free account cannot enter the voice matchmaking pool.
+  // A free account cannot enter Premium one-to-one voice matchmaking.
   await pool.query('delete from user_subscriptions where user_id=any($1::bigint[])', [ids]);
   const denied = await request('POST', '/voice-rooms/queue', users[0].sessionId);
   if (denied.response.status !== 403) {
     throw new Error(`Expected free voice queue request to be 403, got ${denied.response.status}.`);
   }
 
-  // Grant all six CI users active Premium and form one isolated voice room.
+  // Grant all six CI users active Premium. Six users must become three isolated pairs.
   for (const user of users) {
     await pool.query(
       `insert into user_subscriptions(user_id,status,expires_at,will_renew,product_id,store)
@@ -133,19 +133,40 @@ async function main() {
     users.map((user) => ok('GET', '/voice-rooms/queue', user.sessionId)),
   );
   if (!statuses.every((status) => status.state === 'room')) {
-    throw new Error(`Expected every Premium user in voice room: ${JSON.stringify(statuses)}`);
+    throw new Error(`Expected every Premium user in one-to-one voice match: ${JSON.stringify(statuses)}`);
   }
-  const roomIds = new Set(statuses.map((status) => String(status.room?.id ?? '')));
-  if (roomIds.size !== 1 || roomIds.has('')) throw new Error('Voice users were not grouped into one room.');
-  const roomId = [...roomIds][0];
 
-  const roomResult = await pool.query(
-    'select room_mode,room_duration_minutes from rooms where id=$1',
-    [roomId],
-  );
-  if (roomResult.rows[0]?.room_mode !== 'voice') throw new Error('Created room is not marked voice.');
-  if (Number(roomResult.rows[0]?.room_duration_minutes) !== 30) {
-    throw new Error('Premium voice room duration must be 30 minutes.');
+  const roomIds = statuses.map((status) => String(status.room?.id ?? ''));
+  if (roomIds.some((id) => !id)) throw new Error('One or more voice users have no room id.');
+  const uniqueRoomIds = [...new Set(roomIds)];
+  if (uniqueRoomIds.length !== 3) {
+    throw new Error(`Expected 3 one-to-one voice rooms from 6 users, found ${uniqueRoomIds.length}.`);
+  }
+
+  for (const roomId of uniqueRoomIds) {
+    const roomResult = await pool.query(
+      `select r.room_mode,r.room_duration_minutes,
+              (select count(*)::int from room_members rm
+               where rm.room_id=r.id and rm.admin_removed_at is null) as member_count
+       from rooms r where r.id=$1`,
+      [roomId],
+    );
+    const row = roomResult.rows[0];
+    if (row?.room_mode !== 'voice') throw new Error(`Room ${roomId} is not marked voice.`);
+    if (Number(row?.room_duration_minutes) !== 15) {
+      throw new Error(`Premium one-to-one voice room ${roomId} must be 15 minutes.`);
+    }
+    if (Number(row?.member_count) !== 2) {
+      throw new Error(`Premium one-to-one voice room ${roomId} must contain exactly 2 users.`);
+    }
+  }
+
+  for (const user of users) {
+    const ownRoomId = String(statuses[users.indexOf(user)].room?.id ?? '');
+    const sameRoomUsers = roomIds.filter((roomId) => roomId === ownRoomId).length;
+    if (sameRoomUsers !== 2) {
+      throw new Error(`User ${user.id} room ${ownRoomId} does not have exactly two matched users.`);
+    }
   }
 
   const queueCount = await pool.query(
@@ -156,20 +177,21 @@ async function main() {
 
   // CI intentionally has no LiveKit production credential. Reaching 503 proves
   // membership + Premium authorization passed before provider configuration.
-  const tokenResult = await request('POST', `/voice-rooms/${roomId}/token`, users[0].sessionId);
+  const tokenRoomId = roomIds[0];
+  const tokenResult = await request('POST', `/voice-rooms/${tokenRoomId}/token`, users[0].sessionId);
   if (tokenResult.response.status !== 503) {
     throw new Error(`Expected unconfigured LiveKit token request to return 503 in CI, got ${tokenResult.response.status}.`);
   }
 
   await cleanup(ids);
-  console.log('✅ MEET6 PREMIUM VOICE ROOM E2E PASS');
-  console.log('Rules: free denied → six Premium users → isolated voice room → 30m duration → token remains server-gated');
+  console.log('✅ MEET6 PREMIUM ONE-TO-ONE VOICE E2E PASS');
+  console.log('Rules: free denied → six Premium users → three isolated pairs → 2 users each → 15m duration → token remains server-gated');
 }
 
 try {
   await main();
 } catch (error) {
-  console.error('❌ MEET6 PREMIUM VOICE ROOM E2E FAIL');
+  console.error('❌ MEET6 PREMIUM ONE-TO-ONE VOICE E2E FAIL');
   console.error(error?.stack ?? error);
   process.exitCode = 1;
 } finally {
