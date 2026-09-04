@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../theme/app_colors.dart';
-
 class Meet6Brand extends StatelessWidget {
   const Meet6Brand({super.key, required this.width});
 
@@ -9,71 +7,40 @@ class Meet6Brand extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final dark = theme.brightness == Brightness.dark;
-
-    return Text.rich(
-      TextSpan(
-        style: TextStyle(
-          fontSize: (width * .094).clamp(31.0, 38.0),
-          height: 1,
-          fontWeight: FontWeight.w900,
-          letterSpacing: -2,
-        ),
-        children: [
-          TextSpan(
-            text: 'meet',
-            style: TextStyle(
-              color: dark ? theme.colorScheme.onSurface : AppColors.navy,
-            ),
-          ),
-          TextSpan(
-            text: '6',
-            style: TextStyle(
-              color: dark ? AppColors.lime : AppColors.blue,
-            ),
-          ),
-        ],
+    final logoHeight = (width * .094).clamp(31.0, 38.0);
+    return SizedBox(
+      height: logoHeight,
+      child: Image.asset(
+        'assets/images/Logo2.png',
+        height: logoHeight,
+        fit: BoxFit.contain,
+        alignment: Alignment.centerLeft,
+        filterQuality: FilterQuality.high,
       ),
     );
   }
 }
 
 class Meet6MiniBrand extends StatelessWidget {
-  const Meet6MiniBrand({super.key, this.light = false});
+  const Meet6MiniBrand({
+    super.key,
+    this.light = false,
+    this.height = 23,
+  });
 
   final bool light;
+  final double height;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final dark = theme.brightness == Brightness.dark;
-
-    return Text.rich(
-      TextSpan(
-        style: const TextStyle(
-          fontSize: 23,
-          fontWeight: FontWeight.w900,
-          letterSpacing: -1.2,
-        ),
-        children: [
-          TextSpan(
-            text: 'meet',
-            style: TextStyle(
-              color: light
-                  ? Colors.white
-                  : (dark ? theme.colorScheme.onSurface : AppColors.navy),
-            ),
-          ),
-          TextSpan(
-            text: '6',
-            style: TextStyle(
-              color: light
-                  ? Colors.white
-                  : (dark ? AppColors.lime : AppColors.blue),
-            ),
-          ),
-        ],
+    return SizedBox(
+      height: height,
+      child: Image.asset(
+        'assets/images/Logo2.png',
+        height: height,
+        fit: BoxFit.contain,
+        alignment: Alignment.centerLeft,
+        filterQuality: FilterQuality.high,
       ),
     );
   }
