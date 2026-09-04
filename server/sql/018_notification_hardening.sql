@@ -3,6 +3,7 @@
 -- 2) ban/unban always generates an account-status notification regardless of
 --    which admin service performs the moderation action
 -- 3) moderation notification duplicates for the same ban are suppressed
+-- 4) admin room close/remove and final report decisions notify affected users
 
 create or replace function meet6_notify_room_ready()
 returns trigger
@@ -48,8 +49,6 @@ begin
 end;
 $$;
 
--- The old trigger already points at meet6_notify_room_ready(); recreating it
--- makes the dependency explicit for fresh and upgraded databases alike.
 drop trigger if exists trg_meet6_room_ready_push on room_members;
 create trigger trg_meet6_room_ready_push
 after insert on room_members
@@ -134,3 +133,87 @@ drop trigger if exists trg_meet6_ban_revoked_notification on user_bans;
 create trigger trg_meet6_ban_revoked_notification
 after update of revoked_at on user_bans
 for each row execute function meet6_notify_ban_revoked();
+
+create or replace function meet6_notify_admin_room_closed()
+returns trigger
+language plpgsql
+as $$
+begin
+  if old.status is distinct from new.status
+     and new.status = 'closed'
+     and new.closed_by_admin_id is not null then
+    insert into notifications(user_id, type, title, body, data)
+    select rm.user_id,
+           'room_closed',
+           'Meet6 odası kapatıldı',
+           coalesce(nullif(trim(new.closed_reason), ''), 'Oda moderasyon tarafından kapatıldı.'),
+           jsonb_build_object(
+             'roomId', new.id::text,
+             'reason', new.closed_reason
+           )
+    from room_members rm
+    where rm.room_id = new.id;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_meet6_admin_room_closed_notification on rooms;
+create trigger trg_meet6_admin_room_closed_notification
+after update of status on rooms
+for each row execute function meet6_notify_admin_room_closed();
+
+create or replace function meet6_notify_admin_room_member_removed()
+returns trigger
+language plpgsql
+as $$
+begin
+  if old.admin_removed_at is null and new.admin_removed_at is not null then
+    insert into notifications(user_id, type, title, body, data)
+    values(
+      new.user_id,
+      'room_removed',
+      'Meet6 odasından çıkarıldın',
+      'Bu odadan moderasyon tarafından çıkarıldın.',
+      jsonb_build_object('roomId', new.room_id::text)
+    );
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_meet6_admin_room_member_removed_notification on room_members;
+create trigger trg_meet6_admin_room_member_removed_notification
+after update of admin_removed_at on room_members
+for each row execute function meet6_notify_admin_room_member_removed();
+
+create or replace function meet6_notify_report_final_status()
+returns trigger
+language plpgsql
+as $$
+begin
+  if old.status is distinct from new.status
+     and new.status in ('resolved', 'rejected') then
+    insert into notifications(user_id, type, title, body, data)
+    values(
+      new.reporter_user_id,
+      'report_update',
+      'Şikâyetin incelendi',
+      case
+        when new.status = 'resolved' then 'Şikâyetin incelendi ve sonuçlandırıldı.'
+        else 'Şikâyetin incelendi ve işlem tamamlandı.'
+      end,
+      jsonb_build_object(
+        'reportId', new.id::text,
+        'status', new.status
+      )
+    );
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_meet6_report_final_status_notification on reports;
+create trigger trg_meet6_report_final_status_notification
+after update of status on reports
+for each row execute function meet6_notify_report_final_status();
