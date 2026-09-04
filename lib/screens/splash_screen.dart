@@ -4,12 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:video_player/video_player.dart';
 
+import '../services/onboarding_service.dart';
+import '../services/session_service.dart';
 import '../theme/app_colors.dart';
 import 'onboarding_gate.dart';
 
 /// Meet6 açılış akışı:
-/// - Uygulamanın cihazdaki ilk açılışında Splash.mp4 bir kez oynar.
-/// - Sonraki açılışlarda kısa süre lime zemin üzerinde Logo3 gösterilir.
+/// - Gerçekten yeni kullanıcıda Splash.mp4 yalnızca bir kez oynar.
+/// - Mevcut kullanıcılar ve sonraki açılışlar lime zemin + Logo3 görür.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -34,26 +36,47 @@ class _SplashScreenState extends State<SplashScreen> {
     unawaited(_resolveSplash());
   }
 
+  Future<void> _showStaticSplash() async {
+    if (!mounted || _finished) return;
+    setState(() {
+      _decisionReady = true;
+      _showVideo = false;
+    });
+    _fallbackTimer?.cancel();
+    _fallbackTimer = Timer(_staticSplashDuration, _finish);
+  }
+
   Future<void> _resolveSplash() async {
     try {
       final preferences = await SharedPreferences.getInstance();
       final videoSeen = preferences.getBool(_videoSeenKey) ?? false;
 
       if (videoSeen) {
-        if (!mounted || _finished) return;
-        setState(() => _decisionReady = true);
-        _fallbackTimer = Timer(_staticSplashDuration, _finish);
+        await _showStaticSplash();
         return;
       }
 
-      // İlk açılış olarak işaretle; video bir sonraki uygulama açılışında tekrar etmez.
-      await preferences.setBool(_videoSeenKey, true);
-      if (!mounted || _finished) return;
+      // Bu anahtar yeni eklendiği için eski Meet6 kullanıcılarını yanlışlıkla
+      // "ilk açılış" saymayız. Oturumu veya tamamlanmış onboarding'i olan kişi
+      // doğrudan Logo3 splash görür.
+      final authSession = await SessionService.loadAuthSessionId();
+      final onboardingCompleted = await OnboardingService.isCompleted();
+      final existingUser =
+          (authSession != null && authSession.trim().isNotEmpty) || onboardingCompleted;
 
+      await preferences.setBool(_videoSeenKey, true);
+
+      if (existingUser) {
+        await _showStaticSplash();
+        return;
+      }
+
+      if (!mounted || _finished) return;
       setState(() {
         _decisionReady = true;
         _showVideo = true;
       });
+
       final controller = VideoPlayerController.asset('assets/images/Splash.mp4');
       _controller = controller;
       controller.addListener(_watchPlayback);
@@ -73,14 +96,7 @@ class _SplashScreenState extends State<SplashScreen> {
       _fallbackTimer = Timer(fallback, _finish);
     } catch (_) {
       // Tercih veya video başlatılamazsa kullanıcı açılış ekranında takılmaz.
-      if (mounted && !_finished) {
-        setState(() {
-          _decisionReady = true;
-          _showVideo = false;
-        });
-      }
-      _fallbackTimer?.cancel();
-      _fallbackTimer = Timer(_staticSplashDuration, _finish);
+      await _showStaticSplash();
     }
   }
 
