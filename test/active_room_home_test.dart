@@ -23,7 +23,7 @@ void main() {
     ActiveRoomService.debugResetTestHooks();
   });
 
-  testWidgets('home shows active voice room and explicit leave removes card', (tester) async {
+  testWidgets('home shows active one-to-one voice match and explicit leave removes card', (tester) async {
     tester.view.physicalSize = const Size(430, 932);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -36,9 +36,9 @@ void main() {
             'id': '278',
             'status': 'active',
             'roomMode': 'voice',
-            'secondsLeft': 1080,
+            'secondsLeft': 780,
             'selectionSecondsLeft': 0,
-            'members': List.generate(6, (index) => {'user_id': '${index + 1}'}),
+            'members': List.generate(2, (index) => {'user_id': '${index + 1}'}),
           },
         };
     ActiveRoomService.debugLeaveOverride = (roomId) async {
@@ -50,8 +50,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 250));
 
     expect(find.text('AKTİF ODAN'), findsOneWidget);
-    expect(find.text('Premium sesli odan devam ediyor'), findsOneWidget);
-    expect(find.textContaining('Sesli oda · 6 kişi'), findsOneWidget);
+    expect(find.text('Birebir sesli görüşmen devam ediyor'), findsOneWidget);
+    expect(find.textContaining('Birebir sesli · 2 kişi'), findsOneWidget);
 
     await tester.tap(find.text('Ayrıl'));
     await tester.pump(const Duration(milliseconds: 100));
