@@ -9,6 +9,7 @@ import '../../services/runtime_app_config_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/brand.dart';
 import '../../widgets/main_bottom_nav.dart';
+import '../../widgets/notification_permission_onboarding.dart';
 import '../matches/matches_screen.dart';
 import '../messages/messages_screen.dart';
 import '../notifications/notifications_screen.dart';
@@ -47,7 +48,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   late MatchingPreferences preferences;
 
   @override
@@ -64,13 +65,31 @@ class _HomeScreenState extends State<HomeScreen> {
       latitude: widget.latitude,
       longitude: widget.longitude,
     );
+    WidgetsBinding.instance.addObserver(this);
     RuntimeAppConfigService.listenable.addListener(_runtimeChanged);
     unawaited(RuntimeAppConfigService.load(force: true));
     _startAuthenticatedServices();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future<void>.delayed(const Duration(milliseconds: 900), () {
+        if (!mounted) return;
+        unawaited(NotificationPermissionOnboarding.maybeShow(context));
+      });
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(
+        PushNotificationService.refreshPermissionAndRegistration()
+            .catchError((_) => NotificationPermissionState.unsupported),
+      );
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     RuntimeAppConfigService.listenable.removeListener(_runtimeChanged);
     super.dispose();
   }
