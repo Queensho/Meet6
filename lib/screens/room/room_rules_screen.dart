@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../../services/premium_subscription_service.dart';
 import '../../services/runtime_app_config_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/brand.dart';
+import '../premium/premium_screen.dart';
 import 'room_searching_screen.dart';
 
-class RoomRulesScreen extends StatelessWidget {
+class RoomRulesScreen extends StatefulWidget {
   const RoomRulesScreen({
     super.key,
     this.profileName = '',
@@ -13,10 +15,64 @@ class RoomRulesScreen extends StatelessWidget {
 
   final String profileName;
 
+  @override
+  State<RoomRulesScreen> createState() => _RoomRulesScreenState();
+}
+
+class _RoomRulesScreenState extends State<RoomRulesScreen> {
+  bool premium = false;
+  bool premiumLoading = true;
+  int roomDurationMinutes = 15;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPremium();
+  }
+
+  Future<void> _loadPremium() async {
+    try {
+      final value = await PremiumSubscriptionService.status();
+      if (!mounted) return;
+      setState(() {
+        premium = value.premium;
+        premiumLoading = false;
+        if (!premium && roomDurationMinutes == 30) roomDurationMinutes = 15;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        premium = false;
+        premiumLoading = false;
+        roomDurationMinutes = 15;
+      });
+    }
+  }
+
+  Future<void> _toggleDuration() async {
+    if (premiumLoading) return;
+    if (premium) {
+      setState(() => roomDurationMinutes = roomDurationMinutes == 15 ? 30 : 15);
+      return;
+    }
+
+    final activated = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const PremiumScreen()),
+    );
+    if (!mounted) return;
+    if (activated == true) {
+      await _loadPremium();
+      if (mounted && premium) setState(() => roomDurationMinutes = 30);
+    }
+  }
+
   void _startSearch(BuildContext context) {
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
-        builder: (_) => RoomSearchingScreen(profileName: profileName),
+        builder: (_) => RoomSearchingScreen(
+          profileName: widget.profileName,
+          roomDurationMinutes: roomDurationMinutes,
+        ),
       ),
     );
   }
@@ -134,9 +190,28 @@ class RoomRulesScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 20),
                         _RuleTile(
-                          icon: Icons.groups_2_rounded,
-                          title: '${runtime.minimumUsers} kişi, ${runtime.roomDurationMinutes} dakika',
-                          subtitle: 'Sen + ${runtime.minimumUsers - 1} kişi aynı odada sohbet eder.',
+                          icon: premium ? Icons.workspace_premium_rounded : Icons.groups_2_rounded,
+                          title: '${runtime.minimumUsers} kişi, $roomDurationMinutes dakika',
+                          subtitle: premiumLoading
+                              ? 'Premium oda seçenekleri kontrol ediliyor...'
+                              : premium
+                                  ? 'Premium aktif · 15 / 30 dk arasında değiştirmek için dokun.'
+                                  : 'Sen + ${runtime.minimumUsers - 1} kişi sohbet eder. 30 dk Premium için dokun.',
+                          onTap: _toggleDuration,
+                          trailing: premiumLoading
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: AppColors.navy,
+                                  ),
+                                )
+                              : Icon(
+                                  premium ? Icons.swap_horiz_rounded : Icons.lock_rounded,
+                                  color: AppColors.navy,
+                                  size: 20,
+                                ),
                         ),
                         const _RuleTile(
                           icon: Icons.favorite_rounded,
@@ -167,18 +242,18 @@ class RoomRulesScreen extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(20),
                               ),
                             ),
-                            child: const Row(
+                            child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Text(
-                                  'Kabul et ve oda ara',
-                                  style: TextStyle(
+                                  'Kabul et ve $roomDurationMinutes dk oda ara',
+                                  style: const TextStyle(
                                     fontSize: 15,
                                     fontWeight: FontWeight.w900,
                                   ),
                                 ),
-                                SizedBox(width: 10),
-                                Icon(Icons.arrow_forward_rounded),
+                                const SizedBox(width: 10),
+                                const Icon(Icons.arrow_forward_rounded),
                               ],
                             ),
                           ),
@@ -202,66 +277,85 @@ class _RuleTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     this.last = false,
+    this.onTap,
+    this.trailing,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
   final bool last;
+  final VoidCallback? onTap;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: last ? 0 : 10),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(13),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(.31),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: AppColors.navy.withOpacity(.07)),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: const BoxDecoration(
-                color: AppColors.navy,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: AppColors.lime, size: 21),
+    final content = Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(.31),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.navy.withOpacity(.07)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: const BoxDecoration(
+              color: AppColors.navy,
+              shape: BoxShape.circle,
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      color: AppColors.navy,
-                      fontSize: 13.2,
-                      fontWeight: FontWeight.w900,
-                    ),
+            child: Icon(icon, color: AppColors.lime, size: 21),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: AppColors.navy,
+                    fontSize: 13.2,
+                    fontWeight: FontWeight.w900,
                   ),
-                  const SizedBox(height: 3),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      color: AppColors.navy.withOpacity(.68),
-                      fontSize: 11.1,
-                      height: 1.3,
-                      fontWeight: FontWeight.w600,
-                    ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    color: AppColors.navy.withOpacity(.68),
+                    fontSize: 11.1,
+                    height: 1.3,
+                    fontWeight: FontWeight.w600,
                   ),
-                ],
-              ),
+                ),
+              ],
+            ),
+          ),
+          if (trailing != null) ...[
+            const SizedBox(width: 8),
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: trailing!,
             ),
           ],
-        ),
+        ],
       ),
+    );
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: last ? 0 : 10),
+      child: onTap == null
+          ? content
+          : InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(18),
+              child: content,
+            ),
     );
   }
 }

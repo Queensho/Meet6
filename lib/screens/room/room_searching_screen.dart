@@ -5,15 +5,21 @@ import 'package:flutter/material.dart';
 
 import '../../services/api_service.dart';
 import '../../services/realtime_service.dart';
+import '../../services/room_queue_api_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/brand.dart';
 import '../../widgets/phone_frame.dart';
 import '../chat/room_chat_screen.dart';
 
 class RoomSearchingScreen extends StatefulWidget {
-  const RoomSearchingScreen({super.key, this.profileName = ''});
+  const RoomSearchingScreen({
+    super.key,
+    this.profileName = '',
+    this.roomDurationMinutes = 15,
+  });
 
   final String profileName;
+  final int roomDurationMinutes;
 
   @override
   State<RoomSearchingScreen> createState() => _RoomSearchingScreenState();
@@ -93,7 +99,11 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
     if (joining || leavingForRoom) return;
     joining = true;
     try {
-      final data = await RealtimeService.joinQueue();
+      final data = RealtimeService.debugAckOverride != null
+          ? await RealtimeService.joinQueue()
+          : await RoomQueueApiService.joinQueue(
+              roomDurationMinutes: widget.roomDurationMinutes,
+            );
       if (!mounted) return;
       await _handleStatus(data);
       if (!leavingForRoom && data['state']?.toString() != 'room') {
@@ -147,8 +157,8 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
     if (cycleRestarting || leavingForRoom || !mounted) return;
     cycleRestarting = true;
     try {
-      // joinQueue idempotenttir: kullanıcıyı kuyruktan çıkarıp sona atmaz.
-      // Sadece matchmaking'i yeniden tetikler ve yeni aday grubunu dener.
+      // REST join idempotenttir: kullanıcıyı kuyruktan çıkarıp sona atmaz.
+      // Sadece matchmaking'i yeniden tetikler ve seçili oda süresini korur.
       await _joinQueue(newCycle: true);
     } finally {
       cycleRestarting = false;
@@ -248,6 +258,23 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                     children: [
                       const Meet6MiniBrand(height: 29),
                       const Spacer(),
+                      if (widget.roomDurationMinutes == 30)
+                        Container(
+                          margin: const EdgeInsets.only(right: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: AppColors.navy,
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                          child: const Text(
+                            '30 DK PREMIUM',
+                            style: TextStyle(
+                              color: AppColors.lime,
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
                       TextButton(
                         onPressed: _cancel,
                         child: Text(
@@ -339,8 +366,8 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                         (leavingForRoom
                             ? '6 kişi hazır. Odaya bağlanıyorsun.'
                             : queueTotal > 0
-                                ? 'Kuyrukta $queueTotal kişi var. Sıra konumun: $queuePosition'
-                                : 'Tercihlerine uyan kullanıcılar bekleniyor.'),
+                                ? '${widget.roomDurationMinutes} dk havuzunda $queueTotal kişi var. Sıra konumun: $queuePosition'
+                                : '${widget.roomDurationMinutes} dk oda için tercihlerine uyan kullanıcılar bekleniyor.'),
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: dark
@@ -463,7 +490,7 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                             child: Text(
                               leavingForRoom
                                   ? 'Oda sunucuda oluşturuldu.'
-                                  : 'Canlı bağlantı açık. Yaş, tercih, mesafe ve engel filtreleri uygulanıyor.',
+                                  : 'Canlı bağlantı açık. Yaş, tercih, mesafe, engel ve Premium oda filtresi sunucuda uygulanıyor.',
                               style: TextStyle(
                                 color: scheme.onSurface,
                                 fontSize: 12,
@@ -477,7 +504,7 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                     ),
                   const Spacer(),
                   Text(
-                    'Oda yalnızca 6 uygun kullanıcı hazır olduğunda başlar.',
+                    '${widget.roomDurationMinutes} dakikalık oda yalnızca 6 uygun kullanıcı hazır olduğunda başlar.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: dark

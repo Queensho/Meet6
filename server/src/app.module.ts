@@ -13,6 +13,8 @@ import { AdminSupportService } from './admin-support.service';
 import { AppConfigController } from './app-config.controller';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { BillingController } from './billing.controller';
+import { BillingService } from './billing.service';
 import { ContentSafetyService } from './content-safety.service';
 import { HealthController } from './health.controller';
 import { InfrastructureService } from './infrastructure.service';
@@ -46,6 +48,7 @@ import { SupportService } from './support.service';
     AppConfigController,
     AuthController,
     ProfileController,
+    BillingController,
     RoomController,
     RoomControlController,
     SocialController,
@@ -59,6 +62,7 @@ import { SupportService } from './support.service';
     ContentSafetyService,
     AuthService,
     ProfileService,
+    BillingService,
     RoomService,
     RoomMessageService,
     SocialService,

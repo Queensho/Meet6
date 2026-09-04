@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, Headers, Param, Post, Put, Query } from '@nestjs/common';
 
 import { AuthService } from './auth.service';
-import { ExtensionVoteDto, RoomSelectionDto, SendRoomMessageDto } from './room.dto';
+import { ExtensionVoteDto, JoinQueueDto, RoomSelectionDto, SendRoomMessageDto } from './room.dto';
 import { RoomService } from './room.service';
 import { RoomsGateway } from './rooms.gateway';
 
@@ -18,8 +18,14 @@ export class RoomController {
   }
 
   @Post('queue')
-  async joinQueue(@Headers('authorization') authorization?: string) {
-    const result = await this.rooms.joinQueue(await this.userId(authorization)) as Record<string, any>;
+  async joinQueue(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: JoinQueueDto,
+  ) {
+    const result = await this.rooms.joinQueue(
+      await this.userId(authorization),
+      body.roomDurationMinutes ?? 15,
+    ) as Record<string, any>;
     if (result.state === 'room' && result.room) {
       const roomId = (result.room as Record<string, any>).id?.toString();
       if (roomId) await this.realtime.broadcastRoomUpdate(roomId);
