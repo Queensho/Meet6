@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Headers, Param, Post, Put, Query } from '@nestjs/common';
 
 import { AuthService } from './auth.service';
+import { InfrastructureService } from './infrastructure.service';
 import { ReportService } from './report.service';
 import { ReportUserDto, SendPrivateMessageDto, UpdateSettingsDto } from './social.dto';
 import { SocialService } from './social.service';
@@ -11,6 +12,7 @@ export class SocialController {
     private readonly auth: AuthService,
     private readonly social: SocialService,
     private readonly reports: ReportService,
+    private readonly infra: InfrastructureService,
   ) {}
 
   private async userId(authorization?: string) {
@@ -128,10 +130,15 @@ export class SocialController {
     @Headers('authorization') authorization: string | undefined,
     @Param('notificationId') notificationId: string,
   ) {
-    return this.social.markNotificationRead(
-      await this.userId(authorization),
-      notificationId,
+    const userId = await this.userId(authorization);
+    const result = await this.infra.db.query<{ id: string; read_at: Date }>(
+      `update notifications
+       set read_at=coalesce(read_at,now())
+       where id=$1 and user_id=$2
+       returning id::text, read_at`,
+      [notificationId, userId],
     );
+    return { ok: true, notification: result.rows[0] ?? null };
   }
 
   @Post('notifications/read')
