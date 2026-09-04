@@ -4,18 +4,23 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.MediaStore
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.io.File
 
 class MainActivity : FlutterActivity() {
     companion object {
         private const val SYSTEM_NOTIFICATION_CHANNEL = "meet6/system_notifications"
+        private const val FILE_EXPORT_CHANNEL = "meet6/file_export"
         private const val EXTRA_NOTIFICATION_PAYLOAD = "meet6_notification_payload"
         private const val MESSAGE_CHANNEL = "meet6_messages_v1"
         private const val MESSAGE_CHANNEL_NO_VIBRATION = "meet6_messages_no_vibration_v1"
@@ -62,6 +67,34 @@ class MainActivity : FlutterActivity() {
                     pendingNotificationTapPayload = null
                     intent?.removeExtra(EXTRA_NOTIFICATION_PAYLOAD)
                     result.success(payload)
+                }
+
+                else -> result.notImplemented()
+            }
+        }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            FILE_EXPORT_CHANNEL,
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "saveJson" -> {
+                    val args = call.arguments as? Map<*, *>
+                    val fileName = args?.get("fileName")?.toString()?.trim().orEmpty()
+                    val content = args?.get("content")?.toString().orEmpty()
+                    try {
+                        val saved = saveJsonExport(
+                            if (fileName.isBlank()) "meet6-verilerim.json" else fileName,
+                            content,
+                        )
+                        result.success(saved)
+                    } catch (error: Exception) {
+                        result.error(
+                            "save_failed",
+                            error.message ?: "Dosya kaydedilemedi.",
+                            null,
+                        )
+                    }
                 }
 
                 else -> result.notImplemented()
@@ -191,5 +224,40 @@ class MainActivity : FlutterActivity() {
 
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(id, notification)
+    }
+
+    private fun saveJsonExport(fileName: String, content: String): String {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val values = ContentValues().apply {
+                put(MediaStore.Downloads.DISPLAY_NAME, fileName)
+                put(MediaStore.Downloads.MIME_TYPE, "application/json")
+                put(
+                    MediaStore.Downloads.RELATIVE_PATH,
+                    "${Environment.DIRECTORY_DOWNLOADS}/Meet6",
+                )
+                put(MediaStore.Downloads.IS_PENDING, 1)
+            }
+            val resolver = contentResolver
+            val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                ?: throw IllegalStateException("İndirme dosyası oluşturulamadı.")
+            try {
+                resolver.openOutputStream(uri)?.use {
+                    it.write(content.toByteArray(Charsets.UTF_8))
+                } ?: throw IllegalStateException("Dosya açılamadı.")
+                values.clear()
+                values.put(MediaStore.Downloads.IS_PENDING, 0)
+                resolver.update(uri, values, null, null)
+                return "Downloads/Meet6/$fileName"
+            } catch (error: Exception) {
+                resolver.delete(uri, null, null)
+                throw error
+            }
+        }
+
+        val base = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: filesDir
+        val directory = File(base, "Meet6").apply { mkdirs() }
+        val file = File(directory, fileName)
+        file.writeText(content, Charsets.UTF_8)
+        return file.absolutePath
     }
 }
