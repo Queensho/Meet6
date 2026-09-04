@@ -27,8 +27,8 @@ jobs:
             echo "Patch already consumed"
             exit 0
           fi
-          git apply --check .release/home-layout-fix.patch
-          git apply .release/home-layout-fix.patch
+          git apply --recount --check .release/home-layout-fix.patch
+          git apply --recount .release/home-layout-fix.patch
           rm -f .release/home-layout-fix.patch .github/workflows/apply-home-layout-fix.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
