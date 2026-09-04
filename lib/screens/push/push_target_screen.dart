@@ -110,22 +110,17 @@ class _PushTargetScreenState extends State<PushTargetScreen> {
 
       if (type == 'moderation_warning' ||
           type == 'moderation_ban' ||
-          type == 'moderation_unban') {
+          type == 'moderation_unban' ||
+          type == 'room_closed' ||
+          type == 'room_removed' ||
+          type == 'report_update') {
         if (!mounted) return;
         setState(() {
           noticeTitle = widget.data['title']?.toString().trim().isNotEmpty == true
               ? widget.data['title'].toString()
-              : type == 'moderation_warning'
-                  ? 'Meet6 uyarısı'
-                  : type == 'moderation_ban'
-                      ? 'Hesap işlemi'
-                      : 'Meet6 banı kaldırıldı';
+              : _fallbackNoticeTitle(type);
           noticeBody = widget.data['body']?.toString() ?? '';
-          noticeIcon = type == 'moderation_warning'
-              ? Icons.warning_amber_rounded
-              : type == 'moderation_ban'
-                  ? Icons.block_rounded
-                  : Icons.verified_user_outlined;
+          noticeIcon = _noticeIcon(type);
           error = null;
         });
         return;
@@ -139,6 +134,43 @@ class _PushTargetScreenState extends State<PushTargetScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => error = 'Bildirim bağlantısı açılamadı: $e');
+    }
+  }
+
+  String _fallbackNoticeTitle(String type) {
+    switch (type) {
+      case 'moderation_warning':
+        return 'Meet6 uyarısı';
+      case 'moderation_ban':
+        return 'Hesap işlemi';
+      case 'moderation_unban':
+        return 'Meet6 banı kaldırıldı';
+      case 'room_closed':
+        return 'Meet6 odası kapatıldı';
+      case 'room_removed':
+        return 'Meet6 odasından çıkarıldın';
+      case 'report_update':
+        return 'Şikâyetin incelendi';
+      default:
+        return 'Meet6 bildirimi';
+    }
+  }
+
+  IconData _noticeIcon(String type) {
+    switch (type) {
+      case 'moderation_warning':
+        return Icons.warning_amber_rounded;
+      case 'moderation_ban':
+      case 'room_removed':
+        return Icons.block_rounded;
+      case 'moderation_unban':
+        return Icons.verified_user_outlined;
+      case 'room_closed':
+        return Icons.meeting_room_outlined;
+      case 'report_update':
+        return Icons.shield_outlined;
+      default:
+        return Icons.notifications_rounded;
     }
   }
 
