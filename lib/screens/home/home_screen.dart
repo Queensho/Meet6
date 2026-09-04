@@ -7,6 +7,7 @@ import '../../services/push_notification_service.dart';
 import '../../services/realtime_service.dart';
 import '../../services/runtime_app_config_service.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/brand.dart';
 import '../../widgets/main_bottom_nav.dart';
 import '../matches/matches_screen.dart';
 import '../messages/messages_screen.dart';
@@ -182,26 +183,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   Row(
                     children: [
-                      Text.rich(
-                        const TextSpan(
-                          style: TextStyle(
-                            fontSize: 31,
-                            height: 1,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -1.8,
-                          ),
-                          children: [
-                            TextSpan(
-                              text: 'meet',
-                              style: TextStyle(color: AppColors.navy),
-                            ),
-                            TextSpan(
-                              text: '6',
-                              style: TextStyle(color: AppColors.blue),
-                            ),
-                          ],
-                        ),
-                      ),
+                      const Meet6MiniBrand(height: 31),
                       const Spacer(),
                       _TopButton(
                         icon: Icons.tune_rounded,
