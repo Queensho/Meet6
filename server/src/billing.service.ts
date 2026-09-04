@@ -306,7 +306,7 @@ export class BillingService {
     const eventId = event?.id?.toString().trim() ?? '';
     const eventType = event?.type?.toString().trim() ?? '';
     const appUserId = event?.app_user_id?.toString().trim() ?? '';
-    if (!eventId || !eventType) {
+    if (!event || !eventId || !eventType) {
       throw new UnauthorizedException('RevenueCat webhook içeriği geçersiz.');
     }
 
