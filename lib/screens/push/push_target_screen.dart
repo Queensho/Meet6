@@ -8,6 +8,7 @@ import '../../theme/app_colors.dart';
 import '../chat/room_chat_screen.dart';
 import '../matches/match_profile_detail_screen.dart';
 import '../messages/private_chat_screen.dart';
+import '../profile/settings/help_support_screen.dart';
 
 class PushTargetScreen extends StatefulWidget {
   const PushTargetScreen({
@@ -23,6 +24,9 @@ class PushTargetScreen extends StatefulWidget {
 
 class _PushTargetScreenState extends State<PushTargetScreen> {
   String? error;
+  String? noticeTitle;
+  String? noticeBody;
+  IconData noticeIcon = Icons.notifications_rounded;
 
   @override
   void initState() {
@@ -93,6 +97,40 @@ class _PushTargetScreenState extends State<PushTargetScreen> {
         return;
       }
 
+      if (type == 'support_reply') {
+        final requestId = widget.data['supportRequestId']?.toString();
+        if (!mounted) return;
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => HelpSupportScreen(focusRequestId: requestId),
+          ),
+        );
+        return;
+      }
+
+      if (type == 'moderation_warning' ||
+          type == 'moderation_ban' ||
+          type == 'moderation_unban') {
+        if (!mounted) return;
+        setState(() {
+          noticeTitle = widget.data['title']?.toString().trim().isNotEmpty == true
+              ? widget.data['title'].toString()
+              : type == 'moderation_warning'
+                  ? 'Meet6 uyarısı'
+                  : type == 'moderation_ban'
+                      ? 'Hesap işlemi'
+                      : 'Meet6 banı kaldırıldı';
+          noticeBody = widget.data['body']?.toString() ?? '';
+          noticeIcon = type == 'moderation_warning'
+              ? Icons.warning_amber_rounded
+              : type == 'moderation_ban'
+                  ? Icons.block_rounded
+                  : Icons.verified_user_outlined;
+          error = null;
+        });
+        return;
+      }
+
       if (!mounted) return;
       Navigator.of(context).pop();
     } on ApiException catch (e) {
@@ -121,6 +159,75 @@ class _PushTargetScreenState extends State<PushTargetScreen> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+
+    if (noticeTitle != null) {
+      return Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        appBar: AppBar(title: const Text('Meet6 bildirimi')),
+        body: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(22),
+                decoration: BoxDecoration(
+                  color: scheme.surface,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: scheme.outlineVariant),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 66,
+                      height: 66,
+                      decoration: const BoxDecoration(
+                        color: AppColors.lime,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(noticeIcon, color: AppColors.navy, size: 31),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      noticeTitle!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: scheme.onSurface,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    if ((noticeBody ?? '').trim().isNotEmpty) ...[
+                      const SizedBox(height: 9),
+                      Text(
+                        noticeBody!,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: scheme.onSurfaceVariant,
+                          fontSize: 13,
+                          height: 1.45,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Tamam'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
