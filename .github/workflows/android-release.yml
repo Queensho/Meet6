@@ -1,42 +1,16 @@
-name: Android Production Release
+name: Android APK Test Build
 
 on:
-  workflow_dispatch:
-    inputs:
-      version_name:
-        description: "Android version name (e.g. 1.0.0)"
-        required: true
-        default: "1.0.0"
-      version_code:
-        description: "Android version code (must increase for Play Store)"
-        required: true
-        default: "1"
-      api_base_url:
-        description: "Production API URL (e.g. https://api.yourdomain.com)"
-        required: true
   push:
     paths:
-      - ".release/android-production"
+      - ".release/apk-test"
 
 permissions:
   contents: read
 
 jobs:
-  release:
+  apk:
     runs-on: ubuntu-latest
-    env:
-      RELEASE_VERSION_NAME: ${{ github.event_name == 'workflow_dispatch' && inputs.version_name || '1.0.0' }}
-      RELEASE_VERSION_CODE: ${{ github.event_name == 'workflow_dispatch' && inputs.version_code || '1' }}
-      PRODUCTION_API_BASE_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.api_base_url || vars.MEET6_API_BASE_URL }}
-      MEET6_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-      MEET6_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-      MEET6_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-      MEET6_KEYSTORE_PATH: meet6-upload-keystore.jks
-      GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
-      PLAY_PACKAGE_NAME: com.meet6.app
-      PLAY_TRACK: qa
-      PLAY_AAB_PATH: build/app/outputs/bundle/release/app-release.aab
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -53,108 +27,22 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Validate production API domain
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -n "$PRODUCTION_API_BASE_URL" || (echo "Missing production API URL" && exit 1)
-          case "$PRODUCTION_API_BASE_URL" in
-            https://*) ;;
-            *) echo "Production API must use HTTPS"; exit 1 ;;
-          esac
-          if [[ "$PRODUCTION_API_BASE_URL" == *".nip.io"* ]]; then
-            echo "Production API cannot use nip.io"
-            exit 1
-          fi
-
-      - name: Validate release signing secrets
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -n "$MEET6_KEYSTORE_PASSWORD" || (echo "Missing ANDROID_KEYSTORE_PASSWORD" && exit 1)
-          test -n "$MEET6_KEY_ALIAS" || (echo "Missing ANDROID_KEY_ALIAS" && exit 1)
-          test -n "$MEET6_KEY_PASSWORD" || (echo "Missing ANDROID_KEY_PASSWORD" && exit 1)
-          test -s android/signing/meet6-upload-keystore.jks.enc.b64 || (echo "Encrypted keystore blob missing" && exit 1)
-
-      - name: Restore upload keystore
-        shell: bash
-        run: |
-          set -euo pipefail
-          base64 --decode android/signing/meet6-upload-keystore.jks.enc.b64 > "$RUNNER_TEMP/meet6-upload-keystore.jks.enc"
-          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
-            -pass env:MEET6_KEYSTORE_PASSWORD \
-            -in "$RUNNER_TEMP/meet6-upload-keystore.jks.enc" \
-            -out android/app/meet6-upload-keystore.jks
-          test -s android/app/meet6-upload-keystore.jks
-          keytool -list \
-            -keystore android/app/meet6-upload-keystore.jks \
-            -storepass "$MEET6_KEYSTORE_PASSWORD" \
-            -alias "$MEET6_KEY_ALIAS" >/dev/null
-
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Build signed Android App Bundle
+      - name: Build production-connected debug APK
         run: >-
-          flutter build appbundle --release
-          --build-name "$RELEASE_VERSION_NAME"
-          --build-number "$RELEASE_VERSION_CODE"
+          flutter build apk --debug
           --dart-define=MEET6_ENV=production
-          --dart-define=MEET6_API_BASE_URL="$PRODUCTION_API_BASE_URL"
+          --dart-define=MEET6_API_BASE_URL=https://api.meet6.com.tr
 
-      - name: Build signed release APK
-        run: >-
-          flutter build apk --release
-          --build-name "$RELEASE_VERSION_NAME"
-          --build-number "$RELEASE_VERSION_CODE"
-          --dart-define=MEET6_ENV=production
-          --dart-define=MEET6_API_BASE_URL="$PRODUCTION_API_BASE_URL"
+      - name: Verify APK
+        run: test -s build/app/outputs/flutter-apk/app-debug.apk
 
-      - name: Verify signed outputs
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -s build/app/outputs/bundle/release/app-release.aab
-          test -s build/app/outputs/flutter-apk/app-release.apk
-          jarsigner -verify -certs build/app/outputs/bundle/release/app-release.aab >/dev/null
-
-      - name: Upload Play Store AAB artifact
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: meet6-android-aab-${{ env.RELEASE_VERSION_NAME }}-${{ env.RELEASE_VERSION_CODE }}
-          path: build/app/outputs/bundle/release/app-release.aab
+          name: meet6-voice-test-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
           if-no-files-found: error
-          retention-days: 30
-
-      - name: Upload release APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: meet6-android-apk-${{ env.RELEASE_VERSION_NAME }}-${{ env.RELEASE_VERSION_CODE }}
-          path: build/app/outputs/flutter-apk/app-release.apk
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Setup Python for Google Play
-        if: ${{ env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON != '' }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install Google Play API client
-        if: ${{ env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON != '' }}
-        run: python -m pip install --disable-pip-version-check google-api-python-client google-auth
-
-      - name: Publish to Google Play internal testing
-        if: ${{ env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON != '' }}
-        run: python .github/scripts/upload_play_internal.py
-
-      - name: Google Play connection not configured
-        if: ${{ env.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON == '' }}
-        run: echo "Skipping Play upload; add GOOGLE_PLAY_SERVICE_ACCOUNT_JSON repository secret to enable internal-track publishing."
-
-      - name: Remove restored keystore
-        if: always()
-        shell: bash
-        run: |
-          rm -f android/app/meet6-upload-keystore.jks
-          rm -f "$RUNNER_TEMP/meet6-upload-keystore.jks.enc"
+          retention-days: 7
