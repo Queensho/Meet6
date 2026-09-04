@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/onboarding_service.dart';
 import '../services/runtime_app_config_service.dart';
 import '../theme/app_colors.dart';
+import '../widgets/brand.dart';
 import 'login_screen.dart';
 
 class OnboardingScreen extends StatefulWidget {
@@ -98,26 +99,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               padding: const EdgeInsets.fromLTRB(20, 10, 14, 0),
               child: Row(
                 children: [
-                  Text.rich(
-                    TextSpan(
-                      style: const TextStyle(
-                        fontSize: 25,
-                        height: 1,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -1.4,
-                      ),
-                      children: const [
-                        TextSpan(
-                          text: 'meet',
-                          style: TextStyle(color: AppColors.navy),
-                        ),
-                        TextSpan(
-                          text: '6',
-                          style: TextStyle(color: AppColors.blue),
-                        ),
-                      ],
-                    ),
-                  ),
+                  const Meet6MiniBrand(height: 25),
                   const Spacer(),
                   TextButton(
                     onPressed: _finishing ? null : _finish,
