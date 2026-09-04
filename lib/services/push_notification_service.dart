@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../screens/push/push_target_screen.dart';
 import '../theme/app_colors.dart';
@@ -21,6 +23,9 @@ Future<void> meet6FirebaseBackgroundHandler(RemoteMessage message) async {
 class PushNotificationService {
   const PushNotificationService._();
 
+  static const MethodChannel _systemNotificationChannel =
+      MethodChannel('meet6/system_notifications');
+
   static StreamSubscription<String>? _tokenRefreshSubscription;
   static StreamSubscription<RemoteMessage>? _openedAppSubscription;
   static StreamSubscription<RemoteMessage>? _foregroundSubscription;
@@ -28,6 +33,7 @@ class PushNotificationService {
   static bool _initialized = false;
   static bool _initializing = false;
   static bool _tapHandlingInitialized = false;
+  static bool _nativeSystemHandlingInitialized = false;
   static String? _lastOpenedNotificationId;
 
   static bool get supportedPlatform =>
@@ -37,6 +43,9 @@ class PushNotificationService {
 
   static String get _platform =>
       defaultTargetPlatform == TargetPlatform.iOS ? 'ios' : 'android';
+
+  static bool _isMessageType(String type) =>
+      type == 'room_message' || type == 'message' || type == 'private_message';
 
   static bool _isActionableData(Map<String, dynamic> data) {
     final type = data['type']?.toString() ?? '';
@@ -80,12 +89,50 @@ class PushNotificationService {
     throw lastError ?? StateError('FCM token kaydı başarısız.');
   }
 
+  static Future<void> _setupNativeSystemNotificationHandling() async {
+    if (_nativeSystemHandlingInitialized ||
+        defaultTargetPlatform != TargetPlatform.android ||
+        kIsWeb) {
+      return;
+    }
+    _nativeSystemHandlingInitialized = true;
+
+    _systemNotificationChannel.setMethodCallHandler((call) async {
+      if (call.method != 'notificationTap') return;
+      final payload = call.arguments?.toString() ?? '';
+      if (payload.isEmpty) return;
+      await _openNativePayload(payload);
+    });
+
+    try {
+      final initialPayload = await _systemNotificationChannel
+          .invokeMethod<String>('consumeInitialTap');
+      if (initialPayload != null && initialPayload.trim().isNotEmpty) {
+        unawaited(_openNativePayload(initialPayload));
+      }
+    } catch (_) {
+      // Native bildirim kanalı açılamazsa FCM akışı çalışmaya devam eder.
+    }
+  }
+
+  static Future<void> _openNativePayload(String payload) async {
+    try {
+      final decoded = jsonDecode(payload);
+      if (decoded is Map) {
+        await _openNotificationData(Map<String, dynamic>.from(decoded));
+      }
+    } catch (_) {
+      // Geçersiz native payload navigasyonu bozmaz.
+    }
+  }
+
   static Future<void> _setupMessageHandling() async {
     if (_tapHandlingInitialized) return;
     _tapHandlingInitialized = true;
 
     await _openedAppSubscription?.cancel();
     await _foregroundSubscription?.cancel();
+    await _setupNativeSystemNotificationHandling();
 
     _openedAppSubscription = FirebaseMessaging.onMessageOpenedApp.listen(
       (message) => unawaited(_openNotification(message)),
@@ -100,19 +147,65 @@ class PushNotificationService {
     }
   }
 
+  static Future<void> _showAndroidSystemMessageNotification(
+    RemoteMessage message,
+  ) async {
+    if (kIsWeb || defaultTargetPlatform != TargetPlatform.android) return;
+
+    final title = message.notification?.title ??
+        message.data['title']?.toString() ??
+        'Meet6';
+    final body = message.notification?.body ??
+        message.data['body']?.toString() ??
+        '';
+    if (title.trim().isEmpty && body.trim().isEmpty) return;
+
+    final routeData = <String, dynamic>{
+      ...message.data,
+      'title': title,
+      'body': body,
+    };
+    final stableId = (message.messageId ??
+            routeData['notificationId']?.toString() ??
+            DateTime.now().microsecondsSinceEpoch.toString())
+        .hashCode &
+        0x7fffffff;
+
+    try {
+      await _systemNotificationChannel.invokeMethod<void>('show', {
+        'id': stableId,
+        'title': title,
+        'body': body,
+        'payload': jsonEncode(routeData),
+        'vibrationEnabled': true,
+      });
+    } catch (_) {
+      // Foreground native bildirim gösterilemezse uygulama içi banner'a düşmeyiz;
+      // mesaj sohbet ekranında WebSocket ile görünmeye devam eder.
+    }
+  }
+
   static void _showForegroundAlert(RemoteMessage message) {
     final type = message.data['type']?.toString() ?? '';
+    final roomId = message.data['roomId']?.toString() ?? '';
     final matchId = message.data['matchId']?.toString() ?? '';
 
-    // Oda mesajları uygulama ön plandayken hiçbir uygulama-içi banner üretmez.
-    // Mesaj sohbet ekranına WebSocket ile düşer; uygulama arka planda veya
-    // kilitliyken ise FCM'in normal sistem bildirimi kullanılmaya devam eder.
-    if (type == 'room_message') return;
+    if (_isMessageType(type)) {
+      // Kullanıcı zaten aynı sohbeti görüyorsa ekstra sistem bildirimi üretme.
+      if (type == 'room_message' &&
+          roomId.isNotEmpty &&
+          RealtimeService.activeRoomId == roomId) {
+        return;
+      }
+      if ((type == 'message' || type == 'private_message') &&
+          matchId.isNotEmpty &&
+          RealtimeService.activeMatchId == matchId) {
+        return;
+      }
 
-    // Aynı özel sohbet ekrandayken mesaj zaten WebSocket ile anında görünür.
-    if ((type == 'message' || type == 'private_message') &&
-        matchId.isNotEmpty &&
-        RealtimeService.activeMatchId == matchId) {
+      // Mesajlarda Meet6 MaterialBanner kullanılmaz. Android'de doğrudan
+      // işletim sisteminin normal heads-up/kilit ekranı bildirimini göster.
+      unawaited(_showAndroidSystemMessageNotification(message));
       return;
     }
 
@@ -245,6 +338,10 @@ class PushNotificationService {
     if (notificationBody != null && notificationBody.trim().isNotEmpty) {
       data['body'] ??= notificationBody;
     }
+    await _openNotificationData(data);
+  }
+
+  static Future<void> _openNotificationData(Map<String, dynamic> data) async {
     if (data.isEmpty) return;
 
     final notificationId = data['notificationId']?.toString();
@@ -354,6 +451,10 @@ class PushNotificationService {
     _initializing = false;
     _tapHandlingInitialized = false;
     _lastOpenedNotificationId = null;
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      _systemNotificationChannel.setMethodCallHandler(null);
+    }
+    _nativeSystemHandlingInitialized = false;
     ApiService.beforeLogout = null;
   }
 }
