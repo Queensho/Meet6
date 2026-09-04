@@ -20,6 +20,18 @@ Future<void> meet6FirebaseBackgroundHandler(RemoteMessage message) async {
   if (Firebase.apps.isEmpty) await Firebase.initializeApp();
 }
 
+enum NotificationPermissionState {
+  unsupported,
+  notDetermined,
+  denied,
+  authorized,
+  provisional;
+
+  bool get enabled =>
+      this == NotificationPermissionState.authorized ||
+      this == NotificationPermissionState.provisional;
+}
+
 class PushNotificationService {
   const PushNotificationService._();
 
@@ -44,6 +56,21 @@ class PushNotificationService {
   static String get _platform =>
       defaultTargetPlatform == TargetPlatform.iOS ? 'ios' : 'android';
 
+  static NotificationPermissionState _mapAuthorizationStatus(
+    AuthorizationStatus status,
+  ) {
+    switch (status) {
+      case AuthorizationStatus.authorized:
+        return NotificationPermissionState.authorized;
+      case AuthorizationStatus.provisional:
+        return NotificationPermissionState.provisional;
+      case AuthorizationStatus.denied:
+        return NotificationPermissionState.denied;
+      case AuthorizationStatus.notDetermined:
+        return NotificationPermissionState.notDetermined;
+    }
+  }
+
   static bool _isMessageType(String type) =>
       type == 'room_message' || type == 'message' || type == 'private_message';
 
@@ -67,6 +94,10 @@ class PushNotificationService {
         type == 'report_update';
   }
 
+  static Future<void> _ensureFirebase() async {
+    if (Firebase.apps.isEmpty) await Firebase.initializeApp();
+  }
+
   static Future<void> _registerToken(String token) async {
     final clean = token.trim();
     if (clean.isEmpty) return;
@@ -87,6 +118,77 @@ class PushNotificationService {
       }
     }
     throw lastError ?? StateError('FCM token kaydı başarısız.');
+  }
+
+  static Future<void> _activateAuthorizedMessaging() async {
+    final messaging = FirebaseMessaging.instance;
+
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      await messaging.setForegroundNotificationPresentationOptions(
+        alert: false,
+        badge: true,
+        sound: false,
+      );
+    }
+
+    await _tokenRefreshSubscription?.cancel();
+    _tokenRefreshSubscription = messaging.onTokenRefresh.listen((newToken) {
+      unawaited(_registerToken(newToken).catchError((_) {}));
+    });
+
+    final token = await messaging.getToken();
+    if (token != null && token.trim().isNotEmpty) {
+      await _registerToken(token);
+    }
+  }
+
+  static Future<NotificationPermissionState> permissionState() async {
+    if (!supportedPlatform) return NotificationPermissionState.unsupported;
+    try {
+      await _ensureFirebase();
+      final settings = await FirebaseMessaging.instance.getNotificationSettings();
+      return _mapAuthorizationStatus(settings.authorizationStatus);
+    } catch (_) {
+      return NotificationPermissionState.unsupported;
+    }
+  }
+
+  static Future<NotificationPermissionState> requestPermission() async {
+    if (!supportedPlatform) return NotificationPermissionState.unsupported;
+    await _ensureFirebase();
+    final settings = await FirebaseMessaging.instance.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+      provisional: false,
+    );
+    final state = _mapAuthorizationStatus(settings.authorizationStatus);
+    if (state.enabled) {
+      await _activateAuthorizedMessaging();
+    }
+    return state;
+  }
+
+  static Future<NotificationPermissionState> refreshPermissionAndRegistration() async {
+    final state = await permissionState();
+    if (state.enabled) {
+      try {
+        await _activateAuthorizedMessaging();
+      } catch (_) {
+        // Push token yenileme hatası ekran akışını engellemez.
+      }
+    }
+    return state;
+  }
+
+  static Future<bool> openSystemNotificationSettings() async {
+    if (!supportedPlatform) return false;
+    try {
+      final opened = await _systemNotificationChannel.invokeMethod<bool>('openSettings');
+      return opened ?? false;
+    } catch (_) {
+      return false;
+    }
   }
 
   static Future<void> _setupNativeSystemNotificationHandling() async {
@@ -376,39 +478,17 @@ class PushNotificationService {
     _initializing = true;
 
     try {
-      if (Firebase.apps.isEmpty) await Firebase.initializeApp();
+      await _ensureFirebase();
       FirebaseMessaging.onBackgroundMessage(meet6FirebaseBackgroundHandler);
       ApiService.beforeLogout = unregisterCurrentDevice;
       await _setupMessageHandling();
 
-      final messaging = FirebaseMessaging.instance;
-      final permission = await messaging.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-        provisional: false,
-      );
-
-      if (permission.authorizationStatus == AuthorizationStatus.denied) {
-        return;
-      }
-
-      if (defaultTargetPlatform == TargetPlatform.iOS) {
-        await messaging.setForegroundNotificationPresentationOptions(
-          alert: false,
-          badge: true,
-          sound: false,
-        );
-      }
-
-      await _tokenRefreshSubscription?.cancel();
-      _tokenRefreshSubscription = messaging.onTokenRefresh.listen((newToken) {
-        unawaited(_registerToken(newToken).catchError((_) {}));
-      });
-
-      final token = await messaging.getToken();
-      if (token != null && token.trim().isNotEmpty) {
-        await _registerToken(token);
+      // Authentication must never trigger the OS permission dialog by itself.
+      // The product onboarding asks at an intentional moment on the home screen.
+      final settings = await FirebaseMessaging.instance.getNotificationSettings();
+      final state = _mapAuthorizationStatus(settings.authorizationStatus);
+      if (state.enabled) {
+        await _activateAuthorizedMessaging();
       }
 
       _initialized = true;
@@ -420,7 +500,7 @@ class PushNotificationService {
   static Future<void> unregisterCurrentDevice() async {
     if (supportedPlatform) {
       try {
-        if (Firebase.apps.isEmpty) await Firebase.initializeApp();
+        await _ensureFirebase();
         final token = await FirebaseMessaging.instance.getToken();
         if (token != null && token.trim().isNotEmpty) {
           await PushApiService.unregisterDevice(token.trim());
