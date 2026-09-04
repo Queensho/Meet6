@@ -248,7 +248,7 @@ class ProfileStepThree extends StatelessWidget {
         ),
         const SizedBox(height: 7),
         Text(
-          'En az 2 ek fotoğraf yükle. Fotoğrafa dokunarak değiştirebilirsin.',
+          'Ek fotoğraflar isteğe bağlı. İstersen tek seferde birden fazla seçip toplam 4 fotoğrafa tamamlayabilirsin.',
           style: TextStyle(
             color: scheme.onSurfaceVariant,
             fontSize: 10.5,
