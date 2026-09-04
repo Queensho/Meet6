@@ -23,6 +23,9 @@ class _RoomRulesScreenState extends State<RoomRulesScreen> {
   bool premium = false;
   bool premiumLoading = true;
   int roomDurationMinutes = 15;
+  String roomMode = 'text';
+
+  bool get voiceMode => roomMode == 'voice';
 
   @override
   void initState() {
@@ -37,7 +40,10 @@ class _RoomRulesScreenState extends State<RoomRulesScreen> {
       setState(() {
         premium = value.premium;
         premiumLoading = false;
-        if (!premium && roomDurationMinutes == 30) roomDurationMinutes = 15;
+        if (!premium) {
+          roomDurationMinutes = 15;
+          roomMode = 'text';
+        }
       });
     } catch (_) {
       if (!mounted) return;
@@ -45,12 +51,19 @@ class _RoomRulesScreenState extends State<RoomRulesScreen> {
         premium = false;
         premiumLoading = false;
         roomDurationMinutes = 15;
+        roomMode = 'text';
       });
     }
   }
 
   Future<void> _toggleDuration() async {
     if (premiumLoading) return;
+    if (voiceMode) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Premium sesli odalar 30 dakikadır.')),
+      );
+      return;
+    }
     if (premium) {
       setState(() => roomDurationMinutes = roomDurationMinutes == 15 ? 30 : 15);
       return;
@@ -66,12 +79,42 @@ class _RoomRulesScreenState extends State<RoomRulesScreen> {
     }
   }
 
+  Future<void> _toggleRoomMode() async {
+    if (premiumLoading) return;
+    if (premium) {
+      setState(() {
+        if (voiceMode) {
+          roomMode = 'text';
+        } else {
+          roomMode = 'voice';
+          roomDurationMinutes = 30;
+        }
+      });
+      return;
+    }
+
+    final activated = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const PremiumScreen()),
+    );
+    if (!mounted) return;
+    if (activated == true) {
+      await _loadPremium();
+      if (mounted && premium) {
+        setState(() {
+          roomMode = 'voice';
+          roomDurationMinutes = 30;
+        });
+      }
+    }
+  }
+
   void _startSearch(BuildContext context) {
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (_) => RoomSearchingScreen(
           profileName: widget.profileName,
           roomDurationMinutes: roomDurationMinutes,
+          roomMode: roomMode,
         ),
       ),
     );
@@ -98,8 +141,7 @@ class _RoomRulesScreenState extends State<RoomRulesScreen> {
                 clipBehavior: Clip.antiAlias,
                 decoration: BoxDecoration(
                   color: AppColors.lime,
-                  borderRadius:
-                      desktop ? BorderRadius.circular(32) : BorderRadius.zero,
+                  borderRadius: desktop ? BorderRadius.circular(32) : BorderRadius.zero,
                   boxShadow: desktop
                       ? const [
                           BoxShadow(
@@ -135,8 +177,8 @@ class _RoomRulesScreenState extends State<RoomRulesScreen> {
                         const Spacer(),
                         Center(
                           child: Container(
-                            width: 138,
-                            height: 138,
+                            width: 124,
+                            height: 124,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: AppColors.lime,
@@ -144,60 +186,66 @@ class _RoomRulesScreenState extends State<RoomRulesScreen> {
                               boxShadow: [
                                 BoxShadow(
                                   color: Colors.white.withOpacity(.68),
-                                  blurRadius: 26,
-                                  spreadRadius: 7,
+                                  blurRadius: 24,
+                                  spreadRadius: 6,
                                 ),
                                 BoxShadow(
                                   color: AppColors.navy.withOpacity(.14),
-                                  blurRadius: 32,
-                                  spreadRadius: 8,
+                                  blurRadius: 28,
+                                  spreadRadius: 7,
                                 ),
                               ],
                             ),
                             alignment: Alignment.center,
-                            child: const Text(
-                              '6',
-                              style: TextStyle(
-                                color: AppColors.navy,
-                                fontSize: 82,
-                                height: .9,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: -5,
-                              ),
-                            ),
+                            child: voiceMode
+                                ? const Icon(Icons.mic_rounded, color: AppColors.navy, size: 58)
+                                : const Text(
+                                    '6',
+                                    style: TextStyle(
+                                      color: AppColors.navy,
+                                      fontSize: 74,
+                                      height: .9,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: -5,
+                                    ),
+                                  ),
                           ),
                         ),
-                        const SizedBox(height: 28),
-                        const Text(
-                          'Odaya katılmadan önce',
-                          style: TextStyle(
+                        const SizedBox(height: 20),
+                        Text(
+                          voiceMode ? 'Premium sesli odaya katıl' : 'Odaya katılmadan önce',
+                          style: const TextStyle(
                             color: AppColors.navy,
-                            fontSize: 28,
+                            fontSize: 27,
                             height: 1.02,
                             fontWeight: FontWeight.w900,
                             letterSpacing: -1.1,
                           ),
                         ),
-                        const SizedBox(height: 7),
-                        const Text(
-                          'Meet6 odaları kısa, gerçek ve güvenli sohbetler için tasarlandı.',
-                          style: TextStyle(
+                        const SizedBox(height: 6),
+                        Text(
+                          voiceMode
+                              ? '6 Premium kullanıcı, 30 dakika boyunca canlı sesli sohbet eder.'
+                              : 'Meet6 odaları kısa, gerçek ve güvenli sohbetler için tasarlandı.',
+                          style: const TextStyle(
                             color: AppColors.navy,
-                            fontSize: 13,
-                            height: 1.35,
+                            fontSize: 12.5,
+                            height: 1.3,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 14),
                         _RuleTile(
-                          icon: premium ? Icons.workspace_premium_rounded : Icons.groups_2_rounded,
-                          title: '${runtime.minimumUsers} kişi, $roomDurationMinutes dakika',
+                          icon: voiceMode ? Icons.mic_rounded : Icons.chat_bubble_outline_rounded,
+                          title: voiceMode ? 'Sesli sohbet · Premium' : 'Yazılı sohbet',
                           subtitle: premiumLoading
-                              ? 'Premium oda seçenekleri kontrol ediliyor...'
+                              ? 'Premium durumu kontrol ediliyor...'
                               : premium
-                                  ? 'Premium aktif · 15 / 30 dk arasında değiştirmek için dokun.'
-                                  : 'Sen + ${runtime.minimumUsers - 1} kişi sohbet eder. 30 dk Premium için dokun.',
-                          onTap: _toggleDuration,
+                                  ? (voiceMode
+                                      ? 'Yalnız Premium üyelerle sesli oda. Yazılıya dönmek için dokun.'
+                                      : 'Premium sesli odaya geçmek için dokun.')
+                                  : 'Sesli sohbet yalnız Meet6 Premium üyelerine açıktır.',
+                          onTap: _toggleRoomMode,
                           trailing: premiumLoading
                               ? const SizedBox(
                                   width: 18,
@@ -208,10 +256,35 @@ class _RoomRulesScreenState extends State<RoomRulesScreen> {
                                   ),
                                 )
                               : Icon(
-                                  premium ? Icons.swap_horiz_rounded : Icons.lock_rounded,
+                                  voiceMode
+                                      ? Icons.workspace_premium_rounded
+                                      : premium
+                                          ? Icons.swap_horiz_rounded
+                                          : Icons.lock_rounded,
                                   color: AppColors.navy,
                                   size: 20,
                                 ),
+                        ),
+                        _RuleTile(
+                          icon: premium ? Icons.workspace_premium_rounded : Icons.groups_2_rounded,
+                          title: '${runtime.minimumUsers} kişi, $roomDurationMinutes dakika',
+                          subtitle: voiceMode
+                              ? 'Sesli Premium odaların süresi 30 dakikadır.'
+                              : premiumLoading
+                                  ? 'Premium oda seçenekleri kontrol ediliyor...'
+                                  : premium
+                                      ? 'Premium aktif · 15 / 30 dk arasında değiştirmek için dokun.'
+                                      : 'Sen + ${runtime.minimumUsers - 1} kişi sohbet eder. 30 dk Premium için dokun.',
+                          onTap: _toggleDuration,
+                          trailing: Icon(
+                            voiceMode
+                                ? Icons.mic_rounded
+                                : premium
+                                    ? Icons.swap_horiz_rounded
+                                    : Icons.lock_rounded,
+                            color: AppColors.navy,
+                            size: 20,
+                          ),
                         ),
                         const _RuleTile(
                           icon: Icons.favorite_rounded,
@@ -232,7 +305,7 @@ class _RoomRulesScreenState extends State<RoomRulesScreen> {
                         const Spacer(),
                         SizedBox(
                           width: double.infinity,
-                          height: 58,
+                          height: 56,
                           child: FilledButton(
                             onPressed: () => _startSearch(context),
                             style: FilledButton.styleFrom(
@@ -245,15 +318,17 @@ class _RoomRulesScreenState extends State<RoomRulesScreen> {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
+                                Icon(voiceMode ? Icons.mic_rounded : Icons.search_rounded),
+                                const SizedBox(width: 9),
                                 Text(
-                                  'Kabul et ve $roomDurationMinutes dk oda ara',
+                                  voiceMode
+                                      ? '30 dk Premium sesli oda ara'
+                                      : '$roomDurationMinutes dk oda ara',
                                   style: const TextStyle(
-                                    fontSize: 15,
+                                    fontSize: 14.5,
                                     fontWeight: FontWeight.w900,
                                   ),
                                 ),
-                                const SizedBox(width: 10),
-                                const Icon(Icons.arrow_forward_rounded),
                               ],
                             ),
                           ),
@@ -292,25 +367,25 @@ class _RuleTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final content = Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(13),
+      padding: const EdgeInsets.all(11.5),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(.31),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(17),
         border: Border.all(color: AppColors.navy.withOpacity(.07)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 42,
-            height: 42,
+            width: 39,
+            height: 39,
             decoration: const BoxDecoration(
               color: AppColors.navy,
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: AppColors.lime, size: 21),
+            child: Icon(icon, color: AppColors.lime, size: 20),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -319,17 +394,17 @@ class _RuleTile extends StatelessWidget {
                   title,
                   style: const TextStyle(
                     color: AppColors.navy,
-                    fontSize: 13.2,
+                    fontSize: 12.8,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 2),
                 Text(
                   subtitle,
                   style: TextStyle(
                     color: AppColors.navy.withOpacity(.68),
-                    fontSize: 11.1,
-                    height: 1.3,
+                    fontSize: 10.5,
+                    height: 1.25,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -337,9 +412,9 @@ class _RuleTile extends StatelessWidget {
             ),
           ),
           if (trailing != null) ...[
-            const SizedBox(width: 8),
+            const SizedBox(width: 7),
             Padding(
-              padding: const EdgeInsets.only(top: 10),
+              padding: const EdgeInsets.only(top: 9),
               child: trailing!,
             ),
           ],
@@ -348,12 +423,12 @@ class _RuleTile extends StatelessWidget {
     );
 
     return Padding(
-      padding: EdgeInsets.only(bottom: last ? 0 : 10),
+      padding: EdgeInsets.only(bottom: last ? 0 : 8),
       child: onTap == null
           ? content
           : InkWell(
               onTap: onTap,
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(17),
               child: content,
             ),
     );

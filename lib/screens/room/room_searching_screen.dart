@@ -6,20 +6,26 @@ import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
 import '../../services/realtime_service.dart';
 import '../../services/room_queue_api_service.dart';
+import '../../services/voice_room_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/brand.dart';
 import '../../widgets/phone_frame.dart';
 import '../chat/room_chat_screen.dart';
+import '../chat/voice_room_screen.dart';
 
 class RoomSearchingScreen extends StatefulWidget {
   const RoomSearchingScreen({
     super.key,
     this.profileName = '',
     this.roomDurationMinutes = 15,
+    this.roomMode = 'text',
   });
 
   final String profileName;
   final int roomDurationMinutes;
+  final String roomMode;
+
+  bool get voiceMode => roomMode == 'voice';
 
   @override
   State<RoomSearchingScreen> createState() => _RoomSearchingScreenState();
@@ -71,7 +77,9 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
       searchCycleTimer?.cancel();
       setState(() {
         loading = false;
-        error = 'Oda servisine bağlanılamadı. Tekrar dene.';
+        error = widget.voiceMode
+            ? 'Premium sesli oda servisine bağlanılamadı. Tekrar dene.'
+            : 'Oda servisine bağlanılamadı. Tekrar dene.';
       });
     }
   }
@@ -90,7 +98,8 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
       setState(() => error = 'Bağlantı yenileniyor...');
       return;
     }
-    if (event.type == 'queue:status' || event.type == 'queue:matched') {
+    if (!widget.voiceMode &&
+        (event.type == 'queue:status' || event.type == 'queue:matched')) {
       unawaited(_handleStatus(event.data));
     }
   }
@@ -99,11 +108,16 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
     if (joining || leavingForRoom) return;
     joining = true;
     try {
-      final data = RealtimeService.debugAckOverride != null
-          ? await RealtimeService.joinQueue()
-          : await RoomQueueApiService.joinQueue(
-              roomDurationMinutes: widget.roomDurationMinutes,
-            );
+      final Map<String, dynamic> data;
+      if (widget.voiceMode) {
+        data = await VoiceRoomService.joinQueue();
+      } else if (RealtimeService.debugAckOverride != null) {
+        data = await RealtimeService.joinQueue();
+      } else {
+        data = await RoomQueueApiService.joinQueue(
+          roomDurationMinutes: widget.roomDurationMinutes,
+        );
+      }
       if (!mounted) return;
       await _handleStatus(data);
       if (!leavingForRoom && data['state']?.toString() != 'room') {
@@ -157,8 +171,8 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
     if (cycleRestarting || leavingForRoom || !mounted) return;
     cycleRestarting = true;
     try {
-      // REST join idempotenttir: kullanıcıyı kuyruktan çıkarıp sona atmaz.
-      // Sadece matchmaking'i yeniden tetikler ve seçili oda süresini korur.
+      // Join idempotenttir: kullanıcının kuyruk sırası korunur, yalnız
+      // matchmaking tekrar tetiklenir ve güncel oda durumu alınır.
       await _joinQueue(newCycle: true);
     } finally {
       cycleRestarting = false;
@@ -188,10 +202,15 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => RoomChatScreen(
-            roomId: roomId,
-            profileName: widget.profileName,
-          ),
+          builder: (_) => widget.voiceMode
+              ? VoiceRoomScreen(
+                  roomId: roomId,
+                  profileName: widget.profileName,
+                )
+              : RoomChatScreen(
+                  roomId: roomId,
+                  profileName: widget.profileName,
+                ),
         ),
       );
       return;
@@ -209,7 +228,11 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
   Future<void> _cancel() async {
     searchCycleTimer?.cancel();
     try {
-      await RealtimeService.cancelQueue();
+      if (widget.voiceMode) {
+        await VoiceRoomService.cancelQueue();
+      } else {
+        await RealtimeService.cancelQueue();
+      }
     } catch (_) {}
     if (mounted) Navigator.of(context).pop();
   }
@@ -225,7 +248,11 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
     searchCycleTimer?.cancel();
     pulse.dispose();
     if (!leavingForRoom) {
-      unawaited(RealtimeService.cancelQueue().catchError((_) => <String, dynamic>{}));
+      if (widget.voiceMode) {
+        unawaited(VoiceRoomService.cancelQueue().catchError((_) {}));
+      } else {
+        unawaited(RealtimeService.cancelQueue().catchError((_) => <String, dynamic>{}));
+      }
     }
     super.dispose();
   }
@@ -258,7 +285,7 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                     children: [
                       const Meet6MiniBrand(height: 29),
                       const Spacer(),
-                      if (widget.roomDurationMinutes == 30)
+                      if (widget.voiceMode || widget.roomDurationMinutes == 30)
                         Container(
                           margin: const EdgeInsets.only(right: 6),
                           padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
@@ -266,13 +293,22 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                             color: AppColors.navy,
                             borderRadius: BorderRadius.circular(99),
                           ),
-                          child: const Text(
-                            '30 DK PREMIUM',
-                            style: TextStyle(
-                              color: AppColors.lime,
-                              fontSize: 9.5,
-                              fontWeight: FontWeight.w900,
-                            ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (widget.voiceMode) ...[
+                                const Icon(Icons.mic_rounded, size: 12, color: AppColors.lime),
+                                const SizedBox(width: 4),
+                              ],
+                              Text(
+                                widget.voiceMode ? 'SESLİ PREMIUM' : '30 DK PREMIUM',
+                                style: const TextStyle(
+                                  color: AppColors.lime,
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       TextButton(
@@ -316,10 +352,7 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                               decoration: BoxDecoration(
                                 color: AppColors.lime,
                                 shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: AppColors.navy,
-                                  width: 3,
-                                ),
+                                border: Border.all(color: AppColors.navy, width: 3),
                                 boxShadow: [
                                   BoxShadow(
                                     color: AppColors.lime.withOpacity(.28),
@@ -329,16 +362,18 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                                 ],
                               ),
                               alignment: Alignment.center,
-                              child: const Text(
-                                '6',
-                                style: TextStyle(
-                                  color: AppColors.navy,
-                                  fontSize: 82,
-                                  fontWeight: FontWeight.w900,
-                                  height: .9,
-                                  letterSpacing: -5,
-                                ),
-                              ),
+                              child: widget.voiceMode
+                                  ? const Icon(Icons.mic_rounded, color: AppColors.navy, size: 70)
+                                  : const Text(
+                                      '6',
+                                      style: TextStyle(
+                                        color: AppColors.navy,
+                                        fontSize: 82,
+                                        fontWeight: FontWeight.w900,
+                                        height: .9,
+                                        letterSpacing: -5,
+                                      ),
+                                    ),
                             ),
                           ],
                         ),
@@ -350,8 +385,8 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                     error != null && error != 'Bağlantı yenileniyor...'
                         ? 'Bağlantı sorunu'
                         : leavingForRoom
-                            ? 'Uygun oda bulundu!'
-                            : 'Oda aranıyor...',
+                            ? (widget.voiceMode ? 'Sesli oda bulundu!' : 'Uygun oda bulundu!')
+                            : (widget.voiceMode ? 'Premium sesli oda aranıyor...' : 'Oda aranıyor...'),
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: dark ? Colors.white : AppColors.navy,
@@ -366,13 +401,15 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                         (leavingForRoom
                             ? '6 kişi hazır. Odaya bağlanıyorsun.'
                             : queueTotal > 0
-                                ? '${widget.roomDurationMinutes} dk havuzunda $queueTotal kişi var. Sıra konumun: $queuePosition'
-                                : '${widget.roomDurationMinutes} dk oda için tercihlerine uyan kullanıcılar bekleniyor.'),
+                                ? (widget.voiceMode
+                                    ? 'Sesli Premium havuzunda $queueTotal kişi var. Sıra konumun: $queuePosition'
+                                    : '${widget.roomDurationMinutes} dk havuzunda $queueTotal kişi var. Sıra konumun: $queuePosition')
+                                : (widget.voiceMode
+                                    ? 'Tercihlerine uyan Premium kullanıcılar bekleniyor.'
+                                    : '${widget.roomDurationMinutes} dk oda için tercihlerine uyan kullanıcılar bekleniyor.')),
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: dark
-                          ? Colors.white70
-                          : AppColors.navy.withOpacity(.66),
+                      color: dark ? Colors.white70 : AppColors.navy.withOpacity(.66),
                       fontSize: 12.5,
                       height: 1.4,
                       fontWeight: FontWeight.w700,
@@ -382,19 +419,12 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                       (error == null || error == 'Bağlantı yenileniyor...')) ...[
                     const SizedBox(height: 14),
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       decoration: BoxDecoration(
-                        color: dark
-                            ? Colors.white.withOpacity(.08)
-                            : Colors.white.withOpacity(.42),
+                        color: dark ? Colors.white.withOpacity(.08) : Colors.white.withOpacity(.42),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: dark
-                              ? Colors.white.withOpacity(.12)
-                              : AppColors.navy.withOpacity(.10),
+                          color: dark ? Colors.white.withOpacity(.12) : AppColors.navy.withOpacity(.10),
                         ),
                       ),
                       child: Row(
@@ -432,9 +462,7 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                       'Süre dolarsa sıranı kaybetmeden otomatik yeni oda aranır.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: dark
-                            ? Colors.white54
-                            : AppColors.navy.withOpacity(.52),
+                        color: dark ? Colors.white54 : AppColors.navy.withOpacity(.52),
                         fontSize: 10.5,
                         fontWeight: FontWeight.w700,
                       ),
@@ -465,9 +493,7 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                       decoration: BoxDecoration(
                         color: scheme.surface.withOpacity(dark ? .72 : .52),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: scheme.outlineVariant.withOpacity(.7),
-                        ),
+                        border: Border.all(color: scheme.outlineVariant.withOpacity(.7)),
                       ),
                       child: Row(
                         children: [
@@ -481,16 +507,15 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                               ),
                             )
                           else
-                            const Icon(
-                              Icons.check_circle_rounded,
-                              color: AppColors.blue,
-                            ),
+                            const Icon(Icons.check_circle_rounded, color: AppColors.blue),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
                               leavingForRoom
                                   ? 'Oda sunucuda oluşturuldu.'
-                                  : 'Canlı bağlantı açık. Yaş, tercih, mesafe, engel ve Premium oda filtresi sunucuda uygulanıyor.',
+                                  : widget.voiceMode
+                                      ? 'Premium kontrolü, yaş, tercih, mesafe ve güvenlik filtreleri sunucuda uygulanıyor.'
+                                      : 'Canlı bağlantı açık. Yaş, tercih, mesafe, engel ve Premium oda filtresi sunucuda uygulanıyor.',
                               style: TextStyle(
                                 color: scheme.onSurface,
                                 fontSize: 12,
@@ -504,12 +529,12 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                     ),
                   const Spacer(),
                   Text(
-                    '${widget.roomDurationMinutes} dakikalık oda yalnızca 6 uygun kullanıcı hazır olduğunda başlar.',
+                    widget.voiceMode
+                        ? 'Sesli oda yalnızca 6 aktif Premium kullanıcı hazır olduğunda başlar.'
+                        : '${widget.roomDurationMinutes} dakikalık oda yalnızca 6 uygun kullanıcı hazır olduğunda başlar.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: dark
-                          ? Colors.white54
-                          : AppColors.navy.withOpacity(.55),
+                      color: dark ? Colors.white54 : AppColors.navy.withOpacity(.55),
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                     ),

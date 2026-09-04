@@ -212,6 +212,7 @@ try {
   // This existing CI entry point also executes Premium-specific queue checks,
   // so no extra GitHub Actions permission or workflow mutation is required.
   await import('./e2e-premium-subscriptions.mjs');
+  await import('./e2e-premium-voice-rooms.mjs');
 } catch (error) {
   console.error('❌ MEET6 MATCHMAKING POLICY E2E FAIL');
   console.error(error?.stack ?? error);
