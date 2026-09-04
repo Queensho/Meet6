@@ -22,6 +22,16 @@ export class AdminRemovePhotoDto {
   photoUrl!: string;
 }
 
+export class AdminPhotoModerationActionDto {
+  @IsIn(['approve', 'reject'])
+  action!: 'approve' | 'reject';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
+}
+
 export class AdminRoomActionDto {
   @IsString()
   @MaxLength(240)
