@@ -199,6 +199,9 @@ class LiveService {
         },
       );
 
+  static Future<Map<String, dynamic>> exportMyData() =>
+      _get('/api/me/data-export');
+
   static Future<Map<String, dynamic>> notifications() => _get('/api/notifications');
 
   static Future<void> markNotificationsRead() async {
