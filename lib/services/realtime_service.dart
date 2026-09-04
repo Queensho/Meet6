@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 
 import 'api_service.dart';
+import 'observability_service.dart';
 import 'session_service.dart';
 
 class RealtimeEvent {
@@ -50,18 +51,47 @@ class RealtimeService {
     return '$micros-$randomA-$randomB';
   }
 
+  static void _trackRoom(Map<String, dynamic> room, {String? fallbackRoomId}) {
+    final roomId = room['id']?.toString() ?? fallbackRoomId ?? '';
+    final status = room['status']?.toString() ?? '';
+    final members = room['members'];
+
+    if (roomId.isNotEmpty && status == 'active' && members is List && members.length == 6) {
+      unawaited(ObservabilityService.roomFound(roomId));
+    }
+    if (roomId.isNotEmpty && status == 'selection') {
+      unawaited(ObservabilityService.roomCompleted(roomId));
+    }
+  }
+
   static void _push(String type, dynamic raw) {
     final data = _map(raw);
     _events.add(RealtimeEvent(type, data));
+
+    if (type == 'queue:matched') {
+      final rawRoom = data['room'];
+      if (rawRoom is Map) {
+        _trackRoom(Map<String, dynamic>.from(rawRoom));
+      }
+    }
 
     if (type == 'room:update') {
       final rawRoom = data['room'];
       if (rawRoom is Map) {
         final room = Map<String, dynamic>.from(rawRoom);
+        _trackRoom(room, fallbackRoomId: data['roomId']?.toString());
         final members = room['members'];
         if (room['status'] == 'active' && members is List && members.length == 6) {
           _events.add(RealtimeEvent('queue:matched', {'state': 'room', 'room': room}));
         }
+      }
+    }
+
+    if (type == 'match:created') {
+      final matchId = data['matchId']?.toString() ?? '';
+      final roomId = data['roomId']?.toString();
+      if (matchId.isNotEmpty) {
+        unawaited(ObservabilityService.matchCreated(matchId, roomId: roomId));
       }
     }
 
@@ -219,13 +249,26 @@ class RealtimeService {
     throw lastError ?? const ApiException('Gerçek zamanlı işlem başarısız oldu.');
   }
 
-  static Future<Map<String, dynamic>> joinQueue() => _ack('queue:join');
+  static Future<Map<String, dynamic>> joinQueue() async {
+    await ObservabilityService.roomSearchStarted();
+    final result = await _ack('queue:join');
+    final rawRoom = result['room'];
+    if (result['state'] == 'room' && rawRoom is Map) {
+      _trackRoom(Map<String, dynamic>.from(rawRoom));
+    }
+    return result;
+  }
+
   static Future<Map<String, dynamic>> queueStatus() => _ack('queue:status');
   static Future<Map<String, dynamic>> cancelQueue() => _ack('queue:cancel');
 
   static Future<Map<String, dynamic>> joinRoom(String roomId) async {
     final result = await _ack('room:join', {'roomId': roomId});
     _activeRoomId = roomId;
+    final rawRoom = result['room'];
+    if (rawRoom is Map) {
+      _trackRoom(Map<String, dynamic>.from(rawRoom), fallbackRoomId: roomId);
+    }
     return result;
   }
 
@@ -269,11 +312,18 @@ class RealtimeService {
   static Future<Map<String, dynamic>> submitRoomSelection(
     String roomId,
     String selectedUserId,
-  ) =>
-      _ack(
-        'room:selection',
-        {'roomId': roomId, 'selectedUserId': int.parse(selectedUserId)},
-      );
+  ) async {
+    final result = await _ack(
+      'room:selection',
+      {'roomId': roomId, 'selectedUserId': int.parse(selectedUserId)},
+    );
+    await ObservabilityService.selectionSubmitted(roomId);
+    final matchId = result['matchId']?.toString() ?? '';
+    if (result['matched'] == true && matchId.isNotEmpty) {
+      await ObservabilityService.matchCreated(matchId, roomId: roomId);
+    }
+    return result;
+  }
 
   static Future<Map<String, dynamic>> listMatches() => _ack('matches:list');
 
@@ -304,8 +354,14 @@ class RealtimeService {
     }
   }
 
-  static Future<Map<String, dynamic>> sendPrivateMessage(String matchId, String body) =>
-      _ack('match:send', {'matchId': matchId, 'body': body});
+  static Future<Map<String, dynamic>> sendPrivateMessage(
+    String matchId,
+    String body,
+  ) async {
+    final result = await _ack('match:send', {'matchId': matchId, 'body': body});
+    await ObservabilityService.firstMessageSent(matchId);
+    return result;
+  }
 
   static Future<Map<String, dynamic>> markMatchDelivered(
     String matchId,
