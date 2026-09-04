@@ -30,6 +30,8 @@
 	<string>Meet6, profil fotoğrafı çekebilmen için kameraya erişir.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Meet6, yakındaki uygun eşleşmeleri göstermek için konumunu kullanır.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Meet6, Premium sesli sohbet odalarında konuşabilmen için mikrofona erişir.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Meet6, profil fotoğraflarını seçebilmen için fotoğraf arşivine erişir.</string>
 	<key>UIApplicationSceneManifest</key>
