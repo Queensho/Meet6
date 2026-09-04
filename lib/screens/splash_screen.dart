@@ -1,82 +1,46 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:video_player/video_player.dart';
 
-import '../services/onboarding_service.dart';
-import '../services/session_service.dart';
 import '../theme/app_colors.dart';
 import 'onboarding_gate.dart';
 
 /// Meet6 açılış akışı:
-/// - Gerçekten yeni kullanıcıda Splash.mp4 yalnızca bir kez oynar.
-/// - Mevcut kullanıcılar ve sonraki açılışlar lime zemin + Logo3 görür.
+/// - İlk gerçek açılışta Splash.mp4 yalnızca bir kez oynar.
+/// - Sonraki açılışlarda lime zemin üzerinde Logo3 gösterilir.
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
+  const SplashScreen({
+    super.key,
+    required this.showIntroVideo,
+  });
+
+  final bool showIntroVideo;
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  static const _videoSeenKey = 'meet6_intro_video_seen_v1';
-  static const _staticSplashDuration = Duration(milliseconds: 1100);
+  static const _staticSplashDuration = Duration(milliseconds: 1200);
 
   VideoPlayerController? _controller;
   Timer? _fallbackTimer;
-  bool _decisionReady = false;
-  bool _showVideo = false;
   bool _videoReady = false;
   bool _finished = false;
 
   @override
   void initState() {
     super.initState();
-    unawaited(_resolveSplash());
+    if (widget.showIntroVideo) {
+      unawaited(_startVideo());
+    } else {
+      _fallbackTimer = Timer(_staticSplashDuration, _finish);
+    }
   }
 
-  Future<void> _showStaticSplash() async {
-    if (!mounted || _finished) return;
-    setState(() {
-      _decisionReady = true;
-      _showVideo = false;
-    });
-    _fallbackTimer?.cancel();
-    _fallbackTimer = Timer(_staticSplashDuration, _finish);
-  }
-
-  Future<void> _resolveSplash() async {
+  Future<void> _startVideo() async {
     try {
-      final preferences = await SharedPreferences.getInstance();
-      final videoSeen = preferences.getBool(_videoSeenKey) ?? false;
-
-      if (videoSeen) {
-        await _showStaticSplash();
-        return;
-      }
-
-      // Bu anahtar yeni eklendiği için eski Meet6 kullanıcılarını yanlışlıkla
-      // "ilk açılış" saymayız. Oturumu veya tamamlanmış onboarding'i olan kişi
-      // doğrudan Logo3 splash görür.
-      final authSession = await SessionService.loadAuthSessionId();
-      final onboardingCompleted = await OnboardingService.isCompleted();
-      final existingUser =
-          (authSession != null && authSession.trim().isNotEmpty) || onboardingCompleted;
-
-      await preferences.setBool(_videoSeenKey, true);
-
-      if (existingUser) {
-        await _showStaticSplash();
-        return;
-      }
-
-      if (!mounted || _finished) return;
-      setState(() {
-        _decisionReady = true;
-        _showVideo = true;
-      });
-
       final controller = VideoPlayerController.asset('assets/images/Splash.mp4');
       _controller = controller;
       controller.addListener(_watchPlayback);
@@ -95,8 +59,9 @@ class _SplashScreenState extends State<SplashScreen> {
           : const Duration(seconds: 6);
       _fallbackTimer = Timer(fallback, _finish);
     } catch (_) {
-      // Tercih veya video başlatılamazsa kullanıcı açılış ekranında takılmaz.
-      await _showStaticSplash();
+      if (!mounted || _finished) return;
+      _fallbackTimer?.cancel();
+      _fallbackTimer = Timer(const Duration(milliseconds: 250), _finish);
     }
   }
 
@@ -133,11 +98,11 @@ class _SplashScreenState extends State<SplashScreen> {
   Widget build(BuildContext context) {
     if (_finished) return const OnboardingGate();
 
-    if (!_decisionReady || _showVideo) {
+    if (widget.showIntroVideo) {
       return Scaffold(
         backgroundColor: Colors.black,
         body: SizedBox.expand(
-          child: _showVideo && _videoReady && _controller != null
+          child: _videoReady && _controller != null
               ? ClipRect(
                   child: FittedBox(
                     fit: BoxFit.cover,
@@ -154,13 +119,13 @@ class _SplashScreenState extends State<SplashScreen> {
       );
     }
 
-    return Scaffold(
+    return const Scaffold(
       backgroundColor: AppColors.lime,
       body: Center(
         child: FractionallySizedBox(
-          widthFactor: .56,
-          child: Image.asset(
-            'assets/images/Logo3.png',
+          widthFactor: .72,
+          child: Image(
+            image: AssetImage('assets/images/Logo3.png'),
             fit: BoxFit.contain,
             filterQuality: FilterQuality.high,
           ),
