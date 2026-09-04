@@ -51,7 +51,10 @@ class PushNotificationService {
     return type == 'support_reply' ||
         type == 'moderation_warning' ||
         type == 'moderation_ban' ||
-        type == 'moderation_unban';
+        type == 'moderation_unban' ||
+        type == 'room_closed' ||
+        type == 'room_removed' ||
+        type == 'report_update';
   }
 
   static Future<void> _registerToken(String token) async {
