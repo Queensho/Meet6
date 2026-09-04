@@ -25,10 +25,36 @@ class RealtimeService {
   static final _events = StreamController<RealtimeEvent>.broadcast();
   static final Random _random = Random.secure();
 
+  // Null in production. Tests can exercise the real screens without opening a socket.
+  static Future<Map<String, dynamic>> Function(
+    String event,
+    Map<String, dynamic> data,
+  )? debugAckOverride;
+  static bool _debugConnected = false;
+
   static Stream<RealtimeEvent> get events => _events.stream;
-  static bool get connected => _socket?.connected == true;
+  static bool get connected =>
+      debugAckOverride != null ? _debugConnected : _socket?.connected == true;
   static String? get activeRoomId => _activeRoomId;
   static String? get activeMatchId => _activeMatchId;
+
+  static void debugEmit(String type, Map<String, dynamic> data) {
+    if (debugAckOverride == null) {
+      throw StateError('debugEmit yalnızca test adapteri kuruluyken kullanılabilir.');
+    }
+    _push(type, data);
+  }
+
+  static void debugResetTestHooks() {
+    debugAckOverride = null;
+    _debugConnected = false;
+    _socket?.dispose();
+    _socket = null;
+    _token = null;
+    _connecting = null;
+    _activeRoomId = null;
+    _activeMatchId = null;
+  }
 
   static Map<String, dynamic> _map(dynamic raw) {
     if (raw is Map<String, dynamic>) return raw;
@@ -163,6 +189,14 @@ class RealtimeService {
       throw const ApiException('Oturum bulunamadı.');
     }
 
+    if (debugAckOverride != null) {
+      if (!_debugConnected) {
+        _debugConnected = true;
+        _events.add(const RealtimeEvent('connection:connected', {}));
+      }
+      return;
+    }
+
     if (_socket != null && _token == token) {
       if (_socket!.connected) return;
       if (_connecting != null && !(_connecting!.isCompleted)) {
@@ -200,6 +234,16 @@ class RealtimeService {
     String event, [
     Map<String, dynamic> data = const {},
   ]) async {
+    final fake = debugAckOverride;
+    if (fake != null) {
+      await connect();
+      final result = await fake(event, data);
+      if (result['ok'] == false) {
+        throw ApiException(result['error']?.toString() ?? 'İşlem başarısız oldu.');
+      }
+      return result;
+    }
+
     await connect();
     final socket = _socket;
     if (socket == null || !socket.connected) {
@@ -379,12 +423,19 @@ class RealtimeService {
       _ack('match:delete', {'matchId': matchId, 'messageId': messageId});
 
   static void setTyping(String matchId, bool typing) {
+    if (debugAckOverride != null) return;
     final socket = _socket;
     if (socket?.connected != true) return;
     socket!.emit('match:typing', {'matchId': matchId, 'typing': typing});
   }
 
   static void disconnect() {
+    if (debugAckOverride != null) {
+      _debugConnected = false;
+      _activeRoomId = null;
+      _activeMatchId = null;
+      return;
+    }
     _socket?.dispose();
     _socket = null;
     _token = null;
