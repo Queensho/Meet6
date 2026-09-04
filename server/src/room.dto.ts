@@ -1,4 +1,11 @@
-import { IsBoolean, IsInt, IsString, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+
+export class JoinQueueDto {
+  @IsOptional()
+  @IsInt()
+  @IsIn([15, 30])
+  roomDurationMinutes?: number;
+}
 
 export class SendRoomMessageDto {
   @IsString()
