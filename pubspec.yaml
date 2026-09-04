@@ -20,6 +20,7 @@ dependencies:
   http: ^1.2.2
   http_parser: ^4.1.2
   image_picker: ^1.1.2
+  livekit_client: ^2.11.0
   purchases_flutter: ^10.11.0
   shared_preferences: ^2.3.3
   socket_io_client: ^3.1.2
