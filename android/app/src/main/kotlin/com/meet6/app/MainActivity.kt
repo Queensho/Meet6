@@ -14,7 +14,9 @@ class MainActivity : FlutterActivity() {
         super.onCreate(savedInstanceState)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+            val standardChannel = NotificationChannel(
                 "meet6_high_v2",
                 "Meet6 bildirimleri",
                 NotificationManager.IMPORTANCE_HIGH,
@@ -27,8 +29,22 @@ class MainActivity : FlutterActivity() {
                 setShowBadge(true)
             }
 
-            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            manager.createNotificationChannel(channel)
+            val noVibrationChannel = NotificationChannel(
+                "meet6_high_no_vibration_v1",
+                "Meet6 bildirimleri · titreşimsiz",
+                NotificationManager.IMPORTANCE_HIGH,
+            ).apply {
+                description = "Titreşim kapalıyken Meet6 bildirimleri"
+                enableVibration(false)
+                vibrationPattern = null
+                enableLights(true)
+                lightColor = Color.rgb(216, 255, 50)
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                setShowBadge(true)
+            }
+
+            manager.createNotificationChannel(standardChannel)
+            manager.createNotificationChannel(noVibrationChannel)
         }
     }
 }
