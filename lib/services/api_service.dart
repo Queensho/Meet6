@@ -32,6 +32,8 @@ class AuthResult {
 class ApiService {
   const ApiService._();
 
+  static Future<void> Function()? beforeLogout;
+
   static String get baseUrl => AppConfig.apiBaseUrl;
 
   static Uri _uri(String path) => AppConfig.apiUri(path);
@@ -234,6 +236,16 @@ class ApiService {
   static Future<void> logout() async {
     final token = await SessionService.loadAuthSessionId();
     if (token == null) return;
+
+    final cleanup = beforeLogout;
+    if (cleanup != null) {
+      try {
+        await cleanup();
+      } catch (_) {
+        // Push token temizliği çıkışı engellememeli.
+      }
+    }
+
     try {
       await http
           .post(
