@@ -179,7 +179,15 @@ void main() {
     await tester.tap(find.text('Devam et'));
     await pumpFor(tester, const Duration(milliseconds: 300));
 
+    expect(find.text('Kimlerle\ntanışmak istersin?'), findsOneWidget);
+    final permissionButton = find.text('İzin ver');
+    if (permissionButton.evaluate().isNotEmpty) {
+      await scrollTo(tester, permissionButton);
+      await tester.tap(permissionButton);
+      await pumpFor(tester, const Duration(milliseconds: 150));
+    }
     expect(find.textContaining('İstanbul'), findsOneWidget);
+
     await tester.tap(find.text('Herkes'));
     await scrollTo(tester, find.text('Yeni insanlarla tanışma'));
     await tester.tap(find.text('Yeni insanlarla tanışma'));
