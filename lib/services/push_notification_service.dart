@@ -9,6 +9,7 @@ import '../screens/push/push_target_screen.dart';
 import '../theme/app_colors.dart';
 import 'api_service.dart';
 import 'app_navigator.dart';
+import 'notification_api_service.dart';
 import 'push_api_service.dart';
 import 'realtime_service.dart';
 
@@ -254,6 +255,7 @@ class PushNotificationService {
     }
     if (notificationId != null && notificationId.isNotEmpty) {
       _lastOpenedNotificationId = notificationId;
+      unawaited(NotificationApiService.markRead(notificationId).catchError((_) {}));
     }
 
     final type = data['type']?.toString() ?? '';
