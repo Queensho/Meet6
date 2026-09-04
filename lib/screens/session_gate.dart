@@ -8,6 +8,7 @@ import '../services/push_notification_service.dart';
 import '../services/realtime_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_colors.dart';
+import '../widgets/brand.dart';
 import 'chat/room_chat_screen.dart';
 import 'chat/room_selection_screen.dart';
 import 'home/home_screen.dart';
@@ -196,26 +197,7 @@ class _SessionGateState extends State<SessionGate> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text.rich(
-                    TextSpan(
-                      style: TextStyle(
-                        fontSize: 42,
-                        height: 1,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -2.4,
-                      ),
-                      children: [
-                        TextSpan(
-                          text: 'meet',
-                          style: TextStyle(color: AppColors.navy),
-                        ),
-                        TextSpan(
-                          text: '6',
-                          style: TextStyle(color: AppColors.blue),
-                        ),
-                      ],
-                    ),
-                  ),
+                  Meet6MiniBrand(height: 42),
                   SizedBox(height: 20),
                   SizedBox(
                     width: 26,
