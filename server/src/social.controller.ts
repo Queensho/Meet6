@@ -122,7 +122,13 @@ export class SocialController {
 
   @Get('notifications')
   async notifications(@Headers('authorization') authorization?: string) {
-    return this.social.notifications(await this.userId(authorization));
+    const response = await this.social.notifications(await this.userId(authorization));
+    const messageTypes = new Set(['message', 'private_message', 'room_message']);
+    const notifications = (response.notifications ?? []).filter(
+      (item: any) => !messageTypes.has(item.type?.toString() ?? ''),
+    );
+    const unread = notifications.filter((item: any) => item.read_at == null).length;
+    return { ...response, notifications, unread };
   }
 
   @Post('notifications/:notificationId/read')
