@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Headers, Param, Post, Query } from '@nestjs/common';
 
 import {
+  AdminPhotoModerationActionDto,
   AdminRemovePhotoDto,
   AdminReportActionDto,
   AdminReportEvidenceDto,
@@ -13,6 +14,7 @@ import { AdminGovernanceService } from './admin-governance.service';
 import { AdminMatchService } from './admin-match.service';
 import { AdminReportService } from './admin-report.service';
 import { AdminRoomService } from './admin-room.service';
+import { AdminSafetyService } from './admin-safety.service';
 import { AdminService } from './admin.service';
 import { AdminSettingsService } from './admin-settings.service';
 import { AdminSupportService } from './admin-support.service';
@@ -29,6 +31,7 @@ export class AdminController {
     private readonly adminSupport: AdminSupportService,
     private readonly governance: AdminGovernanceService,
     private readonly adminSettings: AdminSettingsService,
+    private readonly adminSafety: AdminSafetyService,
   ) {}
 
   @Get('me')
@@ -109,6 +112,68 @@ export class AdminController {
   ) {
     const { userId } = await this.auth.userIdFromAuthorization(authorization);
     return this.admin.removePhoto(userId, targetUserId, body);
+  }
+
+  @Get('safety/photos')
+  async safetyPhotos(
+    @Headers('authorization') authorization: string | undefined,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const { userId } = await this.auth.userIdFromAuthorization(authorization);
+    return this.adminSafety.listPhotos(
+      userId,
+      status ?? 'review',
+      search ?? '',
+      Number(page) || 1,
+      Number(limit) || 20,
+    );
+  }
+
+  @Post('safety/photos/:moderationId/action')
+  async safetyPhotoAction(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('moderationId') moderationId: string,
+    @Body() body: AdminPhotoModerationActionDto,
+  ) {
+    const { userId } = await this.auth.userIdFromAuthorization(authorization);
+    return this.adminSafety.photoAction(userId, moderationId, body);
+  }
+
+  @Get('safety/reports')
+  async safetyReports(
+    @Headers('authorization') authorization: string | undefined,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const { userId } = await this.auth.userIdFromAuthorization(authorization);
+    return this.adminSafety.priorityReports(
+      userId,
+      search ?? '',
+      Number(page) || 1,
+      Number(limit) || 20,
+    );
+  }
+
+  @Get('safety/risk-users')
+  async safetyRiskUsers(
+    @Headers('authorization') authorization: string | undefined,
+    @Query('level') level?: string,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const { userId } = await this.auth.userIdFromAuthorization(authorization);
+    return this.adminSafety.riskUsers(
+      userId,
+      level ?? 'high',
+      search ?? '',
+      Number(page) || 1,
+      Number(limit) || 20,
+    );
   }
 
   @Get('rooms')
