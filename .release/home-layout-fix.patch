@@ -172,3 +172,4 @@ index 4cdce2f..0000000 100644
 +                    style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.w700),
                    ),
                  ),
+
