@@ -101,16 +101,14 @@ class PushNotificationService {
 
   static void _showForegroundAlert(RemoteMessage message) {
     final type = message.data['type']?.toString() ?? '';
-    final roomId = message.data['roomId']?.toString() ?? '';
     final matchId = message.data['matchId']?.toString() ?? '';
 
-    // Aynı sohbet ekrandayken mesaj zaten WebSocket ile anında görünür.
-    // Aynı olayı ikinci kez foreground banner olarak göstermeyiz.
-    if (type == 'room_message' &&
-        roomId.isNotEmpty &&
-        RealtimeService.activeRoomId == roomId) {
-      return;
-    }
+    // Oda mesajları uygulama ön plandayken hiçbir uygulama-içi banner üretmez.
+    // Mesaj sohbet ekranına WebSocket ile düşer; uygulama arka planda veya
+    // kilitliyken ise FCM'in normal sistem bildirimi kullanılmaya devam eder.
+    if (type == 'room_message') return;
+
+    // Aynı özel sohbet ekrandayken mesaj zaten WebSocket ile anında görünür.
     if ((type == 'message' || type == 'private_message') &&
         matchId.isNotEmpty &&
         RealtimeService.activeMatchId == matchId) {
