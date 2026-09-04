@@ -1,8 +1,13 @@
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../services/api_service.dart';
 import '../../../services/live_service.dart';
 import '../../../theme/app_colors.dart';
+import 'security_center_screen.dart';
 import 'widgets/settings_page_shell.dart';
 
 class PrivacySecurityScreen extends StatefulWidget {
@@ -13,6 +18,8 @@ class PrivacySecurityScreen extends StatefulWidget {
 }
 
 class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
+  static const _fileExportChannel = MethodChannel('meet6/file_export');
+
   bool showOnline = true;
   bool allowRoomInvites = true;
   bool allowPrivateMessages = true;
@@ -21,6 +28,7 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
   bool readReceipts = true;
   bool loading = true;
   bool saving = false;
+  bool exporting = false;
   String? error;
 
   @override
@@ -100,6 +108,58 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
       await _load(showSpinner: false);
     } finally {
       if (mounted) setState(() => saving = false);
+    }
+  }
+
+  Future<void> _exportData() async {
+    if (exporting) return;
+    setState(() => exporting = true);
+    try {
+      final data = await LiveService.exportMyData();
+      final payload = const JsonEncoder.withIndent('  ').convert(data);
+      final now = DateTime.now();
+      String two(int value) => value.toString().padLeft(2, '0');
+      final fileName =
+          'meet6-verilerim-${now.year}-${two(now.month)}-${two(now.day)}.json';
+
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+        final path = await _fileExportChannel.invokeMethod<String>('saveJson', {
+          'fileName': fileName,
+          'content': payload,
+        });
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Verilerin indirildi: ${path ?? fileName}'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+
+      await Clipboard.setData(ClipboardData(text: payload));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Veri kopyan panoya kopyalandı.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message), behavior: SnackBarBehavior.floating),
+      );
+    } on PlatformException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message ?? 'Veri dosyası kaydedilemedi.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => exporting = false);
     }
   }
 
@@ -226,30 +286,24 @@ class _PrivacySecurityScreenState extends State<PrivacySecurityScreen> {
                 _ActionTile(
                   icon: Icons.security_rounded,
                   title: 'Güvenlik merkezi',
-                  subtitle: 'Raporlama, engelleme ve güvenli kullanım ipuçları',
-                  onTap: () => _showInfo(
-                    context,
-                    'Güvenlik merkezi için temel arayüz hazır. Raporlama backend ile bağlanacak.',
+                  subtitle: 'Raporlama, engelleme ve güvenli kullanım araçları',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const SecurityCenterScreen(),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 10),
                 _ActionTile(
                   icon: Icons.download_outlined,
-                  title: 'Verilerimi indir',
-                  subtitle: 'Hesabınla ilgili veri kopyası iste',
-                  onTap: () => _showInfo(
-                    context,
-                    'Veri indirme talebi hesap backend’i bağlandığında gerçek dosya oluşturacak.',
-                  ),
+                  title: exporting ? 'Veriler hazırlanıyor…' : 'Verilerimi indir',
+                  subtitle: exporting
+                      ? 'Hesap verilerin güvenli şekilde hazırlanıyor.'
+                      : 'Hesap verilerini JSON dosyası olarak indir',
+                  onTap: exporting ? () {} : _exportData,
                 ),
               ],
             ),
-    );
-  }
-
-  void _showInfo(BuildContext context, String text) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(text), behavior: SnackBarBehavior.floating),
     );
   }
 }
