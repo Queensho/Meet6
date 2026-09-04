@@ -121,8 +121,8 @@ export class ProfileService {
     if (!body.interests?.length) {
       throw new BadRequestException('En az 1 ilgi alanı zorunlu.');
     }
-    if (!body.photoUrls || body.photoUrls.length < 3 || body.photoUrls.length > 4) {
-      throw new BadRequestException('Profili tamamlamak için 3 veya 4 fotoğraf gerekli.');
+    if (!body.photoUrls || body.photoUrls.length < 1 || body.photoUrls.length > 4) {
+      throw new BadRequestException('Profili tamamlamak için 1 ile 4 arasında fotoğraf gerekli.');
     }
     const ownPrefix = `/uploads/profile/${userId}/`;
     if (body.photoUrls.some((url) => !url.startsWith(ownPrefix))) {
