@@ -484,11 +484,13 @@ export class RoomsGateway {
       const userId = this.userId(client);
       const matchId = payload?.matchId?.toString() ?? '';
       const result = await this.social.markRead(userId, matchId);
-      this.server.to(`match:${matchId}`).emit('match:read', {
-        matchId,
-        readerUserId: userId,
-        readAt: new Date().toISOString(),
-      });
+      if (result.shareReadReceipt !== false) {
+        this.server.to(`match:${matchId}`).emit('match:read', {
+          matchId,
+          readerUserId: userId,
+          readAt: result.readAt.toISOString(),
+        });
+      }
       const pair = await this.infra.db.query<{ user_a_id: string; user_b_id: string }>(
         'select user_a_id::text, user_b_id::text from matches where id=$1',
         [matchId],
