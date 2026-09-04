@@ -5,10 +5,19 @@ class Meet6Brand extends StatelessWidget {
     super.key,
     required this.width,
     this.visualScale = 1.55,
+    this.forceLogo2 = false,
   });
 
   final double width;
   final double visualScale;
+  final bool forceLogo2;
+
+  String _assetFor(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return forceLogo2 || !dark
+        ? 'assets/images/Logo2.png'
+        : 'assets/images/Logo3.png';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +30,7 @@ class Meet6Brand extends StatelessWidget {
           scale: visualScale,
           alignment: Alignment.centerLeft,
           child: Image.asset(
-            'assets/images/Logo2.png',
+            _assetFor(context),
             height: logoHeight,
             fit: BoxFit.contain,
             alignment: Alignment.centerLeft,
@@ -39,11 +48,22 @@ class Meet6MiniBrand extends StatelessWidget {
     this.light = false,
     this.height = 23,
     this.visualScale = 1.55,
+    this.forceLogo2 = false,
   });
 
+  // Geriye dönük uyumluluk için tutuluyor. Lime/açık zemin zorlaması için
+  // artık forceLogo2 kullanılmalı.
   final bool light;
   final double height;
   final double visualScale;
+  final bool forceLogo2;
+
+  String _assetFor(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return forceLogo2 || !dark
+        ? 'assets/images/Logo2.png'
+        : 'assets/images/Logo3.png';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -55,7 +75,7 @@ class Meet6MiniBrand extends StatelessWidget {
           scale: visualScale,
           alignment: Alignment.centerLeft,
           child: Image.asset(
-            'assets/images/Logo2.png',
+            _assetFor(context),
             height: height,
             fit: BoxFit.contain,
             alignment: Alignment.centerLeft,
