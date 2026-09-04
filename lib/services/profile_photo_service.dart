@@ -22,7 +22,32 @@ class ProfilePhotoService {
       imageQuality: 100,
     );
     if (picked == null) return null;
+    return _preparePickedFile(context, picked);
+  }
 
+  static Future<List<PickedProfilePhoto>> pickAndPrepareMany(
+    BuildContext context,
+    ImagePicker picker, {
+    int maxCount = 4,
+  }) async {
+    if (maxCount <= 0) return const [];
+
+    final pickedFiles = await picker.pickMultiImage(imageQuality: 100);
+    if (pickedFiles.isEmpty) return const [];
+
+    final prepared = <PickedProfilePhoto>[];
+    for (final picked in pickedFiles.take(maxCount)) {
+      if (!context.mounted) break;
+      final photo = await _preparePickedFile(context, picked);
+      if (photo != null) prepared.add(photo);
+    }
+    return prepared;
+  }
+
+  static Future<PickedProfilePhoto?> _preparePickedFile(
+    BuildContext context,
+    XFile picked,
+  ) async {
     final originalBytes = await picked.readAsBytes();
     if (originalBytes.isEmpty) {
       throw const ProfilePhotoException('Fotoğraf okunamadı.');
