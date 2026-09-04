@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide ConnectionState;
 import 'package:livekit_client/livekit_client.dart';
 
 import '../../services/api_service.dart';
@@ -132,20 +132,18 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
       await current.dispose().catchError((_) => false);
     }
 
-    final next = Room();
-    await next.connect(
-      credentials.url,
-      credentials.token,
+    final next = Room(
       roomOptions: const RoomOptions(
         adaptiveStream: true,
         dynacast: true,
       ),
     );
+    await next.connect(credentials.url, credentials.token);
     next.addListener(_onAudioChanged);
     audioRoom = next;
 
     try {
-      await next.setSpeakerOn(true);
+      await AudioManager.instance.setSpeakerOutputPreferred(true);
     } catch (_) {}
 
     try {
