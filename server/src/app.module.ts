@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 
+import { ActiveRoomController } from './active-room.controller';
 import { AdminController } from './admin.controller';
 import { AdminGovernanceService } from './admin-governance.service';
 import { AdminMatchService } from './admin-match.service';
@@ -53,6 +54,7 @@ import { VoiceRoomService } from './voice-room.service';
     BillingController,
     RoomController,
     VoiceRoomController,
+    ActiveRoomController,
     RoomControlController,
     SocialController,
     SupportController,

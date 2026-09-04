@@ -120,6 +120,10 @@ jobs:
         working-directory: server
         run: npm run e2e:live
 
+      - name: Run active room return E2E
+        working-directory: server
+        run: node scripts/e2e-active-room-return.mjs
+
       - name: Run WebSocket E2E smoke
         working-directory: server
         run: npm run e2e:socket-smoke
