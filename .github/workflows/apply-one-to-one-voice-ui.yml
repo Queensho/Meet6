@@ -1,0 +1,77 @@
+name: Apply One-to-One Voice UI
+
+on:
+  push:
+    branches: [feature/premium-one-to-one-voice]
+    paths:
+      - '.release/one-to-one-voice-ui'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/premium-one-to-one-voice
+          fetch-depth: 0
+
+      - name: Apply deterministic UI copy changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace(path, old, new, count=1):
+              p = Path(path)
+              text = p.read_text()
+              actual = text.count(old)
+              if actual != count:
+                  raise SystemExit(f'{path}: expected {count} occurrence(s), found {actual}: {old[:80]!r}')
+              p.write_text(text.replace(old, new))
+
+          # Searching screen: Premium voice is now a 2-person match.
+          path = 'lib/screens/room/room_searching_screen.dart'
+          replace(path, "'Premium sesli oda servisine bağlanılamadı. Tekrar dene.'", "'Premium birebir sesli eşleşme servisine bağlanılamadı. Tekrar dene.'")
+          replace(path, 'queueTotal = 6;', 'queueTotal = widget.voiceMode ? 2 : 6;')
+          replace(path, "widget.voiceMode ? 'SESLİ PREMIUM' : '30 DK PREMIUM'", "widget.voiceMode ? '1’E 1 PREMIUM' : '30 DK PREMIUM'")
+          replace(path, "widget.voiceMode ? 'Sesli oda bulundu!' : 'Uygun oda bulundu!'", "widget.voiceMode ? 'Birebir eşleşme bulundu!' : 'Uygun oda bulundu!'")
+          replace(path, "widget.voiceMode ? 'Premium sesli oda aranıyor...' : 'Oda aranıyor...'", "widget.voiceMode ? 'Premium 1’e 1 eşleşme aranıyor...' : 'Oda aranıyor...'")
+          replace(path, "? '6 kişi hazır. Odaya bağlanıyorsun.'", "? (widget.voiceMode ? '2 kişi hazır. Sesli görüşmeye bağlanıyorsun.' : '6 kişi hazır. Odaya bağlanıyorsun.')")
+          replace(path, "'Sesli Premium havuzunda $queueTotal kişi var. Sıra konumun: $queuePosition'", "'Birebir Premium havuzunda $queueTotal kişi var. Sıra konumun: $queuePosition'")
+          replace(path, "'Tercihlerine uyan Premium kullanıcılar bekleniyor.'", "'Tercihlerine uyan bir Premium kullanıcı bekleniyor.'")
+
+          # Voice screen: copy reflects 1-to-1 / 15 minutes.
+          path = 'lib/screens/chat/voice_room_screen.dart'
+          replace(path, "error = 'Sesli odaya bağlanılamadı.';", "error = 'Birebir sesli görüşmeye bağlanılamadı.';")
+          replace(path, "'Sesli sohbeti +5 dakika uzatalım mı?'", "'Birebir görüşmeyi +5 dakika uzatalım mı?'")
+          replace(path, "'PREMIUM SESLİ'", "'PREMIUM 1’E 1'")
+          replace(path, "'6 kişilik sesli sohbet · 30 dakika'", "'1’e 1 sesli sohbet · 15 dakika'")
+
+          # Home active-room recovery card.
+          path = 'lib/screens/home/home_screen.dart'
+          replace(path, "final mode = room['roomMode']?.toString() == 'voice' ? 'Sesli Premium oda' : 'Yazılı oda';", "final mode = room['roomMode']?.toString() == 'voice' ? 'Premium birebir sesli görüşme' : 'Yazılı oda';")
+          replace(path, "? 'Premium sesli odan devam ediyor'", "? 'Birebir sesli görüşmen devam ediyor'")
+          replace(path, "${voice ? 'Sesli oda' : 'Yazılı oda'} · $members kişi · $_timeText kaldı", "${voice ? 'Birebir sesli' : 'Yazılı oda'} · $members kişi · $_timeText kaldı")
+
+          # Premium paywall: make one-to-one voice a clear paid benefit while 30m text stays.
+          path = 'lib/screens/premium/premium_screen.dart'
+          replace(path,
+              "'Daha hızlı oda bul, 30 dakikalık Premium odalara katıl ve Premium oda filtrelerini kullan.'",
+              "'Daha hızlı oda bul, 1’e 1 sesli eşleş ve 30 dakikalık Premium yazılı odaları kullan.'")
+          anchor = """                          const _Benefit(\n                            icon: Icons.timer_rounded,\n                            title: '30 dakikalık odalar',\n                            subtitle: '15 dakika yerine yalnız Premium kullanıcıların katıldığı 30 dakikalık oda modunu seç.',\n                          ),"""
+          replacement = """                          const _Benefit(\n                            icon: Icons.record_voice_over_rounded,\n                            title: '1’e 1 sesli eşleşme',\n                            subtitle: 'Tercihlerine uyan bir Premium kullanıcıyla 15 dakika birebir sesli konuş.',\n                          ),\n                          const _Benefit(\n                            icon: Icons.timer_rounded,\n                            title: '30 dakikalık yazılı odalar',\n                            subtitle: 'İstersen 6 kişilik yazılı oda deneyimini Premium olarak 30 dakikaya çıkar.',\n                          ),"""
+          replace(path, anchor, replacement)
+
+          Path('.release/one-to-one-voice-ui').unlink(missing_ok=True)
+          Path('.github/workflows/apply-one-to-one-voice-ui.yml').unlink(missing_ok=True)
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Update one-to-one Premium voice UI"
+          git push origin HEAD:feature/premium-one-to-one-voice
