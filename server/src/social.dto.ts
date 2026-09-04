@@ -31,4 +31,8 @@ export class UpdateSettingsDto {
   @IsOptional() @IsBoolean() showOnline?: boolean;
   @IsOptional() @IsBoolean() preciseLocation?: boolean;
   @IsOptional() @IsBoolean() vibration?: boolean;
+  @IsOptional() @IsBoolean() allowRoomInvites?: boolean;
+  @IsOptional() @IsBoolean() allowPrivateMessages?: boolean;
+  @IsOptional() @IsBoolean() hideExactDistance?: boolean;
+  @IsOptional() @IsBoolean() readReceipts?: boolean;
 }
