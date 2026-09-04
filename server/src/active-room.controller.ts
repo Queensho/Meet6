@@ -22,8 +22,8 @@ export class ActiveRoomController {
   async current(@Headers('authorization') authorization?: string) {
     const userId = await this.userId(authorization);
     await this.rooms.syncExpiredRooms();
-    const result = await this.infra.db.query<{ room_id: string }>(
-      `select rm.room_id::text
+    const result = await this.infra.db.query<{ room_id: string; room_mode: string }>(
+      `select rm.room_id::text, r.room_mode
        from room_members rm
        join rooms r on r.id=rm.room_id
        where rm.user_id=$1
@@ -34,9 +34,16 @@ export class ActiveRoomController {
        limit 1`,
       [userId],
     );
-    const roomId = result.rows[0]?.room_id;
-    if (!roomId) return { ok: true, room: null };
-    return { ok: true, room: await this.rooms.getRoom(userId, roomId) };
+    const row = result.rows[0];
+    if (!row) return { ok: true, room: null };
+    const room = await this.rooms.getRoom(userId, row.room_id) as Record<string, any>;
+    return {
+      ok: true,
+      room: {
+        ...room,
+        roomMode: row.room_mode,
+      },
+    };
   }
 
   @Delete(':roomId')
