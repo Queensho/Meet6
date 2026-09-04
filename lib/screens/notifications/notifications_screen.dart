@@ -80,13 +80,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   bool _actionable(Map<String, dynamic> item) {
     final type = item['type']?.toString() ?? '';
     final data = _data(item);
-    if (type == 'room_found') {
+    if (type == 'room_found' || type == 'room_message') {
       return (data['roomId']?.toString() ?? '').isNotEmpty;
     }
     if (type == 'match' || type == 'message' || type == 'private_message') {
       return (data['matchId']?.toString() ?? '').isNotEmpty;
     }
-    return false;
+    return type == 'support_reply' ||
+        type == 'moderation_warning' ||
+        type == 'moderation_ban' ||
+        type == 'moderation_unban';
   }
 
   void _open(Map<String, dynamic> item) {
@@ -95,6 +98,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       ..._data(item),
       'type': item['type']?.toString() ?? '',
       'notificationId': item['id']?.toString() ?? '',
+      'title': item['title']?.toString() ?? 'Meet6',
+      'body': item['body']?.toString() ?? '',
     };
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => PushTargetScreen(data: data)),
@@ -105,11 +110,21 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     switch (type) {
       case 'room_found':
         return Icons.groups_2_rounded;
+      case 'room_message':
+        return Icons.forum_rounded;
       case 'match':
         return Icons.favorite_rounded;
       case 'message':
       case 'private_message':
         return Icons.chat_bubble_rounded;
+      case 'support_reply':
+        return Icons.support_agent_rounded;
+      case 'moderation_warning':
+        return Icons.warning_amber_rounded;
+      case 'moderation_ban':
+        return Icons.block_rounded;
+      case 'moderation_unban':
+        return Icons.verified_user_outlined;
       default:
         return Icons.notifications_rounded;
     }
@@ -214,7 +229,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            'Oda, eşleşme ve mesaj bildirimlerin burada görünecek.',
+                            'Oda, eşleşme, mesaj, destek ve hesap bildirimlerin burada görünecek.',
                             textAlign: TextAlign.center,
                             style: TextStyle(color: scheme.onSurfaceVariant),
                           ),
