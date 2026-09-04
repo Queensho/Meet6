@@ -152,11 +152,22 @@ async function main() {
   );
   await expectAllQueued(users, 'active-match-exclusion');
 
-  // End the active match and age it outside the seven-day recent-match window.
+  // End and age the match. Historical matches remain a permanent exclusion:
+  // elapsed time never makes that pair eligible for the same room again.
   await pool.query(
     `update matches
      set unmatched_at=coalesce(unmatched_at, now()),
          created_at=now() - interval '8 days'
+     where user_a_id = any($1::bigint[]) and user_b_id = any($1::bigint[])`,
+    [ids],
+  );
+  await expectAllQueued(users, 'historical-match-exclusion');
+
+  // Test-fixture cleanup only: remove the historical match so report/block
+  // rules and the final eligible control can be tested independently. Real
+  // application code never deletes a match to make a pair eligible again.
+  await pool.query(
+    `delete from matches
      where user_a_id = any($1::bigint[]) and user_b_id = any($1::bigint[])`,
     [ids],
   );
@@ -186,14 +197,14 @@ async function main() {
     [users[4].id, users[5].id],
   );
 
-  // Control: once all temporary/history exclusions are outside their windows
-  // and no safety separation exists, the same compatible six can form a room.
+  // Control: with the test-only historical-match fixture removed and no
+  // report/block separation, the otherwise compatible six can form a room.
   await queueAll(users);
   const roomId = await waitForOneRoom(users);
 
   console.log('✅ MEET6 MATCHMAKING POLICY E2E PASS');
   console.log(`controlRoomId=${roomId}`);
-  console.log('Rules: recent-room cooldown → active/recent match exclusion → permanent report/block separation → strict wait → eligible control room');
+  console.log('Rules: recent-room cooldown → permanent historical-match exclusion → permanent report/block separation → strict wait → eligible isolated control room');
 }
 
 try {
