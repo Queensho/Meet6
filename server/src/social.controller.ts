@@ -123,6 +123,17 @@ export class SocialController {
     return this.social.notifications(await this.userId(authorization));
   }
 
+  @Post('notifications/:notificationId/read')
+  async readNotification(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('notificationId') notificationId: string,
+  ) {
+    return this.social.markNotificationRead(
+      await this.userId(authorization),
+      notificationId,
+    );
+  }
+
   @Post('notifications/read')
   async readNotifications(@Headers('authorization') authorization?: string) {
     return this.social.markNotificationsRead(await this.userId(authorization));
