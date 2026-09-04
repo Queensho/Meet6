@@ -70,6 +70,17 @@ class _MainBottomNavState extends State<MainBottomNav> {
     super.dispose();
   }
 
+  double _homeNavWidth(BuildContext context) {
+    final mediaWidth = MediaQuery.sizeOf(context).width;
+    final phoneWidth = mediaWidth > 520 ? 390.0 : mediaWidth;
+    final homeHorizontal = (phoneWidth * .055).clamp(18.0, 24.0);
+
+    // Ana sayfada MainBottomNav, sayfa yatay padding'i + kendi eski 14px
+    // güvenli boşluğu içinde çiziliyordu. Tüm sekmelerde aynı gerçek genişliği
+    // üretmek için o ölçüyü burada tek kaynağa çeviriyoruz.
+    return (phoneWidth - (2 * (homeHorizontal + 14))).clamp(240.0, 340.0);
+  }
+
   Widget _nav() {
     return Container(
       height: 60,
@@ -132,63 +143,81 @@ class _MainBottomNavState extends State<MainBottomNav> {
       builder: (context, config, _) {
         final showAnnouncement = config.announcementEnabled &&
             config.announcementMessage.trim().isNotEmpty;
+        final targetWidth = _homeNavWidth(context);
+
         return SafeArea(
           top: false,
-          minimum: const EdgeInsets.fromLTRB(14, 5, 14, 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (showAnnouncement) ...[
-                Container(
-                  width: double.infinity,
-                  margin: const EdgeInsets.only(bottom: 7),
-                  padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),
-                  decoration: BoxDecoration(
-                    color: AppColors.lime,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.navy.withOpacity(.10)),
-                  ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+          minimum: const EdgeInsets.fromLTRB(0, 5, 0, 8),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final width = targetWidth.clamp(0.0, constraints.maxWidth).toDouble();
+              return Center(
+                child: SizedBox(
+                  width: width,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.campaign_rounded, color: AppColors.navy, size: 20),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (config.announcementTitle.trim().isNotEmpty)
-                              Text(
-                                config.announcementTitle.trim(),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: AppColors.navy,
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w900,
+                      if (showAnnouncement) ...[
+                        Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.only(bottom: 7),
+                          padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),
+                          decoration: BoxDecoration(
+                            color: AppColors.lime,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: AppColors.navy.withOpacity(.10),
+                            ),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(
+                                Icons.campaign_rounded,
+                                color: AppColors.navy,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (config.announcementTitle.trim().isNotEmpty)
+                                      Text(
+                                        config.announcementTitle.trim(),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: AppColors.navy,
+                                          fontSize: 11.5,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                    Text(
+                                      config.announcementMessage.trim(),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: AppColors.navy,
+                                        fontSize: 10.5,
+                                        height: 1.25,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                            Text(
-                              config.announcementMessage.trim(),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: AppColors.navy,
-                                fontSize: 10.5,
-                                height: 1.25,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
+                      ],
+                      _nav(),
                     ],
                   ),
                 ),
-              ],
-              _nav(),
-            ],
+              );
+            },
           ),
         );
       },
