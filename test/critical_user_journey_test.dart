@@ -21,6 +21,13 @@ import 'package:meet6/services/profile_photo_service.dart';
 import 'package:meet6/services/realtime_service.dart';
 import 'package:meet6/services/session_service.dart';
 
+void usePhoneSurface(WidgetTester tester) {
+  tester.view.physicalSize = const Size(430, 932);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+}
+
 Future<void> pumpFor(
   WidgetTester tester,
   Duration duration, {
@@ -51,8 +58,8 @@ PickedProfilePhoto fakeProfilePhoto() {
   );
   return PickedProfilePhoto(
     bytes: bytes,
-    fileName: 'profile.jpg',
-    mimeType: 'image/jpeg',
+    fileName: 'profile.png',
+    mimeType: 'image/png',
   );
 }
 
@@ -75,6 +82,8 @@ void main() {
   });
 
   testWidgets('login -> OTP -> new user profile setup', (tester) async {
+    usePhoneSurface(tester);
+
     var requestedPhone = '';
     var verifiedCode = '';
     ApiService.debugTestHooks = ApiServiceTestHooks(
@@ -100,12 +109,15 @@ void main() {
     await tester.pump();
     await scrollTo(tester, find.text('Devam et'));
     await tester.tap(find.text('Devam et'));
-    await pumpFor(tester, const Duration(milliseconds: 250));
+    await pumpFor(tester, const Duration(milliseconds: 400));
 
     expect(requestedPhone, '5551234567');
     expect(find.byType(OtpScreen), findsOneWidget);
 
-    final otpFields = find.byType(TextField);
+    final otpFields = find.descendant(
+      of: find.byType(OtpScreen),
+      matching: find.byType(TextField),
+    );
     expect(otpFields, findsNWidgets(6));
     for (var i = 0; i < 6; i++) {
       await tester.enterText(otpFields.at(i), '${i + 1}');
@@ -114,7 +126,7 @@ void main() {
 
     await scrollTo(tester, find.text('Doğrula'));
     await tester.tap(find.text('Doğrula'));
-    await pumpFor(tester, const Duration(milliseconds: 350));
+    await pumpFor(tester, const Duration(milliseconds: 450));
 
     expect(verifiedCode, '123456');
     expect(find.byType(ProfileSetupScreen), findsOneWidget);
@@ -123,6 +135,7 @@ void main() {
   });
 
   testWidgets('profile setup completes and persists profile', (tester) async {
+    usePhoneSurface(tester);
     await SessionService.saveAuth(sessionId: 'session-test', userId: '1');
 
     final uploadedPhoto = fakeProfilePhoto();
@@ -160,10 +173,11 @@ void main() {
     await tester.tap(find.text('Seç'));
     await tester.pump(const Duration(milliseconds: 100));
 
+    await scrollTo(tester, find.text('Erkek'));
     await tester.tap(find.text('Erkek'));
     await scrollTo(tester, find.text('Devam et'));
     await tester.tap(find.text('Devam et'));
-    await pumpFor(tester, const Duration(milliseconds: 250));
+    await pumpFor(tester, const Duration(milliseconds: 300));
 
     expect(find.textContaining('İstanbul'), findsOneWidget);
     await tester.tap(find.text('Herkes'));
@@ -171,9 +185,12 @@ void main() {
     await tester.tap(find.text('Yeni insanlarla tanışma'));
     await scrollTo(tester, find.text('Devam et'));
     await tester.tap(find.text('Devam et'));
-    await pumpFor(tester, const Duration(milliseconds: 150));
+    await pumpFor(tester, const Duration(milliseconds: 200));
 
-    final profileFields = find.byType(TextField);
+    final profileFields = find.descendant(
+      of: find.byType(ProfileSetupScreen),
+      matching: find.byType(TextField),
+    );
     expect(profileFields, findsNWidgets(2));
     await tester.enterText(profileFields.at(0), 'Kahve ve motosiklet severim.');
     await tester.tap(find.text('Kahve'));
@@ -181,7 +198,7 @@ void main() {
     await tester.enterText(profileFields.at(1), 'Samimi olmak ve bol bol gülmek.');
     await scrollTo(tester, find.text('Profili tamamla'));
     await tester.tap(find.text('Profili tamamla'));
-    await pumpFor(tester, const Duration(milliseconds: 500));
+    await pumpFor(tester, const Duration(milliseconds: 550));
 
     expect(savedProfile?['displayName'], 'Tayfun');
     expect(savedProfile?['city'], 'İstanbul');
@@ -197,6 +214,7 @@ void main() {
   });
 
   testWidgets('room search -> room -> selection -> match -> first message', (tester) async {
+    usePhoneSurface(tester);
     await SessionService.saveAuth(sessionId: 'session-test', userId: '1');
 
     final members = <Map<String, dynamic>>[
@@ -269,7 +287,7 @@ void main() {
     await tester.pumpWidget(
       const MaterialApp(home: RoomSearchingScreen(profileName: 'Tayfun')),
     );
-    await pumpFor(tester, const Duration(milliseconds: 750));
+    await pumpFor(tester, const Duration(milliseconds: 800));
 
     expect(find.byType(RoomChatScreen), findsOneWidget);
     await pumpFor(tester, const Duration(milliseconds: 250));
@@ -279,7 +297,7 @@ void main() {
       'room:update',
       {'roomId': 'room-1', 'room': selectionRoom()},
     );
-    await pumpFor(tester, const Duration(milliseconds: 300));
+    await pumpFor(tester, const Duration(milliseconds: 350));
 
     expect(find.byType(RoomSelectionScreen), findsOneWidget);
     expect(find.text('Ayşe, 28'), findsOneWidget);
@@ -287,19 +305,23 @@ void main() {
     await tester.tap(find.text('Ayşe, 28'));
     await tester.pump(const Duration(milliseconds: 80));
     await tester.tap(find.text('Ayşe ile devam et'));
-    await pumpFor(tester, const Duration(milliseconds: 350));
+    await pumpFor(tester, const Duration(milliseconds: 400));
 
     expect(find.byType(MatchSuccessScreen), findsOneWidget);
     expect(find.text('Eşleştiniz!'), findsOneWidget);
 
     await tester.tap(find.text('Mesaj gönder'));
-    await pumpFor(tester, const Duration(milliseconds: 300));
+    await pumpFor(tester, const Duration(milliseconds: 350));
 
     expect(find.byType(PrivateChatScreen), findsOneWidget);
-    final messageField = find.byType(TextField).last;
+    final messageField = find.descendant(
+      of: find.byType(PrivateChatScreen),
+      matching: find.byType(TextField),
+    );
+    expect(messageField, findsOneWidget);
     await tester.enterText(messageField, 'Merhaba Ayşe 👋');
     await tester.tap(find.byIcon(Icons.send_rounded));
-    await pumpFor(tester, const Duration(milliseconds: 150));
+    await pumpFor(tester, const Duration(milliseconds: 200));
 
     expect(firstMessageBody, 'Merhaba Ayşe 👋');
   });
