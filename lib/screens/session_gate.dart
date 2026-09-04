@@ -197,7 +197,7 @@ class _SessionGateState extends State<SessionGate> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Meet6MiniBrand(height: 42),
+                  Meet6MiniBrand(height: 42, forceLogo2: true),
                   SizedBox(height: 20),
                   SizedBox(
                     width: 26,
