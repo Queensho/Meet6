@@ -315,9 +315,11 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
     const settings = await this.infra.db.query<{
       notifications_enabled: boolean;
       room_reminders: boolean;
+      vibration: boolean;
     }>(
       `select coalesce(us.notifications_enabled,true) as notifications_enabled,
-              coalesce(us.room_reminders,true) as room_reminders
+              coalesce(us.room_reminders,true) as room_reminders,
+              coalesce(us.vibration,true) as vibration
        from users u
        left join user_settings us on us.user_id=u.id
        where u.id=$1`,
@@ -327,7 +329,8 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
     const isTest = notification.data?.test === true;
     const forceDelivery = notification.data?.forceDelivery === true
       || notification.type === 'moderation_warning'
-      || notification.type === 'moderation_ban';
+      || notification.type === 'moderation_ban'
+      || notification.type === 'moderation_unban';
     if (!isTest && !forceDelivery && !userSettings?.notifications_enabled) {
       await this.finish(notification.id, { sent: false, error: 'notifications_disabled' });
       return;
@@ -350,6 +353,7 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
+    const vibrationEnabled = userSettings?.vibration !== false;
     const response = await this.messaging.sendEachForMulticast({
       tokens,
       notification: {
@@ -360,7 +364,9 @@ export class PushService implements OnModuleInit, OnModuleDestroy {
       android: {
         priority: 'high',
         notification: {
-          channelId: 'meet6_high_v2',
+          channelId: vibrationEnabled
+            ? 'meet6_high_v2'
+            : 'meet6_high_no_vibration_v1',
           sound: 'default',
           visibility: 'public',
         },
