@@ -11,6 +11,21 @@ class AppConfig {
     defaultValue: '',
   );
 
+  static const revenueCatAndroidApiKey = String.fromEnvironment(
+    'REVENUECAT_ANDROID_API_KEY',
+    defaultValue: '',
+  );
+
+  static const revenueCatIosApiKey = String.fromEnvironment(
+    'REVENUECAT_IOS_API_KEY',
+    defaultValue: '',
+  );
+
+  static const revenueCatEntitlementId = String.fromEnvironment(
+    'REVENUECAT_ENTITLEMENT_ID',
+    defaultValue: 'premium',
+  );
+
   // Development/test fallback only. Production builds must inject a real HTTPS
   // domain with --dart-define=MEET6_API_BASE_URL=...
   static const _developmentApiBaseUrl =
