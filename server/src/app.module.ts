@@ -6,12 +6,14 @@ import { AdminGovernanceService } from './admin-governance.service';
 import { AdminMatchService } from './admin-match.service';
 import { AdminReportService } from './admin-report.service';
 import { AdminRoomService } from './admin-room.service';
+import { AdminSafetyService } from './admin-safety.service';
 import { AdminService } from './admin.service';
 import { AdminSettingsService } from './admin-settings.service';
 import { AdminSupportService } from './admin-support.service';
 import { AppConfigController } from './app-config.controller';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { ContentSafetyService } from './content-safety.service';
 import { HealthController } from './health.controller';
 import { InfrastructureService } from './infrastructure.service';
 import { MatchmakingSchedulerService } from './matchmaking-scheduler.service';
@@ -54,6 +56,7 @@ import { SupportService } from './support.service';
   providers: [
     InfrastructureService,
     RuntimeSettingsService,
+    ContentSafetyService,
     AuthService,
     ProfileService,
     RoomService,
@@ -72,6 +75,7 @@ import { SupportService } from './support.service';
     AdminSupportService,
     AdminGovernanceService,
     AdminSettingsService,
+    AdminSafetyService,
   ],
 })
 export class AppModule {}

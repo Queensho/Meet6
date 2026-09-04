@@ -5,12 +5,16 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
+import { ContentSafetyService } from './content-safety.service';
 import { InfrastructureService } from './infrastructure.service';
 import { UpdateSettingsDto } from './social.dto';
 
 @Injectable()
 export class SocialService {
-  constructor(private readonly infra: InfrastructureService) {}
+  constructor(
+    private readonly infra: InfrastructureService,
+    private readonly safety: ContentSafetyService,
+  ) {}
 
   private async assertActiveMatch(userId: string, matchId: string | number) {
     const result = await this.infra.db.query<{
@@ -170,6 +174,8 @@ export class SocialService {
     if (recipientSettings.rows[0]?.allow_private_messages === false) {
       throw new ForbiddenException('Bu kullanıcı özel mesajları kapattı.');
     }
+
+    await this.safety.assertMessageAllowed(userId, body);
 
     const rateKey = `private-message:${userId}:${matchId}`;
     const allowed = await this.infra.redis.set(rateKey, '1', 'EX', 1, 'NX');

@@ -1,10 +1,14 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 
+import { ContentSafetyService } from './content-safety.service';
 import { InfrastructureService } from './infrastructure.service';
 
 @Injectable()
 export class ReportService {
-  constructor(private readonly infra: InfrastructureService) {}
+  constructor(
+    private readonly infra: InfrastructureService,
+    private readonly safety: ContentSafetyService,
+  ) {}
 
   async submit(
     userId: string,
@@ -132,7 +136,16 @@ export class ReportService {
       }
 
       await client.query('commit');
-      return { ok: true, reportId };
+      const triage = await this.safety
+        .triageReport(reportId, targetUserId, reason)
+        .catch((error) => {
+          // A triage outage must never drop a user's report. The report remains
+          // open and can still be reviewed manually.
+          // eslint-disable-next-line no-console
+          console.warn('Automated report triage failed', error);
+          return null;
+        });
+      return { ok: true, reportId, triage };
     } catch (error) {
       await client.query('rollback').catch(() => undefined);
       throw error;
