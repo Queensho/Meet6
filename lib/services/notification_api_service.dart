@@ -54,6 +54,12 @@ class NotificationApiService {
   static Future<Map<String, dynamic>> list() =>
       _request('GET', '/api/notifications');
 
+  static Future<void> markRead(String notificationId) async {
+    final id = notificationId.trim();
+    if (id.isEmpty) return;
+    await _request('POST', '/api/notifications/$id/read');
+  }
+
   static Future<void> markAllRead() async {
     await _request('POST', '/api/notifications/read');
   }
