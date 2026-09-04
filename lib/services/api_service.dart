@@ -22,11 +22,13 @@ class AuthResult {
   const AuthResult({
     required this.sessionId,
     required this.userId,
+    required this.isNewUser,
     required this.profileCompleted,
   });
 
   final String sessionId;
   final String userId;
+  final bool isNewUser;
   final bool profileCompleted;
 }
 
@@ -76,10 +78,11 @@ class ApiService {
     final result = AuthResult(
       sessionId: data['sessionId'] as String,
       userId: data['userId'] as String,
+      isNewUser: data['isNewUser'] == true,
       profileCompleted: data['profileCompleted'] == true,
     );
     await ObservabilityService.setUserId(result.userId);
-    if (!result.profileCompleted) {
+    if (result.isNewUser) {
       await ObservabilityService.registrationCompleted(result.userId);
     }
     return result;
