@@ -178,6 +178,10 @@ class LiveService {
     bool? showOnline,
     bool? preciseLocation,
     bool? vibration,
+    bool? allowRoomInvites,
+    bool? allowPrivateMessages,
+    bool? hideExactDistance,
+    bool? readReceipts,
   }) =>
       _send(
         'PUT',
@@ -188,6 +192,10 @@ class LiveService {
           if (showOnline != null) 'showOnline': showOnline,
           if (preciseLocation != null) 'preciseLocation': preciseLocation,
           if (vibration != null) 'vibration': vibration,
+          if (allowRoomInvites != null) 'allowRoomInvites': allowRoomInvites,
+          if (allowPrivateMessages != null) 'allowPrivateMessages': allowPrivateMessages,
+          if (hideExactDistance != null) 'hideExactDistance': hideExactDistance,
+          if (readReceipts != null) 'readReceipts': readReceipts,
         },
       );
 
