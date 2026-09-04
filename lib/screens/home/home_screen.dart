@@ -282,7 +282,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _showActiveRoomChoice() async {
     final room = activeRoom;
     if (room == null) return;
-    final mode = room['roomMode']?.toString() == 'voice' ? 'Sesli Premium oda' : 'Yazılı oda';
+    final mode = room['roomMode']?.toString() == 'voice' ? 'Premium birebir sesli görüşme' : 'Yazılı oda';
     final action = await showModalBottomSheet<_ActiveRoomAction>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -649,11 +649,11 @@ class _ActiveRoomCard extends StatelessWidget {
     final title = selection
         ? 'Seçimini yap'
         : voice
-            ? 'Premium sesli odan devam ediyor'
+            ? 'Birebir sesli görüşmen devam ediyor'
             : 'Sohbetin devam ediyor';
     final subtitle = selection
         ? 'Gizli seçim için $_timeText kaldı'
-        : '${voice ? 'Sesli oda' : 'Yazılı oda'} · $members kişi · $_timeText kaldı';
+        : '${voice ? 'Birebir sesli' : 'Yazılı oda'} · $members kişi · $_timeText kaldı';
 
     return Semantics(
       container: true,

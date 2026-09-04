@@ -111,7 +111,7 @@ class _PremiumProfileCardState extends State<PremiumProfileCard> {
                             ? 'Kontrol ediliyor...'
                             : _premium
                                 ? 'Premium aktif'
-                                : 'Öncelik + 30 dk oda',
+                                : '1’e 1 sesli + 30 dk',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(

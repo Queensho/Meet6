@@ -78,7 +78,7 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
       setState(() {
         loading = false;
         error = widget.voiceMode
-            ? 'Premium sesli oda servisine bağlanılamadı. Tekrar dene.'
+            ? 'Premium birebir sesli eşleşme servisine bağlanılamadı. Tekrar dene.'
             : 'Oda servisine bağlanılamadı. Tekrar dene.';
       });
     }
@@ -193,7 +193,7 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
         setState(() {
           loading = false;
           error = null;
-          queueTotal = 6;
+          queueTotal = widget.voiceMode ? 2 : 6;
           queuePosition = 1;
           cycleSecondsLeft = 0;
         });
@@ -301,7 +301,7 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                                 const SizedBox(width: 4),
                               ],
                               Text(
-                                widget.voiceMode ? 'SESLİ PREMIUM' : '30 DK PREMIUM',
+                                widget.voiceMode ? '1’E 1 PREMIUM' : '30 DK PREMIUM',
                                 style: const TextStyle(
                                   color: AppColors.lime,
                                   fontSize: 9.5,
@@ -385,8 +385,8 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                     error != null && error != 'Bağlantı yenileniyor...'
                         ? 'Bağlantı sorunu'
                         : leavingForRoom
-                            ? (widget.voiceMode ? 'Sesli oda bulundu!' : 'Uygun oda bulundu!')
-                            : (widget.voiceMode ? 'Premium sesli oda aranıyor...' : 'Oda aranıyor...'),
+                            ? (widget.voiceMode ? 'Birebir eşleşme bulundu!' : 'Uygun oda bulundu!')
+                            : (widget.voiceMode ? 'Premium 1’e 1 eşleşme aranıyor...' : 'Oda aranıyor...'),
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: dark ? Colors.white : AppColors.navy,
@@ -399,13 +399,13 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                   Text(
                     error ??
                         (leavingForRoom
-                            ? '6 kişi hazır. Odaya bağlanıyorsun.'
+                            ? (widget.voiceMode ? '2 kişi hazır. Sesli görüşmeye bağlanıyorsun.' : '6 kişi hazır. Odaya bağlanıyorsun.')
                             : queueTotal > 0
                                 ? (widget.voiceMode
-                                    ? 'Sesli Premium havuzunda $queueTotal kişi var. Sıra konumun: $queuePosition'
+                                    ? 'Birebir Premium havuzunda $queueTotal kişi var. Sıra konumun: $queuePosition'
                                     : '${widget.roomDurationMinutes} dk havuzunda $queueTotal kişi var. Sıra konumun: $queuePosition')
                                 : (widget.voiceMode
-                                    ? 'Tercihlerine uyan Premium kullanıcılar bekleniyor.'
+                                    ? 'Tercihlerine uyan bir Premium kullanıcı bekleniyor.'
                                     : '${widget.roomDurationMinutes} dk oda için tercihlerine uyan kullanıcılar bekleniyor.')),
                     textAlign: TextAlign.center,
                     style: TextStyle(

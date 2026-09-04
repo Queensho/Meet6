@@ -199,7 +199,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
                                 ),
                                 SizedBox(height: 7),
                                 Text(
-                                  'Daha hızlı oda bul, 30 dakikalık Premium odalara katıl ve Premium oda filtrelerini kullan.',
+                                  'Daha hızlı oda bul, 1’e 1 sesli eşleş ve 30 dakikalık Premium yazılı odaları kullan.',
                                   style: TextStyle(
                                     color: Colors.white70,
                                     fontSize: 13,
@@ -217,9 +217,14 @@ class _PremiumScreenState extends State<PremiumScreen> {
                             subtitle: 'Premium kullanıcılar aynı oda modunda kuyrukta öncelikli değerlendirilir.',
                           ),
                           const _Benefit(
+                            icon: Icons.record_voice_over_rounded,
+                            title: '1’e 1 sesli eşleşme',
+                            subtitle: 'Tercihlerine uyan bir Premium kullanıcıyla 15 dakika birebir sesli konuş.',
+                          ),
+                          const _Benefit(
                             icon: Icons.timer_rounded,
-                            title: '30 dakikalık odalar',
-                            subtitle: '15 dakika yerine yalnız Premium kullanıcıların katıldığı 30 dakikalık oda modunu seç.',
+                            title: '30 dakikalık yazılı odalar',
+                            subtitle: 'İstersen 6 kişilik yazılı oda deneyimini Premium olarak 30 dakikaya çıkar.',
                           ),
                           const _Benefit(
                             icon: Icons.tune_rounded,

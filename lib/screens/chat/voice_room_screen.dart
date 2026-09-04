@@ -68,7 +68,7 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
       setState(() {
         loading = false;
         audioConnecting = false;
-        error = 'Sesli odaya bağlanılamadı.';
+        error = 'Birebir sesli görüşmeye bağlanılamadı.';
       });
     }
   }
@@ -225,7 +225,7 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
               const Icon(Icons.timer_rounded, color: AppColors.lime, size: 38),
               const SizedBox(height: 10),
               const Text(
-                'Sesli sohbeti +5 dakika uzatalım mı?',
+                'Birebir görüşmeyi +5 dakika uzatalım mı?',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
               ),
@@ -357,7 +357,7 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
                           Icon(Icons.mic_rounded, size: 13, color: AppColors.lime),
                           SizedBox(width: 5),
                           Text(
-                            'PREMIUM SESLİ',
+                            'PREMIUM 1’E 1',
                             style: TextStyle(
                               color: AppColors.lime,
                               fontSize: 9.5,
@@ -380,7 +380,7 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
                 ),
               ),
               Text(
-                '6 kişilik sesli sohbet · 30 dakika',
+                '1’e 1 sesli sohbet · 15 dakika',
                 style: TextStyle(
                   color: scheme.onSurfaceVariant,
                   fontSize: 11.5,

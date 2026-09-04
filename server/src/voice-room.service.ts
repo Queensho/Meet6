@@ -29,6 +29,9 @@ type VoiceQueueProfileRow = {
 
 @Injectable()
 export class VoiceRoomService {
+  private static readonly pairSize = 2;
+  private static readonly pairDurationMinutes = 15;
+
   constructor(
     private readonly infra: InfrastructureService,
     private readonly runtimeSettings: RuntimeSettingsService,
@@ -105,7 +108,7 @@ export class VoiceRoomService {
 
   private async ensurePremium(userId: string) {
     if (!await this.billing.isPremium(userId)) {
-      throw new ForbiddenException('Sesli sohbet odaları yalnız Meet6 Premium üyelerine açıktır.');
+      throw new ForbiddenException('Birebir sesli eşleşme yalnız Meet6 Premium üyelerine açıktır.');
     }
   }
 
@@ -115,7 +118,7 @@ export class VoiceRoomService {
       [userId],
     );
     if (!result.rows[0]?.profile_completed) {
-      throw new BadRequestException('Sesli oda aramak için profilini tamamlamalısın.');
+      throw new BadRequestException('Birebir sesli eşleşme aramak için profilini tamamlamalısın.');
     }
   }
 
@@ -142,7 +145,7 @@ export class VoiceRoomService {
     const openRoom = await this.currentOpenRoom(userId);
     if (openRoom) {
       if (openRoom.room_mode !== 'voice') {
-        throw new BadRequestException('Aktif yazılı odan varken sesli oda arayamazsın.');
+        throw new BadRequestException('Aktif yazılı odan varken birebir sesli eşleşme arayamazsın.');
       }
       return {
         ok: true,
@@ -180,7 +183,7 @@ export class VoiceRoomService {
       };
     }
     if (openRoom) {
-      throw new BadRequestException('Aktif yazılı odan varken sesli oda arayamazsın.');
+      throw new BadRequestException('Aktif yazılı odan varken birebir sesli eşleşme arayamazsın.');
     }
 
     const result = await this.infra.db.query<{
@@ -213,11 +216,12 @@ export class VoiceRoomService {
       waitSeconds,
       nextRetrySeconds: this.retrySeconds,
       premiumPriority: true,
-      requestedRoomDurationMinutes: 30,
+      requestedRoomDurationMinutes: VoiceRoomService.pairDurationMinutes,
       filters: {
         roomRepeatHours: (await this.runtimeSettings.get()).roomRepeatHours,
         matchedUsers: 'permanent',
-        minimumRoomUsers: 6,
+        minimumRoomUsers: VoiceRoomService.pairSize,
+        mode: 'one-to-one',
         blockAndReport: 'permanent',
         preferencesRelaxed: false,
       },
@@ -269,7 +273,7 @@ export class VoiceRoomService {
          for update of q skip locked`,
       );
 
-      const roomSize = settings.minimumRoomUsers;
+      const roomSize = VoiceRoomService.pairSize;
       if (queued.rows.length < roomSize) {
         await client.query('commit');
         return null;
@@ -314,49 +318,46 @@ export class VoiceRoomService {
       );
       for (const row of matchedPairs.rows) forbiddenPairs.add(this.pairKey(row.user_a_id, row.user_b_id));
 
-      let group: VoiceQueueProfileRow[] | null = null;
-      for (let seedIndex = 0; seedIndex < queued.rows.length && !group; seedIndex++) {
-        const candidateGroup = [queued.rows[seedIndex]];
+      let pair: VoiceQueueProfileRow[] | null = null;
+      for (let seedIndex = 0; seedIndex < queued.rows.length && !pair; seedIndex++) {
+        const seed = queued.rows[seedIndex];
         const rest = queued.rows
           .filter((_, index) => index !== seedIndex)
           .sort((a, b) => {
-            const samePurposeA = a.purpose === candidateGroup[0].purpose ? 0 : 1;
-            const samePurposeB = b.purpose === candidateGroup[0].purpose ? 0 : 1;
+            const samePurposeA = a.purpose === seed.purpose ? 0 : 1;
+            const samePurposeB = b.purpose === seed.purpose ? 0 : 1;
             if (samePurposeA !== samePurposeB) return samePurposeA - samePurposeB;
             return a.joined_at.getTime() - b.joined_at.getTime();
           });
 
-        for (const row of rest) {
-          if (candidateGroup.every((member) => this.compatible(member, row, forbiddenPairs))) {
-            candidateGroup.push(row);
-          }
-          if (candidateGroup.length === roomSize) break;
-        }
-        if (candidateGroup.length === roomSize) group = candidateGroup;
+        const partner = rest.find((candidate) => this.compatible(seed, candidate, forbiddenPairs));
+        if (partner) pair = [seed, partner];
       }
 
-      if (!group) {
+      if (!pair) {
         await client.query('commit');
         return null;
       }
 
+      const roomDurationMinutes = VoiceRoomService.pairDurationMinutes;
       const room = await client.query<{ id: string }>(
         `insert into rooms(status,started_at,ends_at,room_duration_minutes,room_mode)
-         values('active',now(),now() + interval '30 minutes',30,'voice')
+         values('active',now(),now() + ($1::int * interval '1 minute'),$1,'voice')
          returning id::text`,
+        [roomDurationMinutes],
       );
       const roomId = room.rows[0].id;
-      const groupIds = group.map((row) => row.user_id);
+      const pairIds = pair.map((row) => row.user_id);
 
-      for (const memberId of groupIds) {
+      for (const memberId of pairIds) {
         await client.query('insert into room_members(room_id,user_id) values($1,$2)', [roomId, memberId]);
       }
       await client.query(
         `insert into room_messages(room_id,sender_user_id,body)
          values($1,null,$2)`,
-        [roomId, `Premium sesli oda hazır. ${roomSize} kişi burada — 30 dakika boyunca konuşabilirsiniz.`],
+        [roomId, `Premium birebir sesli eşleşme hazır. 15 dakika boyunca birbirinizi tanıyın.`],
       );
-      await client.query('delete from voice_matchmaking_queue where user_id=any($1::bigint[])', [groupIds]);
+      await client.query('delete from voice_matchmaking_queue where user_id=any($1::bigint[])', [pairIds]);
       await client.query('commit');
       return roomId;
     } catch (error) {
@@ -388,10 +389,10 @@ export class VoiceRoomService {
     );
     const row = result.rows[0];
     if (!row || !row.member || row.room_mode !== 'voice') {
-      throw new ForbiddenException('Bu sesli odaya erişimin yok.');
+      throw new ForbiddenException('Bu birebir sesli görüşmeye erişimin yok.');
     }
     if (row.status !== 'active') {
-      throw new BadRequestException('Sesli sohbet süresi sona erdi.');
+      throw new BadRequestException('Birebir sesli görüşme süresi sona erdi.');
     }
 
     const url = (process.env.LIVEKIT_URL ?? '').trim();
@@ -404,7 +405,7 @@ export class VoiceRoomService {
     const roomName = `meet6-voice-${roomId}`;
     const accessToken = new AccessToken(apiKey, apiSecret, {
       identity: String(userId),
-      ttl: '45m',
+      ttl: '30m',
     });
     accessToken.addGrant({
       roomJoin: true,
@@ -421,7 +422,7 @@ export class VoiceRoomService {
       url,
       roomName,
       token: await accessToken.toJwt(),
-      expiresInSeconds: 2700,
+      expiresInSeconds: 1800,
     };
   }
 }

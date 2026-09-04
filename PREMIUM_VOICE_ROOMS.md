@@ -1,23 +1,24 @@
-# Meet6 Premium voice rooms
+# Meet6 Premium one-to-one voice
 
-Meet6 voice rooms are a Premium-only, server-authoritative room mode.
+Meet6 Premium voice is a server-authoritative, one-to-one matchmaking mode. It is separate from the core six-person text-room experience.
 
 ## Product behavior
 
-- Voice rooms contain exactly the configured Meet6 room size (currently 6 users).
-- Voice rooms are fixed at 30 minutes.
-- Voice matchmaking is isolated from text matchmaking, so a user searching for a 30-minute text room is never mixed with a voice-room user.
+- Premium voice matches contain exactly 2 users.
+- A one-to-one voice match lasts 15 minutes.
+- Voice matchmaking is isolated from text matchmaking. The normal six-person 15/30-minute text-room pools are unchanged.
 - Every queued voice participant must have an active Premium entitlement.
-- The existing age, gender preference, distance, block, report, recent-room and historical-match exclusions are applied.
-- Existing +5 minute extension voting still applies.
-- When the room ends, the same hidden selection and mutual-match flow is used.
+- Existing age, gender preference, distance, block, report, recent-room and historical-match exclusions are applied before pairing.
+- Purpose is used as a soft ordering preference; all hard filters remain mutual.
+- Existing +5 minute extension voting still applies. With two members, both users must vote yes.
+- When the voice match ends, the same hidden selection flow is used. If both users select each other, a normal Meet6 match is created and private messaging continues as usual.
 
 ## Media architecture
 
 LiveKit is used as the realtime audio SFU. Flutter never receives the LiveKit API secret.
 
-1. Flutter joins the Meet6 Premium voice matchmaking queue.
-2. The Meet6 backend creates the six-person voice room in PostgreSQL.
+1. Flutter joins the Meet6 Premium one-to-one voice matchmaking queue.
+2. The Meet6 backend finds one mutually compatible Premium partner and creates a two-person voice room in PostgreSQL.
 3. Flutter asks `POST /api/voice-rooms/:roomId/token` for a media token.
 4. The backend verifies active Premium status, active room membership and `room_mode=voice`.
 5. The backend signs a short-lived LiveKit token scoped to `meet6-voice-<internal-room-id>`.
@@ -45,17 +46,20 @@ Android declares `RECORD_AUDIO` and `MODIFY_AUDIO_SETTINGS`.
 
 iOS declares `NSMicrophoneUsageDescription`.
 
-The LiveKit client connects first and then attempts to enable the microphone. If microphone permission is denied, the user can remain in the room to hear other participants and retry microphone activation from the microphone button.
+The LiveKit client connects first and then attempts to enable the microphone. If microphone permission is denied, the user can remain in the match to hear the other participant and retry microphone activation from the microphone button.
 
 ## Release checks
 
 - Configure LiveKit Cloud or a production self-hosted LiveKit deployment.
 - Put API key/secret only in the backend environment.
 - Verify a free account receives 403 from `/api/voice-rooms/queue`.
-- Verify six Premium accounts form one voice room.
+- Verify two compatible Premium accounts form one voice room without waiting for six users.
+- Verify six Premium CI accounts form exactly three independent two-person voice rooms.
+- Verify each voice room is 15 minutes and contains exactly two members.
 - Test microphone permission allow/deny on Android and iOS.
 - Test wired headset/Bluetooth routing on physical devices.
 - Test reconnect after temporary network loss.
-- Test +5 minute extension and transition to hidden selection.
+- Test +5 minute extension requires both users and transition to hidden selection.
+- Test mutual hidden selection creates a standard Meet6 match.
 - Test Premium expiry while waiting in the voice queue.
 - Test LiveKit provider outage: Meet6 should display an audio connection error without granting unauthorized access.

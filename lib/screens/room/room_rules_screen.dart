@@ -60,7 +60,7 @@ class _RoomRulesScreenState extends State<RoomRulesScreen> {
     if (premiumLoading) return;
     if (voiceMode) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Premium sesli odalar 30 dakikadır.')),
+        const SnackBar(content: Text('Premium birebir sesli eşleşmeler 15 dakikadır.')),
       );
       return;
     }
@@ -87,7 +87,7 @@ class _RoomRulesScreenState extends State<RoomRulesScreen> {
           roomMode = 'text';
         } else {
           roomMode = 'voice';
-          roomDurationMinutes = 30;
+          roomDurationMinutes = 15;
         }
       });
       return;
@@ -102,7 +102,7 @@ class _RoomRulesScreenState extends State<RoomRulesScreen> {
       if (mounted && premium) {
         setState(() {
           roomMode = 'voice';
-          roomDurationMinutes = 30;
+          roomDurationMinutes = 15;
         });
       }
     }
@@ -198,7 +198,7 @@ class _RoomRulesScreenState extends State<RoomRulesScreen> {
                             ),
                             alignment: Alignment.center,
                             child: voiceMode
-                                ? const Icon(Icons.mic_rounded, color: AppColors.navy, size: 58)
+                                ? const Icon(Icons.record_voice_over_rounded, color: AppColors.navy, size: 58)
                                 : const Text(
                                     '6',
                                     style: TextStyle(
@@ -213,7 +213,7 @@ class _RoomRulesScreenState extends State<RoomRulesScreen> {
                         ),
                         const SizedBox(height: 20),
                         Text(
-                          voiceMode ? 'Premium sesli odaya katıl' : 'Odaya katılmadan önce',
+                          voiceMode ? 'Premium 1’e 1 sesli eşleşme' : 'Odaya katılmadan önce',
                           style: const TextStyle(
                             color: AppColors.navy,
                             fontSize: 27,
@@ -225,7 +225,7 @@ class _RoomRulesScreenState extends State<RoomRulesScreen> {
                         const SizedBox(height: 6),
                         Text(
                           voiceMode
-                              ? '6 Premium kullanıcı, 30 dakika boyunca canlı sesli sohbet eder.'
+                              ? 'Sana uygun bir Premium kullanıcıyla 15 dakika birebir sesli konuş.'
                               : 'Meet6 odaları kısa, gerçek ve güvenli sohbetler için tasarlandı.',
                           style: const TextStyle(
                             color: AppColors.navy,
@@ -236,15 +236,15 @@ class _RoomRulesScreenState extends State<RoomRulesScreen> {
                         ),
                         const SizedBox(height: 14),
                         _RuleTile(
-                          icon: voiceMode ? Icons.mic_rounded : Icons.chat_bubble_outline_rounded,
-                          title: voiceMode ? 'Sesli sohbet · Premium' : 'Yazılı sohbet',
+                          icon: voiceMode ? Icons.record_voice_over_rounded : Icons.chat_bubble_outline_rounded,
+                          title: voiceMode ? '1’e 1 sesli · Premium' : 'Yazılı sohbet',
                           subtitle: premiumLoading
                               ? 'Premium durumu kontrol ediliyor...'
                               : premium
                                   ? (voiceMode
-                                      ? 'Yalnız Premium üyelerle sesli oda. Yazılıya dönmek için dokun.'
-                                      : 'Premium sesli odaya geçmek için dokun.')
-                                  : 'Sesli sohbet yalnız Meet6 Premium üyelerine açıktır.',
+                                      ? 'Yalnızca sen ve eşleştiğin kişi. Yazılı odaya dönmek için dokun.'
+                                      : 'Premium birebir sesli eşleşmeye geçmek için dokun.')
+                                  : 'Birebir sesli eşleşme yalnız Meet6 Premium üyelerine açıktır.',
                           onTap: _toggleRoomMode,
                           trailing: premiumLoading
                               ? const SizedBox(
@@ -267,9 +267,11 @@ class _RoomRulesScreenState extends State<RoomRulesScreen> {
                         ),
                         _RuleTile(
                           icon: premium ? Icons.workspace_premium_rounded : Icons.groups_2_rounded,
-                          title: '${runtime.minimumUsers} kişi, $roomDurationMinutes dakika',
+                          title: voiceMode
+                              ? '2 kişi, 15 dakika'
+                              : '${runtime.minimumUsers} kişi, $roomDurationMinutes dakika',
                           subtitle: voiceMode
-                              ? 'Sesli Premium odaların süresi 30 dakikadır.'
+                              ? 'Premium sesli eşleşmede yalnız iki kişi konuşur; süre 15 dakikadır.'
                               : premiumLoading
                                   ? 'Premium oda seçenekleri kontrol ediliyor...'
                                   : premium
@@ -278,7 +280,7 @@ class _RoomRulesScreenState extends State<RoomRulesScreen> {
                           onTap: _toggleDuration,
                           trailing: Icon(
                             voiceMode
-                                ? Icons.mic_rounded
+                                ? Icons.headset_mic_rounded
                                 : premium
                                     ? Icons.swap_horiz_rounded
                                     : Icons.lock_rounded,
@@ -293,13 +295,13 @@ class _RoomRulesScreenState extends State<RoomRulesScreen> {
                         ),
                         _RuleTile(
                           icon: Icons.visibility_off_rounded,
-                          title: 'Seçimler gizlidir',
-                          subtitle: 'Sohbet bitince ${runtime.selectionSeconds} saniyelik gizli seçim başlar; yalnızca karşılıklı seçim eşleşir.',
+                          title: 'Kararınız gizlidir',
+                          subtitle: 'Görüşme bitince ${runtime.selectionSeconds} saniyelik gizli seçim başlar; ikiniz de devam etmek isterseniz eşleşirsiniz.',
                         ),
                         _RuleTile(
                           icon: Icons.timer_rounded,
-                          title: 'Süre bitince sohbet kapanır',
-                          subtitle: 'Gerekirse oylamayla +${runtime.extensionMinutes} dakika uzatılabilir.',
+                          title: 'Süre bitince görüşme kapanır',
+                          subtitle: 'İkiniz de isterse oylamayla +${runtime.extensionMinutes} dakika uzatılabilir.',
                           last: true,
                         ),
                         const Spacer(),
@@ -318,11 +320,11 @@ class _RoomRulesScreenState extends State<RoomRulesScreen> {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(voiceMode ? Icons.mic_rounded : Icons.search_rounded),
+                                Icon(voiceMode ? Icons.record_voice_over_rounded : Icons.search_rounded),
                                 const SizedBox(width: 9),
                                 Text(
                                   voiceMode
-                                      ? '30 dk Premium sesli oda ara'
+                                      ? '1’e 1 Premium sesli eşleşme ara'
                                       : '$roomDurationMinutes dk oda ara',
                                   style: const TextStyle(
                                     fontSize: 14.5,
