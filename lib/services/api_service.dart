@@ -235,8 +235,6 @@ class ApiService {
       throw const ApiException('Oturum bulunamadı.');
     }
 
-    await _runSessionEndCleanup();
-
     final response = await http
         .delete(
           _uri('/api/me'),
@@ -244,6 +242,10 @@ class ApiService {
         )
         .timeout(const Duration(seconds: 20));
     _decode(response);
+
+    // Kullanıcı silindikten sonra push token satırı zaten FK cascade ile gider.
+    // Burada yalnızca cihazdaki push/realtime çalışma durumunu sıfırlarız.
+    await _runSessionEndCleanup();
   }
 
   static Future<void> logout() async {
