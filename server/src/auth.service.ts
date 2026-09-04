@@ -126,6 +126,11 @@ export class AuthService {
     try {
       await client.query('begin');
       await client.query('update otp_challenges set consumed_at = now() where id = $1', [challenge.id]);
+      const existingUser = await client.query<{ id: string }>(
+        `select id::text from users where phone_e164=$1 for update`,
+        [phone],
+      );
+      const isNewUser = existingUser.rowCount === 0;
       const userResult = await client.query<{ id: string }>(
         `insert into users(phone_e164, last_seen_at)
          values ($1, now())
@@ -163,6 +168,7 @@ export class AuthService {
         ok: true,
         sessionId,
         userId,
+        isNewUser,
         profileCompleted: profile.rows[0]?.profile_completed ?? false,
       };
     } catch (error) {
