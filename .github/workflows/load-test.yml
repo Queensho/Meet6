@@ -1,0 +1,174 @@
+name: Matchmaking WebSocket Load Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      users:
+        description: Concurrent synthetic users
+        required: true
+        default: '100'
+        type: choice
+        options:
+          - '100'
+          - '250'
+          - '500'
+      connect_ramp_seconds:
+        description: Seconds to ramp WebSocket connections
+        required: true
+        default: '10'
+        type: choice
+        options:
+          - '5'
+          - '10'
+          - '20'
+          - '30'
+      room_messages:
+        description: Send one WebSocket room message per matched room
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: meet6-load-test
+  cancel-in-progress: false
+
+jobs:
+  load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: meet6_load
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d meet6_load"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      NODE_ENV: test
+      PORT: '3100'
+      DATABASE_URL: postgres://postgres:postgres@127.0.0.1:5432/meet6_load
+      REDIS_URL: redis://127.0.0.1:6379
+      JWT_SECRET: meet6-load-ci-only-secret-do-not-use-production
+      OTP_TEST_MODE: 'true'
+      OTP_TEST_CODE: '123456'
+      RATE_LIMIT_ENABLED: 'false'
+      CORS_ORIGINS: http://127.0.0.1:3100
+      UPLOAD_ROOT: /tmp/meet6-load-uploads
+      E2E_API_BASE: http://127.0.0.1:3100/api
+      E2E_SOCKET_BASE: http://127.0.0.1:3100/rooms
+      MATCHMAKING_CANDIDATE_POOL: '1000'
+      MATCHMAKING_RETRY_SECONDS: '5'
+      LOAD_ACK_TIMEOUT_MS: '300000'
+      LOAD_SETTLE_MS: '10000'
+      LOAD_REPORT_PATH: /tmp/meet6-load-report.json
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install backend dependencies
+        working-directory: server
+        run: npm install
+
+      - name: Build backend
+        working-directory: server
+        run: npm run build
+
+      - name: Run database migrations
+        working-directory: server
+        run: npm run migrate
+
+      - name: Prepare isolated upload directory
+        run: mkdir -p /tmp/meet6-load-uploads
+
+      - name: Start API
+        working-directory: server
+        run: |
+          nohup npm start > /tmp/meet6-api-load.log 2>&1 &
+          echo $! > /tmp/meet6-api-load.pid
+
+      - name: Wait for API health
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:3100/api/health >/dev/null; then
+              echo "Meet6 API is healthy"
+              exit 0
+            fi
+            if ! kill -0 "$(cat /tmp/meet6-api-load.pid)" 2>/dev/null; then
+              echo "Meet6 API exited before becoming healthy"
+              cat /tmp/meet6-api-load.log
+              exit 1
+            fi
+            sleep 1
+          done
+          echo "Meet6 API did not become healthy in time"
+          cat /tmp/meet6-api-load.log
+          exit 1
+
+      - name: Run matchmaking and WebSocket load test
+        working-directory: server
+        env:
+          LOAD_USERS: ${{ inputs.users }}
+          CONNECT_RAMP_SECONDS: ${{ inputs.connect_ramp_seconds }}
+          LOAD_ROOM_MESSAGES: ${{ inputs.room_messages && '1' || '0' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          export LOAD_CONNECT_RAMP_MS=$((CONNECT_RAMP_SECONDS * 1000))
+          export LOAD_QUEUE_RAMP_MS=$((CONNECT_RAMP_SECONDS * 500))
+          npm run load:matchmaking
+
+      - name: Upload load report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: meet6-load-test-${{ inputs.users }}-users
+          path: /tmp/meet6-load-report.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload API log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: meet6-load-test-api-log-${{ inputs.users }}-users
+          path: /tmp/meet6-api-load.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Stop API
+        if: always()
+        shell: bash
+        run: |
+          if [ -f /tmp/meet6-api-load.pid ]; then
+            kill "$(cat /tmp/meet6-api-load.pid)" 2>/dev/null || true
+          fi
