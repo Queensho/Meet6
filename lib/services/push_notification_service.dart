@@ -9,6 +9,7 @@ import '../screens/push/push_target_screen.dart';
 import '../theme/app_colors.dart';
 import 'app_navigator.dart';
 import 'push_api_service.dart';
+import 'realtime_service.dart';
 
 @pragma('vm:entry-point')
 Future<void> meet6FirebaseBackgroundHandler(RemoteMessage message) async {
@@ -78,6 +79,17 @@ class PushNotificationService {
   }
 
   static void _showForegroundAlert(RemoteMessage message) {
+    final type = message.data['type']?.toString() ?? '';
+    final roomId = message.data['roomId']?.toString() ?? '';
+
+    // Kullanıcı zaten aynı canlı oda ekranındaysa mesaj sohbet içinde WebSocket
+    // üzerinden anında görünür. Aynı mesajı ayrıca banner olarak göstermeyiz.
+    if (type == 'room_message' &&
+        roomId.isNotEmpty &&
+        RealtimeService.activeRoomId == roomId) {
+      return;
+    }
+
     final navigator = AppNavigator.key.currentState;
     final context = navigator?.context;
     if (context == null) return;
