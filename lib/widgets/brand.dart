@@ -4,7 +4,7 @@ class Meet6Brand extends StatelessWidget {
   const Meet6Brand({
     super.key,
     required this.width,
-    this.visualScale = 1.55,
+    this.visualScale = 1.75,
     this.forceLogo2 = false,
   });
 
@@ -47,7 +47,7 @@ class Meet6MiniBrand extends StatelessWidget {
     super.key,
     this.light = false,
     this.height = 23,
-    this.visualScale = 1.55,
+    this.visualScale = 1.75,
     this.forceLogo2 = false,
   });
 
