@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 
 import '../screens/push/push_target_screen.dart';
 import '../theme/app_colors.dart';
+import 'api_service.dart';
 import 'app_navigator.dart';
 import 'push_api_service.dart';
 import 'realtime_service.dart';
@@ -280,6 +281,7 @@ class PushNotificationService {
     try {
       await Firebase.initializeApp();
       FirebaseMessaging.onBackgroundMessage(meet6FirebaseBackgroundHandler);
+      ApiService.beforeLogout = unregisterCurrentDevice;
       await _setupMessageHandling();
 
       final messaging = FirebaseMessaging.instance;
@@ -349,5 +351,6 @@ class PushNotificationService {
     _initializing = false;
     _tapHandlingInitialized = false;
     _lastOpenedNotificationId = null;
+    ApiService.beforeLogout = null;
   }
 }
