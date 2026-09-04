@@ -80,10 +80,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      unawaited(
-        PushNotificationService.refreshPermissionAndRegistration()
-            .catchError((_) => NotificationPermissionState.unsupported),
-      );
+      unawaited(_refreshPushPermission());
+    }
+  }
+
+  Future<void> _refreshPushPermission() async {
+    try {
+      await PushNotificationService.refreshPermissionAndRegistration();
+    } catch (_) {
+      // Returning from system settings must never interrupt the home screen.
     }
   }
 
