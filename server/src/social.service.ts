@@ -116,7 +116,17 @@ export class SocialService {
   }
 
   async privateMessages(userId: string, matchId: string | number, afterId = 0) {
-    await this.assertActiveMatch(userId, matchId);
+    const match = await this.assertActiveMatch(userId, matchId);
+    const otherId = match.user_a_id === String(userId) ? match.user_b_id : match.user_a_id;
+    const receiptSetting = await this.infra.db.query<{ read_receipts: boolean }>(
+      `select coalesce(us.read_receipts,true) as read_receipts
+       from users u
+       left join user_settings us on us.user_id=u.id
+       where u.id=$1`,
+      [otherId],
+    );
+    const showOtherReadReceipts = receiptSetting.rows[0]?.read_receipts !== false;
+
     const result = await this.infra.db.query(
       `select pm.id::text, pm.sender_user_id::text, pm.body,
               pm.created_at, pm.delivered_at, pm.read_at
@@ -126,7 +136,12 @@ export class SocialService {
        limit 300`,
       [matchId, afterId],
     );
-    return { ok: true, messages: result.rows };
+    const messages = result.rows.map((row: any) =>
+      !showOtherReadReceipts && row.sender_user_id === String(userId)
+        ? { ...row, read_at: null }
+        : row,
+    );
+    return { ok: true, messages };
   }
 
   async sendPrivateMessage(userId: string, matchId: string | number, bodyInput: string) {
@@ -144,6 +159,17 @@ export class SocialService {
       [userId, otherId],
     );
     if (blocked.rows[0]?.exists) throw new ForbiddenException('Bu kullanıcıyla mesajlaşamazsın.');
+
+    const recipientSettings = await this.infra.db.query<{ allow_private_messages: boolean }>(
+      `select coalesce(us.allow_private_messages,true) as allow_private_messages
+       from users u
+       left join user_settings us on us.user_id=u.id
+       where u.id=$1`,
+      [otherId],
+    );
+    if (recipientSettings.rows[0]?.allow_private_messages === false) {
+      throw new ForbiddenException('Bu kullanıcı özel mesajları kapattı.');
+    }
 
     const rateKey = `private-message:${userId}:${matchId}`;
     const allowed = await this.infra.redis.set(rateKey, '1', 'EX', 1, 'NX');
@@ -195,7 +221,18 @@ export class SocialService {
        where match_id=$1 and sender_user_id<>$2 and read_at is null`,
       [matchId, userId, readAt],
     );
-    return { ok: true, readAt };
+    const settings = await this.infra.db.query<{ read_receipts: boolean }>(
+      `select coalesce(us.read_receipts,true) as read_receipts
+       from users u
+       left join user_settings us on us.user_id=u.id
+       where u.id=$1`,
+      [userId],
+    );
+    return {
+      ok: true,
+      readAt,
+      shareReadReceipt: settings.rows[0]?.read_receipts !== false,
+    };
   }
 
   async deletePrivateMessage(
@@ -312,7 +349,15 @@ export class SocialService {
       [userId],
     );
     const result = await this.infra.db.query(
-      `select notifications_enabled, room_reminders, show_online, precise_location, vibration
+      `select notifications_enabled,
+              room_reminders,
+              show_online,
+              precise_location,
+              vibration,
+              allow_room_invites,
+              allow_private_messages,
+              hide_exact_distance,
+              read_receipts
        from user_settings where user_id=$1`,
       [userId],
     );
@@ -322,9 +367,27 @@ export class SocialService {
   async updateSettings(userId: string, body: UpdateSettingsDto) {
     await this.infra.db.query(
       `insert into user_settings(
-         user_id,notifications_enabled,room_reminders,show_online,precise_location,vibration
+         user_id,
+         notifications_enabled,
+         room_reminders,
+         show_online,
+         precise_location,
+         vibration,
+         allow_room_invites,
+         allow_private_messages,
+         hide_exact_distance,
+         read_receipts
        ) values(
-         $1,coalesce($2,true),coalesce($3,true),coalesce($4,true),coalesce($5,false),coalesce($6,true)
+         $1,
+         coalesce($2,true),
+         coalesce($3,true),
+         coalesce($4,true),
+         coalesce($5,false),
+         coalesce($6,true),
+         coalesce($7,true),
+         coalesce($8,true),
+         coalesce($9,true),
+         coalesce($10,true)
        )
        on conflict(user_id) do update set
          notifications_enabled=coalesce($2,user_settings.notifications_enabled),
@@ -332,6 +395,10 @@ export class SocialService {
          show_online=coalesce($4,user_settings.show_online),
          precise_location=coalesce($5,user_settings.precise_location),
          vibration=coalesce($6,user_settings.vibration),
+         allow_room_invites=coalesce($7,user_settings.allow_room_invites),
+         allow_private_messages=coalesce($8,user_settings.allow_private_messages),
+         hide_exact_distance=coalesce($9,user_settings.hide_exact_distance),
+         read_receipts=coalesce($10,user_settings.read_receipts),
          updated_at=now()`,
       [
         userId,
@@ -340,6 +407,10 @@ export class SocialService {
         body.showOnline ?? null,
         body.preciseLocation ?? null,
         body.vibration ?? null,
+        body.allowRoomInvites ?? null,
+        body.allowPrivateMessages ?? null,
+        body.hideExactDistance ?? null,
+        body.readReceipts ?? null,
       ],
     );
     return this.getSettings(userId);
@@ -348,7 +419,9 @@ export class SocialService {
   async notifications(userId: string) {
     const result = await this.infra.db.query(
       `select id::text,type,title,body,data,read_at,created_at
-       from notifications where user_id=$1
+       from notifications
+       where user_id=$1
+         and type not in ('message','private_message','room_message')
        order by created_at desc limit 100`,
       [userId],
     );
@@ -358,7 +431,11 @@ export class SocialService {
 
   async markNotificationsRead(userId: string) {
     await this.infra.db.query(
-      'update notifications set read_at=coalesce(read_at,now()) where user_id=$1 and read_at is null',
+      `update notifications
+       set read_at=coalesce(read_at,now())
+       where user_id=$1
+         and read_at is null
+         and type not in ('message','private_message','room_message')`,
       [userId],
     );
     return { ok: true };
