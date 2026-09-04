@@ -205,7 +205,7 @@ export class RoomService {
       waitingStrategy: 'strict',
       filters: {
         roomRepeatHours: settings.roomRepeatHours,
-        recentMatchDays: settings.recentMatchDays,
+        matchedUsers: 'permanent',
         minimumRoomUsers: settings.minimumRoomUsers,
         blockAndReport: 'permanent',
         preferencesRelaxed: false,
@@ -300,19 +300,17 @@ export class RoomService {
         forbiddenPairs.add(this.pairKey(row.user_a_id, row.user_b_id));
       }
 
-      const recentMatches = await client.query<{
+      const matchedPairs = await client.query<{
         user_a_id: string;
         user_b_id: string;
       }>(
         `select user_a_id::text, user_b_id::text
          from matches
          where user_a_id = any($1::bigint[])
-           and user_b_id = any($1::bigint[])
-           and (unmatched_at is null
-                or created_at >= now() - ($2::int * interval '1 day'))`,
-        [ids, settings.recentMatchDays],
+           and user_b_id = any($1::bigint[])`,
+        [ids],
       );
-      for (const row of recentMatches.rows) {
+      for (const row of matchedPairs.rows) {
         forbiddenPairs.add(this.pairKey(row.user_a_id, row.user_b_id));
       }
 
