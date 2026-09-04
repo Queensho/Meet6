@@ -65,6 +65,7 @@ class PushNotificationService {
       case AuthorizationStatus.provisional:
         return NotificationPermissionState.provisional;
       case AuthorizationStatus.denied:
+      case AuthorizationStatus.deniedPermanently:
         return NotificationPermissionState.denied;
       case AuthorizationStatus.notDetermined:
         return NotificationPermissionState.notDetermined;
