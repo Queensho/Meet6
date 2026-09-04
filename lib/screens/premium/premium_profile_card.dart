@@ -54,22 +54,30 @@ class _PremiumProfileCardState extends State<PremiumProfileCard> {
         color: Colors.transparent,
         child: InkWell(
           onTap: _loading ? null : _openPremium,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
           child: Ink(
-            width: double.infinity,
-            padding: const EdgeInsets.all(15),
+            width: 210,
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
             decoration: BoxDecoration(
               color: AppColors.navy,
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: AppColors.lime.withValues(alpha: .55),
+                color: Colors.white.withValues(alpha: .24),
               ),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x22000000),
+                  blurRadius: 12,
+                  offset: Offset(0, 5),
+                ),
+              ],
             ),
             child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  width: 44,
-                  height: 44,
+                  width: 31,
+                  height: 31,
                   decoration: const BoxDecoration(
                     color: AppColors.lime,
                     shape: BoxShape.circle,
@@ -77,55 +85,58 @@ class _PremiumProfileCardState extends State<PremiumProfileCard> {
                   child: const Icon(
                     Icons.workspace_premium_rounded,
                     color: AppColors.navy,
+                    size: 18,
                   ),
                 ),
-                const SizedBox(width: 11),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
                         'Meet6 Premium',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 13.5,
+                          fontSize: 12.2,
+                          height: 1,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
-                      const SizedBox(height: 3),
+                      const SizedBox(height: 4),
                       Text(
                         _loading
-                            ? 'Üyelik durumun kontrol ediliyor...'
+                            ? 'Kontrol ediliyor...'
                             : _premium
-                                ? 'Premium aktif · Üyeliğini görüntüle'
-                                : 'Oda önceliği ve 30 dk Premium odalar',
+                                ? 'Premium aktif'
+                                : 'Öncelik + 30 dk oda',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: Colors.white70,
-                          fontSize: 11.2,
+                          fontSize: 9.8,
+                          height: 1,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 if (_loading)
                   const SizedBox(
-                    width: 18,
-                    height: 18,
+                    width: 15,
+                    height: 15,
                     child: CircularProgressIndicator(
-                      strokeWidth: 2,
+                      strokeWidth: 1.8,
                       color: AppColors.lime,
                     ),
                   )
                 else if (_premium)
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 9,
-                      vertical: 5,
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
                     decoration: BoxDecoration(
                       color: AppColors.lime,
                       borderRadius: BorderRadius.circular(99),
@@ -134,7 +145,7 @@ class _PremiumProfileCardState extends State<PremiumProfileCard> {
                       'AKTİF',
                       style: TextStyle(
                         color: AppColors.navy,
-                        fontSize: 9.5,
+                        fontSize: 8.3,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -143,6 +154,7 @@ class _PremiumProfileCardState extends State<PremiumProfileCard> {
                   const Icon(
                     Icons.chevron_right_rounded,
                     color: AppColors.lime,
+                    size: 19,
                   ),
               ],
             ),
