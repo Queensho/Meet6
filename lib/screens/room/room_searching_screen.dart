@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
 import '../../services/realtime_service.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/brand.dart';
 import '../../widgets/phone_frame.dart';
 import '../chat/room_chat_screen.dart';
 
@@ -245,27 +246,7 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                 children: [
                   Row(
                     children: [
-                      Text.rich(
-                        TextSpan(
-                          style: const TextStyle(
-                            fontSize: 29,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -1.8,
-                          ),
-                          children: [
-                            TextSpan(
-                              text: 'meet',
-                              style: TextStyle(
-                                color: dark ? Colors.white : AppColors.navy,
-                              ),
-                            ),
-                            const TextSpan(
-                              text: '6',
-                              style: TextStyle(color: AppColors.blue),
-                            ),
-                          ],
-                        ),
-                      ),
+                      const Meet6MiniBrand(height: 29),
                       const Spacer(),
                       TextButton(
                         onPressed: _cancel,
