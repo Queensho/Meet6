@@ -87,21 +87,23 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   int get photoCount => photos.where((photo) => photo.hasPhoto).length;
 
   int get completionPercent {
-    var score = 0;
-    if (nameController.text.trim().length >= 2) score += 10;
-    if (DateTime.tryParse(birthDateIso) != null) score += 10;
-    if (gender.trim().isNotEmpty) score += 10;
-    if (bioController.text.trim().length >= 3) score += 10;
-    if (widget.initial.latitude != null && widget.initial.longitude != null) score += 10;
-    if (interests.isNotEmpty) score += 10;
-    if (prompt.trim().isNotEmpty && answerController.text.trim().length >= 3) score += 10;
-    score += (photoCount > 3 ? 3 : photoCount) * 10;
-    return score > 100 ? 100 : score;
+    final checks = <bool>[
+      nameController.text.trim().length >= 2,
+      DateTime.tryParse(birthDateIso) != null,
+      gender.trim().isNotEmpty,
+      bioController.text.trim().length >= 3,
+      widget.initial.latitude != null && widget.initial.longitude != null,
+      interests.isNotEmpty,
+      prompt.trim().isNotEmpty && answerController.text.trim().length >= 3,
+      photoCount >= 1,
+    ];
+    final completed = checks.where((value) => value).length;
+    return ((completed / checks.length) * 100).round();
   }
 
   String get completionHint {
     if (completionPercent == 100) return 'Profilin eşleşmeye hazır.';
-    if (photoCount < 3) return 'En az ${3 - photoCount} fotoğraf daha ekle.';
+    if (photoCount < 1) return 'En az 1 fotoğraf ekle.';
     if (nameController.text.trim().length < 2) return 'Adını tamamla.';
     if (DateTime.tryParse(birthDateIso) == null) return 'Doğum tarihini seç.';
     if (gender.trim().isEmpty) return 'Cinsiyet seçimini tamamla.';
@@ -113,7 +115,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   bool get canSave =>
-      !saving && !photoPicking && completionPercent == 100 && photoCount >= 3;
+      !saving && !photoPicking && completionPercent == 100 && photoCount >= 1;
 
   String _displayDate(String iso) {
     final date = DateTime.tryParse(iso);
@@ -147,12 +149,35 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (photoPicking || saving || index < 0 || index >= photos.length) return;
     setState(() => photoPicking = true);
     try {
-      final picked = await ProfilePhotoService.pickAndPrepare(context, imagePicker);
-      if (picked == null || !mounted) return;
+      if (photos[index].hasPhoto) {
+        final picked = await ProfilePhotoService.pickAndPrepare(context, imagePicker);
+        if (picked == null || !mounted) return;
+        setState(() {
+          photos[index]
+            ..picked = picked
+            ..existingUrl = null;
+          _compactPhotos();
+        });
+        return;
+      }
+
+      final emptyIndices = <int>[
+        index,
+        ...List.generate(photos.length, (i) => i)
+            .where((i) => i != index && !photos[i].hasPhoto),
+      ];
+      final picked = await ProfilePhotoService.pickAndPrepareMany(
+        context,
+        imagePicker,
+        maxCount: emptyIndices.length,
+      );
+      if (picked.isEmpty || !mounted) return;
       setState(() {
-        photos[index]
-          ..picked = picked
-          ..existingUrl = null;
+        for (var i = 0; i < picked.length && i < emptyIndices.length; i++) {
+          photos[emptyIndices[i]]
+            ..picked = picked[i]
+            ..existingUrl = null;
+        }
         _compactPhotos();
       });
     } on ProfilePhotoException catch (error) {
@@ -521,7 +546,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         Text(
                           '$photoCount/4',
                           style: TextStyle(
-                            color: photoCount >= 3 ? AppColors.blue : const Color(0xFFE76A60),
+                            color: photoCount >= 1 ? AppColors.blue : const Color(0xFFE76A60),
                             fontSize: 11.5,
                             fontWeight: FontWeight.w900,
                           ),
@@ -530,7 +555,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Basılı tutup sürükleyerek sırala. Yıldız ile ana fotoğrafı değiştir.',
+                      'En az 1 fotoğraf yeterli. Boş alana dokunup tek seferde birden fazla fotoğraf seçebilirsin; en fazla 4. Basılı tutup sürükleyerek sırala.',
                       style: TextStyle(
                         color: scheme.onSurfaceVariant,
                         fontSize: 10.5,
