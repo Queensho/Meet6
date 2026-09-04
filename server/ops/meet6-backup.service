@@ -9,13 +9,16 @@ Type=oneshot
 User=root
 Group=root
 WorkingDirectory=/var/www/meet6/server
+EnvironmentFile=-/etc/default/meet6-ops
 Environment=BACKUP_ROOT=/var/backups/meet6
 Environment=DB_NAME=meet6
 Environment=DB_USER=postgres
 Environment=UPLOAD_ROOT=/var/www/meet6/uploads
 Environment=BACKUP_RETENTION_DAYS=14
+Environment=RCLONE_CONFIG=/etc/meet6/rclone.conf
 ExecStart=/usr/local/sbin/meet6-backup
 ExecStartPost=/usr/local/sbin/meet6-backup-verify /var/backups/meet6/latest
+ExecStartPost=/usr/local/sbin/meet6-offsite-backup /var/backups/meet6/latest
 TimeoutStartSec=2h
 Nice=10
 IOSchedulingClass=best-effort
@@ -23,6 +26,6 @@ IOSchedulingPriority=7
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=full
-ReadOnlyPaths=/var/www/meet6/uploads
+ReadOnlyPaths=/var/www/meet6/uploads -/etc/meet6/rclone.conf
 ReadWritePaths=/var/backups/meet6 /var/lock
 NoNewPrivileges=true
