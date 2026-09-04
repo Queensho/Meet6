@@ -19,11 +19,13 @@ class RealtimeService {
   static io.Socket? _socket;
   static String? _token;
   static Completer<void>? _connecting;
+  static String? _activeRoomId;
   static final _events = StreamController<RealtimeEvent>.broadcast();
   static final Random _random = Random.secure();
 
   static Stream<RealtimeEvent> get events => _events.stream;
   static bool get connected => _socket?.connected == true;
+  static String? get activeRoomId => _activeRoomId;
 
   static Map<String, dynamic> _map(dynamic raw) {
     if (raw is Map<String, dynamic>) return raw;
@@ -219,8 +221,11 @@ class RealtimeService {
   static Future<Map<String, dynamic>> queueStatus() => _ack('queue:status');
   static Future<Map<String, dynamic>> cancelQueue() => _ack('queue:cancel');
 
-  static Future<Map<String, dynamic>> joinRoom(String roomId) =>
-      _ack('room:join', {'roomId': roomId});
+  static Future<Map<String, dynamic>> joinRoom(String roomId) async {
+    final result = await _ack('room:join', {'roomId': roomId});
+    _activeRoomId = roomId;
+    return result;
+  }
 
   static Future<List<Map<String, dynamic>>> roomMessages(
     String roomId, {
@@ -236,7 +241,11 @@ class RealtimeService {
   static Future<void> leaveRoom(String roomId) async {
     try {
       await _ack('room:leave', {'roomId': roomId});
-    } catch (_) {}
+    } catch (_) {
+      // Bağlantı kopmuş olsa bile yerel aktif-oda durumu temizlenir.
+    } finally {
+      if (_activeRoomId == roomId) _activeRoomId = null;
+    }
   }
 
   static Future<Map<String, dynamic>> sendRoomMessage(String roomId, String body) {
@@ -315,5 +324,6 @@ class RealtimeService {
     _socket = null;
     _token = null;
     _connecting = null;
+    _activeRoomId = null;
   }
 }
