@@ -118,12 +118,12 @@ jobs:
           export RCLONE_CONFIG="$work/etc/rclone.conf"
           export BACKUP_HEARTBEAT_URL=''
 
-          server/scripts/offsite-backup-production.sh "$work/backups/latest"
+          bash server/scripts/offsite-backup-production.sh "$work/backups/latest"
           test -s "$remote/production/backups/20260904T033000Z/database.dump"
           test -s "$remote/production/backups/latest.txt"
 
           export VERIFY_BIN="$fakebin/verify-backup"
-          server/scripts/fetch-offsite-backup.sh \
+          bash server/scripts/fetch-offsite-backup.sh \
             20260904T033000Z \
             "$work/recovered"
           test -s "$work/recovered/database.dump"
