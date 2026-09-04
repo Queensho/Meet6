@@ -219,11 +219,24 @@ class ApiService {
     _decode(response);
   }
 
+  static Future<void> _runSessionEndCleanup() async {
+    final cleanup = beforeLogout;
+    if (cleanup == null) return;
+    try {
+      await cleanup();
+    } catch (_) {
+      // Push temizliği kullanıcı hesabı işlemlerini engellememeli.
+    }
+  }
+
   static Future<void> deleteAccount() async {
     final token = await SessionService.loadAuthSessionId();
     if (token == null || token.isEmpty) {
       throw const ApiException('Oturum bulunamadı.');
     }
+
+    await _runSessionEndCleanup();
+
     final response = await http
         .delete(
           _uri('/api/me'),
@@ -237,14 +250,7 @@ class ApiService {
     final token = await SessionService.loadAuthSessionId();
     if (token == null) return;
 
-    final cleanup = beforeLogout;
-    if (cleanup != null) {
-      try {
-        await cleanup();
-      } catch (_) {
-        // Push token temizliği çıkışı engellememeli.
-      }
-    }
+    await _runSessionEndCleanup();
 
     try {
       await http
