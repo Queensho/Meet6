@@ -120,6 +120,137 @@ export class SocialController {
     return this.social.updateSettings(await this.userId(authorization), body);
   }
 
+  @Get('me/data-export')
+  async dataExport(@Headers('authorization') authorization?: string) {
+    const userId = await this.userId(authorization);
+    const [
+      account,
+      profile,
+      matchingPreferences,
+      settings,
+      matches,
+      privateMessages,
+      roomMemberships,
+      roomMessagesSent,
+      roomSelections,
+      blockedAccounts,
+      reportsSubmitted,
+      supportRequests,
+      notifications,
+    ] = await Promise.all([
+      this.infra.db.query(
+        `select id::text, phone_e164, status, created_at, updated_at, last_seen_at
+         from users where id=$1`,
+        [userId],
+      ),
+      this.infra.db.query(
+        `select user_id::text, display_name, birth_date, gender, bio, city, country,
+                latitude, longitude, profile_prompt, profile_answer, interests,
+                photo_urls, profile_completed, created_at, updated_at
+         from profiles where user_id=$1`,
+        [userId],
+      ),
+      this.infra.db.query(
+        `select user_id::text, looking_for, min_age, max_age, distance_km, purpose, updated_at
+         from matching_preferences where user_id=$1`,
+        [userId],
+      ),
+      this.infra.db.query(
+        `select notifications_enabled, room_reminders, show_online, precise_location,
+                vibration, allow_room_invites, allow_private_messages,
+                hide_exact_distance, read_receipts, updated_at
+         from user_settings where user_id=$1`,
+        [userId],
+      ),
+      this.infra.db.query(
+        `select id::text, user_a_id::text, user_b_id::text, created_at, unmatched_at
+         from matches
+         where user_a_id=$1 or user_b_id=$1
+         order by created_at`,
+        [userId],
+      ),
+      this.infra.db.query(
+        `select pm.id::text, pm.match_id::text, pm.sender_user_id::text, pm.body,
+                pm.created_at, pm.delivered_at, pm.read_at
+         from private_messages pm
+         join matches m on m.id=pm.match_id
+         where m.user_a_id=$1 or m.user_b_id=$1
+         order by pm.id`,
+        [userId],
+      ),
+      this.infra.db.query(
+        `select room_id::text, joined_at, left_at
+         from room_members
+         where user_id=$1
+         order by room_id`,
+        [userId],
+      ),
+      this.infra.db.query(
+        `select id::text, room_id::text, sender_user_id::text, body, created_at
+         from room_messages
+         where sender_user_id=$1
+         order by id`,
+        [userId],
+      ),
+      this.infra.db.query(
+        `select room_id::text, selected_user_id::text, created_at, updated_at
+         from room_selections
+         where user_id=$1
+         order by room_id`,
+        [userId],
+      ),
+      this.infra.db.query(
+        `select blocked_user_id::text, created_at
+         from blocked_users
+         where blocker_user_id=$1
+         order by created_at`,
+        [userId],
+      ),
+      this.infra.db.query(
+        `select id::text, reported_user_id::text, room_id::text, match_id::text,
+                reason, detail, status, resolution, created_at, updated_at
+         from reports
+         where reporter_user_id=$1
+         order by created_at`,
+        [userId],
+      ),
+      this.infra.db.query(
+        `select id::text, topic, message, status, priority, admin_response,
+                responded_at, closed_at, created_at, updated_at
+         from support_requests
+         where user_id=$1
+         order by created_at`,
+        [userId],
+      ),
+      this.infra.db.query(
+        `select id::text, type, title, body, data, read_at, created_at
+         from notifications
+         where user_id=$1
+         order by created_at`,
+        [userId],
+      ),
+    ]);
+
+    return {
+      ok: true,
+      schemaVersion: 1,
+      exportedAt: new Date().toISOString(),
+      account: account.rows[0] ?? null,
+      profile: profile.rows[0] ?? null,
+      matchingPreferences: matchingPreferences.rows[0] ?? null,
+      settings: settings.rows[0] ?? null,
+      matches: matches.rows,
+      privateMessages: privateMessages.rows,
+      roomMemberships: roomMemberships.rows,
+      roomMessagesSent: roomMessagesSent.rows,
+      roomSelections: roomSelections.rows,
+      blockedAccounts: blockedAccounts.rows,
+      reportsSubmitted: reportsSubmitted.rows,
+      supportRequests: supportRequests.rows,
+      notifications: notifications.rows,
+    };
+  }
+
   @Get('notifications')
   async notifications(@Headers('authorization') authorization?: string) {
     const response = await this.social.notifications(await this.userId(authorization));
