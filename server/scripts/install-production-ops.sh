@@ -32,6 +32,8 @@ done
 
 install -m 0755 "$SERVER_ROOT/scripts/backup-production.sh" /usr/local/sbin/meet6-backup
 install -m 0755 "$SERVER_ROOT/scripts/verify-backup.sh" /usr/local/sbin/meet6-backup-verify
+install -m 0755 "$SERVER_ROOT/scripts/offsite-backup-production.sh" /usr/local/sbin/meet6-offsite-backup
+install -m 0755 "$SERVER_ROOT/scripts/fetch-offsite-backup.sh" /usr/local/sbin/meet6-offsite-fetch
 install -m 0755 "$SERVER_ROOT/scripts/notify-ops.sh" /usr/local/sbin/meet6-notify
 install -m 0755 "$SERVER_ROOT/scripts/healthcheck-production.sh" /usr/local/sbin/meet6-healthcheck
 install -m 0755 "$SERVER_ROOT/scripts/error-watch-production.sh" /usr/local/sbin/meet6-error-watch
@@ -53,6 +55,7 @@ if [[ ! -f /etc/default/meet6-ops ]]; then
   install -m 0600 "$SERVER_ROOT/ops/meet6-ops.env.example" /etc/default/meet6-ops
 fi
 
+install -d -m 0700 /etc/meet6
 install -d -m 0700 /var/backups/meet6
 install -d -m 0750 -o "$APP_USER" -g "$APP_GROUP" /var/log/meet6
 install -d -m 0750 -o "$APP_USER" -g "$APP_GROUP" /var/lib/meet6-ops
@@ -63,6 +66,8 @@ chmod 0640 /var/log/meet6/api-out.log /var/log/meet6/api-error.log
 bash -n \
   "$SERVER_ROOT/scripts/backup-production.sh" \
   "$SERVER_ROOT/scripts/verify-backup.sh" \
+  "$SERVER_ROOT/scripts/offsite-backup-production.sh" \
+  "$SERVER_ROOT/scripts/fetch-offsite-backup.sh" \
   "$SERVER_ROOT/scripts/notify-ops.sh" \
   "$SERVER_ROOT/scripts/healthcheck-production.sh" \
   "$SERVER_ROOT/scripts/error-watch-production.sh"
@@ -97,7 +102,12 @@ else
   echo 'WARNING: pm2 is not installed; install it globally, then rerun this script.' >&2
 fi
 
-# Validate the complete chain immediately.
+if ! command -v rclone >/dev/null 2>&1; then
+  echo 'WARNING: rclone is not installed. Install rclone before enabling OFFSITE_RCLONE_REMOTE.' >&2
+fi
+
+# Validate the complete local chain immediately. Off-site upload is also attempted
+# when OFFSITE_RCLONE_REMOTE is already configured in /etc/default/meet6-ops.
 systemctl start meet6-backup.service
 /usr/local/sbin/meet6-backup-verify /var/backups/meet6/latest
 systemctl start meet6-health.service || true
@@ -108,4 +118,5 @@ systemctl --no-pager --full status meet6-error-watch.timer || true
 
 echo
 printf 'Meet6 production operations installed. App user: %s\n' "$APP_USER"
-echo 'Configure optional alerts/heartbeat in /etc/default/meet6-ops.'
+echo 'Configure alerts/heartbeats and OFFSITE_RCLONE_REMOTE in /etc/default/meet6-ops.'
+echo 'Store the rclone configuration at /etc/meet6/rclone.conf with mode 0600.'
