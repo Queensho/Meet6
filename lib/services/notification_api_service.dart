@@ -8,6 +8,12 @@ import 'session_service.dart';
 class NotificationApiService {
   const NotificationApiService._();
 
+  static const _messageTypes = <String>{
+    'message',
+    'private_message',
+    'room_message',
+  };
+
   static Future<Map<String, dynamic>> _request(
     String method,
     String path,
@@ -51,8 +57,23 @@ class NotificationApiService {
     throw ApiException(message, statusCode: response.statusCode);
   }
 
-  static Future<Map<String, dynamic>> list() =>
-      _request('GET', '/api/notifications');
+  static Future<Map<String, dynamic>> list() async {
+    final response = await _request('GET', '/api/notifications');
+    final raw = response['notifications'];
+    if (raw is! List) return response;
+
+    final filtered = raw
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .where((item) => !_messageTypes.contains(item['type']?.toString() ?? ''))
+        .toList(growable: false);
+
+    return <String, dynamic>{
+      ...response,
+      'notifications': filtered,
+      'unread': filtered.where((item) => item['read_at'] == null).length,
+    };
+  }
 
   static Future<void> markRead(String notificationId) async {
     final id = notificationId.trim();
