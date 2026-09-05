@@ -200,33 +200,34 @@ export class ProfileService {
     }
     this.validateCompletedProfile(body);
 
+    // Önce profil satırını garanti altına al, sonra yalnızca gönderilen alanları güncelle.
+    // Bu yaklaşım PostgreSQL'in INSERT ... ON CONFLICT sırasında null/unknown
+    // parametreleri yanlış tiplemesinden kaynaklanan 500 hatalarını önler ve kısmi
+    // profil güncellemelerini güvenli tutar.
     await this.infra.db.query(
-      `insert into profiles(
-         user_id, display_name, birth_date, gender, bio, city, country,
-         latitude, longitude, profile_prompt, profile_answer, interests,
-         photo_urls, profile_completed, updated_at
-       ) values (
-         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,
-         coalesce($12, '{}'::text[]),
-         coalesce($13, '{}'::text[]),
-         coalesce($14, false),
-         now()
-       )
-       on conflict (user_id) do update set
-         display_name = coalesce($2, profiles.display_name),
-         birth_date = coalesce($3, profiles.birth_date),
-         gender = coalesce($4, profiles.gender),
-         bio = coalesce($5, profiles.bio),
-         city = coalesce($6, profiles.city),
-         country = coalesce($7, profiles.country),
-         latitude = coalesce($8, profiles.latitude),
-         longitude = coalesce($9, profiles.longitude),
-         profile_prompt = coalesce($10, profiles.profile_prompt),
-         profile_answer = coalesce($11, profiles.profile_answer),
-         interests = coalesce($12, profiles.interests),
-         photo_urls = coalesce($13, profiles.photo_urls),
-         profile_completed = coalesce($14, profiles.profile_completed),
-         updated_at = now()`,
+      `insert into profiles(user_id)
+       values ($1::bigint)
+       on conflict (user_id) do nothing`,
+      [userId],
+    );
+
+    await this.infra.db.query(
+      `update profiles set
+         display_name = coalesce($2::varchar, display_name),
+         birth_date = coalesce($3::date, birth_date),
+         gender = coalesce($4::varchar, gender),
+         bio = coalesce($5::varchar, bio),
+         city = coalesce($6::varchar, city),
+         country = coalesce($7::varchar, country),
+         latitude = coalesce($8::double precision, latitude),
+         longitude = coalesce($9::double precision, longitude),
+         profile_prompt = coalesce($10::varchar, profile_prompt),
+         profile_answer = coalesce($11::varchar, profile_answer),
+         interests = coalesce($12::text[], interests),
+         photo_urls = coalesce($13::text[], photo_urls),
+         profile_completed = coalesce($14::boolean, profile_completed),
+         updated_at = now()
+       where user_id = $1::bigint`,
       [
         userId,
         body.displayName ?? null,
