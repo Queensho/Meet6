@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/matching_preferences.dart';
 import '../../services/api_service.dart';
+import '../../services/gift_service.dart';
 import '../../services/live_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/phone_frame.dart';
@@ -25,6 +26,7 @@ class MatchProfileDetailScreen extends StatefulWidget {
 
 class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
   Map<String, dynamic>? profile;
+  Map<String, dynamic>? socialSummary;
   bool loading = true;
   String? error;
 
@@ -38,9 +40,26 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
     try {
       final data = await LiveService.matchDetail(widget.matchId);
       final raw = data['profile'];
+      final nextProfile = raw is Map ? Map<String, dynamic>.from(raw) : null;
+      Map<String, dynamic>? nextSummary;
+
+      final targetUserId = nextProfile?['user_id']?.toString() ?? '';
+      if (targetUserId.isNotEmpty) {
+        try {
+          final giftData = await GiftService.userSummary(targetUserId);
+          final rawSummary = giftData['summary'];
+          if (rawSummary is Map) {
+            nextSummary = Map<String, dynamic>.from(rawSummary);
+          }
+        } catch (_) {
+          // Seviye bilgisi yüklenemese de profil detayını göstermeye devam et.
+        }
+      }
+
       if (!mounted) return;
       setState(() {
-        profile = raw is Map ? Map<String, dynamic>.from(raw) : null;
+        profile = nextProfile;
+        socialSummary = nextSummary;
         loading = false;
         error = profile == null ? 'Profil bulunamadı.' : null;
       });
@@ -67,6 +86,17 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
 
   String get name => profile?['display_name']?.toString() ?? 'Meet6';
   String get userId => profile?['user_id']?.toString() ?? '';
+  int get profileLevel => (socialSummary?['profileLevel'] as num?)?.toInt() ?? 1;
+  bool get isOnline => profile?['online'] == true;
+  bool get isPremium =>
+      profile?['premium'] == true ||
+      profile?['is_premium'] == true ||
+      profile?['premium_active'] == true;
+
+  String get locationText => [profile?['city'], profile?['country']]
+      .where((value) => value != null && value.toString().trim().isNotEmpty)
+      .map((value) => value.toString().trim())
+      .join(', ');
 
   void _message() {
     if (profile == null) return;
@@ -77,7 +107,7 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
           name: name,
           userId: userId,
           photoUrl: photos.isEmpty ? '' : photos.first,
-          isOnline: profile?['online'] == true,
+          isOnline: isOnline,
         ),
       ),
     );
@@ -93,7 +123,9 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
       await LiveService.blockUser(userId);
       if (mounted) Navigator.of(context).pop();
     } on ApiException catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      }
     }
   }
 
@@ -140,8 +172,14 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Vazgeç')),
-            FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Gönder')),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Vazgeç'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Gönder'),
+            ),
           ],
         ),
       ),
@@ -149,7 +187,9 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
     if (approved == true) {
       await LiveService.reportUser(userId, reason: reason, detail: detail.text);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Şikâyetin inceleme kuyruğuna alındı.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Şikâyetin inceleme kuyruğuna alındı.')),
+        );
       }
     }
     detail.dispose();
@@ -162,8 +202,14 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
         title: Text(title),
         content: Text(body),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Vazgeç')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Onayla')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Onayla'),
+          ),
         ],
       ),
     );
@@ -198,7 +244,10 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
                 ),
                 ListTile(
                   leading: const Icon(Icons.block_rounded, color: Color(0xFFE24A4A)),
-                  title: const Text('Kullanıcıyı engelle', style: TextStyle(color: Color(0xFFE24A4A))),
+                  title: const Text(
+                    'Kullanıcıyı engelle',
+                    style: TextStyle(color: Color(0xFFE24A4A)),
+                  ),
                   onTap: () => Navigator.pop(sheetContext, 'block'),
                 ),
               ],
@@ -212,10 +261,88 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
     if (action == 'block') await _block();
   }
 
+  Widget _heroPhoto(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        AspectRatio(
+          aspectRatio: 1,
+          child: Container(
+            decoration: BoxDecoration(
+              color: scheme.surface,
+              borderRadius: BorderRadius.circular(42),
+              border: Border.all(color: Colors.white, width: 7),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.navy.withValues(alpha: .10),
+                  blurRadius: 28,
+                  offset: const Offset(0, 12),
+                ),
+              ],
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: photos.isEmpty
+                ? Container(
+                    color: AppColors.lime,
+                    alignment: Alignment.center,
+                    child: Text(
+                      name.isEmpty ? '?' : name.characters.first.toUpperCase(),
+                      style: const TextStyle(
+                        color: AppColors.navy,
+                        fontSize: 78,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  )
+                : PageView.builder(
+                    itemCount: photos.length,
+                    itemBuilder: (_, index) => Image.network(
+                      ApiService.absoluteMediaUrl(photos[index]),
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        color: AppColors.navy,
+                        alignment: Alignment.center,
+                        child: const Icon(
+                          Icons.person_rounded,
+                          color: AppColors.lime,
+                          size: 76,
+                        ),
+                      ),
+                    ),
+                  ),
+          ),
+        ),
+        if (isPremium)
+          Positioned(
+            left: 8,
+            bottom: -12,
+            child: _StatusPill(
+              icon: Icons.workspace_premium_rounded,
+              label: 'Premium',
+              foreground: Colors.white,
+              background: AppColors.navy,
+              iconColor: AppColors.lime,
+              outlined: true,
+            ),
+          ),
+        Positioned(
+          right: 8,
+          bottom: -12,
+          child: _LevelBadge(level: profileLevel),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final age = (profile?['age'] as num?)?.toInt();
+    final bio = profile?['bio']?.toString().trim() ?? '';
+    final prompt = profile?['profile_prompt']?.toString().trim() ?? '';
+    final answer = profile?['profile_answer']?.toString().trim() ?? '';
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -229,7 +356,11 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(error!, textAlign: TextAlign.center, style: TextStyle(color: scheme.onSurfaceVariant)),
+                          Text(
+                            error!,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: scheme.onSurfaceVariant),
+                          ),
                           const SizedBox(height: 12),
                           FilledButton(onPressed: _load, child: const Text('Tekrar dene')),
                         ],
@@ -238,115 +369,159 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
                   )
                 : Stack(
                     children: [
+                      Positioned(
+                        top: 28,
+                        right: -42,
+                        child: _DecorCircle(size: 156, color: AppColors.lime.withValues(alpha: .22)),
+                      ),
+                      Positioned(
+                        top: 245,
+                        left: -66,
+                        child: _DecorCircle(size: 168, color: AppColors.lime.withValues(alpha: .11)),
+                      ),
+                      Positioned(
+                        top: 500,
+                        right: -76,
+                        child: _DecorCircle(size: 190, color: AppColors.navy.withValues(alpha: .035)),
+                      ),
                       Positioned.fill(
                         child: SingleChildScrollView(
-                          padding: const EdgeInsets.only(bottom: 100),
+                          padding: const EdgeInsets.fromLTRB(22, 92, 22, 112),
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              SizedBox(
-                                height: 430,
-                                child: photos.isEmpty
-                                    ? Container(
-                                        color: AppColors.navy,
-                                        alignment: Alignment.center,
-                                        child: Text(
-                                          name.characters.first.toUpperCase(),
-                                          style: const TextStyle(
-                                            color: AppColors.lime,
-                                            fontSize: 76,
-                                            fontWeight: FontWeight.w900,
-                                          ),
-                                        ),
-                                      )
-                                    : PageView.builder(
-                                        itemCount: photos.length,
-                                        itemBuilder: (_, index) => Image.network(
-                                          ApiService.absoluteMediaUrl(photos[index]),
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (_, __, ___) => Container(
-                                            color: AppColors.navy,
-                                            child: const Icon(Icons.person_rounded, color: AppColors.lime, size: 70),
-                                          ),
-                                        ),
-                                      ),
-                              ),
                               Padding(
-                                padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                padding: const EdgeInsets.symmetric(horizontal: 34),
+                                child: _heroPhoto(context),
+                              ),
+                              const SizedBox(height: 38),
+                              Text(
+                                age == null ? name : '$name, $age',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: scheme.onSurface,
+                                  fontSize: 30,
+                                  height: 1.05,
+                                  letterSpacing: -1.2,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              const SizedBox(height: 13),
+                              Wrap(
+                                alignment: WrapAlignment.center,
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  if (isPremium)
+                                    const _StatusPill(
+                                      icon: Icons.workspace_premium_rounded,
+                                      label: 'Premium',
+                                      foreground: Colors.white,
+                                      background: AppColors.navy,
+                                      iconColor: AppColors.lime,
+                                    ),
+                                  _StatusPill(
+                                    label: 'Lv $profileLevel',
+                                    foreground: AppColors.lime,
+                                    background: AppColors.navy,
+                                  ),
+                                  if (isOnline)
+                                    const _StatusPill(
+                                      icon: Icons.circle,
+                                      label: 'Şimdi aktif',
+                                      foreground: Color(0xFF167A3D),
+                                      background: Color(0xFFE8F9DF),
+                                      iconColor: Color(0xFF18BF55),
+                                    ),
+                                ],
+                              ),
+                              if (locationText.isNotEmpty) ...[
+                                const SizedBox(height: 12),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            '$name, ${(profile?['age'] as num?)?.toInt() ?? ''}',
-                                            style: TextStyle(
-                                              color: scheme.onSurface,
-                                              fontSize: 29,
-                                              fontWeight: FontWeight.w900,
-                                              letterSpacing: -1,
-                                            ),
-                                          ),
-                                        ),
-                                        if (profile?['online'] == true)
-                                          const Icon(Icons.circle, size: 12, color: Color(0xFF36C76C)),
-                                      ],
+                                    Icon(
+                                      Icons.location_on_outlined,
+                                      color: scheme.primary,
+                                      size: 20,
                                     ),
-                                    const SizedBox(height: 5),
-                                    Row(
-                                      children: [
-                                        Icon(Icons.location_on_outlined, color: scheme.primary, size: 17),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          [profile?['city'], profile?['country']]
-                                              .where((e) => e != null && e.toString().isNotEmpty)
-                                              .join(', '),
-                                          style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w700),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 20),
-                                    _Section(
-                                      title: 'Hakkında',
+                                    const SizedBox(width: 5),
+                                    Flexible(
                                       child: Text(
-                                        profile?['bio']?.toString() ?? '',
-                                        style: TextStyle(color: scheme.onSurface, fontSize: 13.5, height: 1.45),
-                                      ),
-                                    ),
-                                    if (interests.isNotEmpty) ...[
-                                      const SizedBox(height: 14),
-                                      _Section(
-                                        title: 'İlgi alanları',
-                                        child: Wrap(
-                                          spacing: 8,
-                                          runSpacing: 8,
-                                          children: interests
-                                              .map(
-                                                (item) => Container(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-                                                  decoration: BoxDecoration(
-                                                    color: scheme.surfaceContainerHigh,
-                                                    borderRadius: BorderRadius.circular(999),
-                                                  ),
-                                                  child: Text(item, style: TextStyle(color: scheme.onSurface, fontSize: 11, fontWeight: FontWeight.w800)),
-                                                ),
-                                              )
-                                              .toList(),
+                                        locationText,
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          color: scheme.onSurfaceVariant,
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w700,
                                         ),
-                                      ),
-                                    ],
-                                    const SizedBox(height: 14),
-                                    _Section(
-                                      title: profile?['profile_prompt']?.toString() ?? 'Profil sorusu',
-                                      child: Text(
-                                        profile?['profile_answer']?.toString() ?? '',
-                                        style: TextStyle(color: scheme.onSurface, fontSize: 14, height: 1.4, fontWeight: FontWeight.w800),
                                       ),
                                     ),
                                   ],
                                 ),
+                              ],
+                              const SizedBox(height: 24),
+                              _ProfileSection(
+                                icon: Icons.article_outlined,
+                                title: 'Hakkında',
+                                child: Text(
+                                  bio.isEmpty ? 'Henüz hakkında bilgisi eklenmemiş.' : bio,
+                                  style: TextStyle(
+                                    color: scheme.onSurfaceVariant,
+                                    fontSize: 13.5,
+                                    height: 1.5,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                               ),
+                              if (interests.isNotEmpty) ...[
+                                const SizedBox(height: 14),
+                                _ProfileSection(
+                                  icon: Icons.favorite_border_rounded,
+                                  title: 'İlgi alanları',
+                                  child: Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: interests
+                                        .map(
+                                          (item) => Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 13,
+                                              vertical: 8,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: scheme.surfaceContainerHigh,
+                                              borderRadius: BorderRadius.circular(999),
+                                            ),
+                                            child: Text(
+                                              item,
+                                              style: TextStyle(
+                                                color: scheme.onSurface,
+                                                fontSize: 11.5,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                          ),
+                                        )
+                                        .toList(),
+                                  ),
+                                ),
+                              ],
+                              if (prompt.isNotEmpty && answer.isNotEmpty) ...[
+                                const SizedBox(height: 14),
+                                _ProfileSection(
+                                  icon: Icons.chat_bubble_outline_rounded,
+                                  title: prompt,
+                                  child: Text(
+                                    answer,
+                                    style: TextStyle(
+                                      color: scheme.onSurfaceVariant,
+                                      fontSize: 13.5,
+                                      height: 1.45,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -355,10 +530,9 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
                         top: 12,
                         left: 12,
                         child: SafeArea(
-                          child: IconButton.filled(
+                          child: _CircleActionButton(
                             onPressed: () => Navigator.of(context).pop(),
-                            style: IconButton.styleFrom(backgroundColor: Colors.black54, foregroundColor: Colors.white),
-                            icon: const Icon(Icons.arrow_back_rounded),
+                            icon: Icons.arrow_back_ios_new_rounded,
                           ),
                         ),
                       ),
@@ -366,30 +540,54 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
                         top: 12,
                         right: 12,
                         child: SafeArea(
-                          child: IconButton.filled(
+                          child: _CircleActionButton(
                             onPressed: _more,
-                            style: IconButton.styleFrom(backgroundColor: Colors.black54, foregroundColor: Colors.white),
-                            icon: const Icon(Icons.more_horiz_rounded),
+                            icon: Icons.more_vert_rounded,
                           ),
                         ),
                       ),
                       Positioned(
                         left: 18,
                         right: 18,
-                        bottom: 18,
+                        bottom: 16,
                         child: SafeArea(
                           top: false,
-                          child: SizedBox(
-                            height: 58,
-                            child: FilledButton.icon(
-                              onPressed: _message,
-                              style: FilledButton.styleFrom(
-                                backgroundColor: AppColors.lime,
-                                foregroundColor: AppColors.navy,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: _message,
+                              borderRadius: BorderRadius.circular(28),
+                              child: Ink(
+                                height: 62,
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [Color(0xFFD8FF2F), Color(0xFFBFFF24)],
+                                  ),
+                                  borderRadius: BorderRadius.circular(28),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: AppColors.lime.withValues(alpha: .26),
+                                      blurRadius: 24,
+                                      offset: const Offset(0, 10),
+                                    ),
+                                  ],
+                                ),
+                                child: const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.send_rounded, color: AppColors.navy, size: 24),
+                                    SizedBox(width: 12),
+                                    Text(
+                                      'Mesaj gönder',
+                                      style: TextStyle(
+                                        color: AppColors.navy,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                              icon: const Icon(Icons.chat_bubble_rounded),
-                              label: const Text('Mesaj gönder', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900)),
                             ),
                           ),
                         ),
@@ -401,8 +599,120 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
   }
 }
 
-class _Section extends StatelessWidget {
-  const _Section({required this.title, required this.child});
+class _CircleActionButton extends StatelessWidget {
+  const _CircleActionButton({required this.onPressed, required this.icon});
+
+  final VoidCallback onPressed;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return IconButton(
+      onPressed: onPressed,
+      style: IconButton.styleFrom(
+        backgroundColor: scheme.surface,
+        foregroundColor: AppColors.navy,
+        minimumSize: const Size(54, 54),
+        shape: const CircleBorder(),
+        side: BorderSide(color: scheme.outlineVariant.withValues(alpha: .65)),
+        elevation: 2,
+      ),
+      icon: Icon(icon, size: 24),
+    );
+  }
+}
+
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({
+    this.icon,
+    required this.label,
+    required this.foreground,
+    required this.background,
+    this.iconColor,
+    this.outlined = false,
+  });
+
+  final IconData? icon;
+  final String label;
+  final Color foreground;
+  final Color background;
+  final Color? iconColor;
+  final bool outlined;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+        border: outlined ? Border.all(color: Colors.white, width: 3) : null,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, color: iconColor ?? foreground, size: 17),
+            const SizedBox(width: 6),
+          ],
+          Text(
+            label,
+            style: TextStyle(
+              color: foreground,
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LevelBadge extends StatelessWidget {
+  const _LevelBadge({required this.level});
+
+  final int level;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 68,
+      height: 68,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: AppColors.navy,
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 5),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.navy.withValues(alpha: .16),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Text(
+        'Lv $level',
+        style: const TextStyle(
+          color: AppColors.lime,
+          fontSize: 13,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileSection extends StatelessWidget {
+  const _ProfileSection({
+    required this.icon,
+    required this.title,
+    required this.child,
+  });
+
+  final IconData icon;
   final String title;
   final Widget child;
 
@@ -411,19 +721,71 @@ class _Section extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(15),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: scheme.surface,
-        borderRadius: BorderRadius.circular(20),
+        color: scheme.surface.withValues(alpha: .94),
+        borderRadius: BorderRadius.circular(26),
         border: Border.all(color: scheme.outlineVariant),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.navy.withValues(alpha: .035),
+            blurRadius: 18,
+            offset: const Offset(0, 7),
+          ),
+        ],
       ),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: TextStyle(color: scheme.primary, fontSize: 11.5, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 7),
-          child,
+          Container(
+            width: 52,
+            height: 52,
+            decoration: const BoxDecoration(
+              color: AppColors.lime,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: AppColors.navy, size: 25),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: scheme.onSurface,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                child,
+              ],
+            ),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _DecorCircle extends StatelessWidget {
+  const _DecorCircle({required this.size, required this.color});
+
+  final double size;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: color,
+        ),
       ),
     );
   }
