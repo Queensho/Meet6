@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../../services/api_service.dart';
+import '../../../services/gift_service.dart';
 import '../../../theme/app_colors.dart';
 import '../../premium/premium_profile_card.dart';
 
-class ProfileHero extends StatelessWidget {
+class ProfileHero extends StatefulWidget {
   const ProfileHero({
     super.key,
     required this.name,
@@ -14,14 +15,70 @@ class ProfileHero extends StatelessWidget {
   final String name;
   final String imageUrl;
 
+  @override
+  State<ProfileHero> createState() => _ProfileHeroState();
+}
+
+class _ProfileHeroState extends State<ProfileHero> {
+  late final Future<Map<String, dynamic>> _giftSummary = GiftService.me();
+
   String get initial {
-    final value = name.trim();
+    final value = widget.name.trim();
     return value.isEmpty ? 'S' : value.characters.first.toUpperCase();
+  }
+
+  Widget _giftLevels() {
+    return FutureBuilder<Map<String, dynamic>>(
+      future: _giftSummary,
+      builder: (context, snapshot) {
+        final raw = snapshot.data?['summary'];
+        if (raw is! Map) return const SizedBox.shrink();
+        final summary = Map<String, dynamic>.from(raw);
+        final giftLevel = summary['giftLevel'] ?? 1;
+        final generosityLevel = summary['generosityLevel'] ?? 1;
+        final badges = summary['badges'];
+        final firstBadge = badges is List && badges.isNotEmpty ? badges.first.toString() : null;
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+          decoration: BoxDecoration(
+            color: AppColors.navy.withValues(alpha: .92),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: Colors.white.withValues(alpha: .2)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '🎁 Lv $giftLevel  ·  ✨ Lv $generosityLevel',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              if (firstBadge != null) ...[
+                const SizedBox(width: 7),
+                Container(width: 1, height: 12, color: Colors.white24),
+                const SizedBox(width: 7),
+                Text(
+                  firstBadge,
+                  style: const TextStyle(
+                    color: AppColors.lime,
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final resolvedImage = ApiService.absoluteMediaUrl(imageUrl);
+    final resolvedImage = ApiService.absoluteMediaUrl(widget.imageUrl);
 
     return Stack(
       clipBehavior: Clip.none,
@@ -48,7 +105,7 @@ class ProfileHero extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: AppColors.navy.withOpacity(.08),
+                      color: AppColors.navy.withValues(alpha: .08),
                       width: 26,
                     ),
                   ),
@@ -63,7 +120,7 @@ class ProfileHero extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: AppColors.blue.withOpacity(.08),
+                      color: AppColors.blue.withValues(alpha: .08),
                       width: 22,
                     ),
                   ),
@@ -74,6 +131,12 @@ class ProfileHero extends StatelessWidget {
                 left: 0,
                 right: 0,
                 child: Center(child: PremiumProfileCard()),
+              ),
+              Positioned(
+                top: 58,
+                left: 12,
+                right: 12,
+                child: Center(child: _giftLevels()),
               ),
             ],
           ),
