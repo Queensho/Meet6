@@ -45,122 +45,130 @@ class _PremiumProfileCardState extends State<PremiumProfileCard> {
 
   @override
   Widget build(BuildContext context) {
+    const gold = Color(0xFFFFC94A);
+    const muted = Color(0xFF9AA4B8);
+    final accent = _premium ? gold : muted;
+
     return Semantics(
       button: true,
       label: _premium
           ? 'Meet6 Premium aktif. Premium üyeliğini yönet.'
-          : 'Meet6 Premium. Premium özelliklerini görüntüle.',
+          : 'Meet6 Premium özelliklerini görüntüle.',
       child: Material(
         color: Colors.transparent,
+        shape: const CircleBorder(),
         child: InkWell(
           onTap: _loading ? null : _openPremium,
-          borderRadius: BorderRadius.circular(16),
+          customBorder: const CircleBorder(),
           child: Ink(
-            width: 210,
-            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+            width: 78,
+            height: 78,
             decoration: BoxDecoration(
-              color: AppColors.navy,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: .24),
+              shape: BoxShape.circle,
+              gradient: const RadialGradient(
+                center: Alignment(-.2, -.28),
+                radius: 1.05,
+                colors: [
+                  Color(0xFF1A294B),
+                  Color(0xFF09142C),
+                ],
               ),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x22000000),
-                  blurRadius: 12,
-                  offset: Offset(0, 5),
+              border: Border.all(color: accent, width: 2.2),
+              boxShadow: [
+                const BoxShadow(
+                  color: Color(0x33000000),
+                  blurRadius: 16,
+                  offset: Offset(0, 7),
                 ),
+                if (_premium)
+                  const BoxShadow(
+                    color: Color(0x44FFC94A),
+                    blurRadius: 16,
+                    spreadRadius: 1,
+                  ),
               ],
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 31,
-                  height: 31,
-                  decoration: const BoxDecoration(
-                    color: AppColors.lime,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.workspace_premium_rounded,
-                    color: AppColors.navy,
-                    size: 18,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            child: _loading
+                ? const Center(
+                    child: SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.lime,
+                      ),
+                    ),
+                  )
+                : Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Text(
-                        'Meet6 Premium',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12.2,
-                          height: 1,
-                          fontWeight: FontWeight.w900,
-                        ),
+                      CustomPaint(
+                        size: const Size(30, 25),
+                        painter: _CrownPainter(color: accent),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        _loading
-                            ? 'Kontrol ediliyor...'
-                            : _premium
-                                ? 'Premium aktif'
-                                : '1’e 1 sesli + 30 dk',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 9.8,
+                        'PREMIUM',
+                        style: TextStyle(
+                          color: accent,
+                          fontSize: 8.3,
                           height: 1,
-                          fontWeight: FontWeight.w700,
+                          letterSpacing: .45,
+                          fontWeight: FontWeight.w900,
                         ),
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(width: 6),
-                if (_loading)
-                  const SizedBox(
-                    width: 15,
-                    height: 15,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 1.8,
-                      color: AppColors.lime,
-                    ),
-                  )
-                else if (_premium)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppColors.lime,
-                      borderRadius: BorderRadius.circular(99),
-                    ),
-                    child: const Text(
-                      'AKTİF',
-                      style: TextStyle(
-                        color: AppColors.navy,
-                        fontSize: 8.3,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  )
-                else
-                  const Icon(
-                    Icons.chevron_right_rounded,
-                    color: AppColors.lime,
-                    size: 19,
-                  ),
-              ],
-            ),
           ),
         ),
       ),
     );
   }
+}
+
+class _CrownPainter extends CustomPainter {
+  const _CrownPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    final crown = Path()
+      ..moveTo(size.width * .08, size.height * .28)
+      ..lineTo(size.width * .29, size.height * .56)
+      ..lineTo(size.width * .49, size.height * .17)
+      ..lineTo(size.width * .70, size.height * .56)
+      ..lineTo(size.width * .92, size.height * .28)
+      ..lineTo(size.width * .80, size.height * .78)
+      ..lineTo(size.width * .20, size.height * .78)
+      ..close();
+    canvas.drawPath(crown, paint);
+
+    final band = RRect.fromRectAndRadius(
+      Rect.fromLTWH(
+        size.width * .19,
+        size.height * .74,
+        size.width * .62,
+        size.height * .14,
+      ),
+      const Radius.circular(2),
+    );
+    canvas.drawRRect(band, paint);
+
+    final jewelPaint = Paint()
+      ..color = const Color(0xFFFFFFFF).withValues(alpha: .74)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(
+      Offset(size.width * .5, size.height * .58),
+      size.width * .045,
+      jewelPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _CrownPainter oldDelegate) => oldDelegate.color != color;
 }
