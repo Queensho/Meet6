@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../services/api_service.dart';
@@ -6,14 +8,14 @@ import '../../theme/app_colors.dart';
 import 'coin_store_sheet.dart';
 
 const Map<String, String> _giftAssetByCode = {
-  'rose': 'assets/images/H1.png',
-  'coffee': 'assets/images/H2.png',
-  'heart': 'assets/images/H3.png',
-  'sparkle': 'assets/images/H4.png',
-  'balloon': 'assets/images/H5.png',
-  'rocket': 'assets/images/H6.png',
-  'diamond': 'assets/images/H7.png',
-  'crown': 'assets/images/H8.png',
+  'rose': 'assets/images/selam.png',
+  'coffee': 'assets/images/kalp.png',
+  'heart': 'assets/images/hediye.png',
+  'sparkle': 'assets/images/surpriz.png',
+  'balloon': 'assets/images/parti.png',
+  'rocket': 'assets/images/tac.png',
+  'diamond': 'assets/images/kahve.png',
+  'crown': 'assets/images/gul.png',
 };
 
 Widget _giftVisual(Map<String, dynamic> gift, {double size = 50}) {
@@ -26,10 +28,7 @@ Widget _giftVisual(Map<String, dynamic> gift, {double size = 50}) {
       width: size,
       height: size,
       child: Center(
-        child: Text(
-          emoji,
-          style: TextStyle(fontSize: size * .58),
-        ),
+        child: Text(emoji, style: TextStyle(fontSize: size * .58)),
       ),
     );
   }
@@ -44,10 +43,7 @@ Widget _giftVisual(Map<String, dynamic> gift, {double size = 50}) {
       width: size,
       height: size,
       child: Center(
-        child: Text(
-          emoji,
-          style: TextStyle(fontSize: size * .58),
-        ),
+        child: Text(emoji, style: TextStyle(fontSize: size * .58)),
       ),
     ),
   );
@@ -165,12 +161,11 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
       await _load();
       return;
     }
-    final currentWallet = wallet;
     setState(() {
       catalog = {
         ...current,
         'wallet': {
-          ...currentWallet,
+          ...wallet,
           'coinBalance': newBalance,
         },
       };
@@ -181,6 +176,7 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
     final recipientId = selectedRecipientId;
     final gift = selectedGift;
     if (recipientId == null || gift == null || sending) return;
+
     final cost = (gift['coinCost'] as num?)?.toInt() ?? 0;
     final dailyFree = gift['dailyFree'] == true;
     if (dailyFree && freeRemaining <= 0) {
@@ -215,6 +211,7 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
     final photos = member['photo_urls'];
     final path = photos is List && photos.isNotEmpty ? photos.first.toString() : '';
     final name = member['display_name']?.toString().trim() ?? '';
+
     return Container(
       width: size,
       height: size,
@@ -228,21 +225,26 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
           ? Center(
               child: Text(
                 name.isEmpty ? '?' : name.characters.first.toUpperCase(),
-                style: const TextStyle(color: AppColors.lime, fontWeight: FontWeight.w900),
+                style: const TextStyle(
+                  color: AppColors.lime,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
             )
           : Image.network(
               ApiService.absoluteMediaUrl(path),
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => const Icon(Icons.person_rounded, color: AppColors.lime),
+              errorBuilder: (_, __, ___) => const Icon(
+                Icons.person_rounded,
+                color: AppColors.lime,
+              ),
             ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
+    final scheme = Theme.of(context).colorScheme;
     final gift = selectedGift;
     final selectedCost = (gift?['coinCost'] as num?)?.toInt() ?? 0;
     final selectedDailyFree = gift?['dailyFree'] == true;
@@ -251,19 +253,23 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
     return SafeArea(
       top: false,
       child: Container(
-        constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * .78),
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * .80,
+        ),
         decoration: BoxDecoration(
           color: scheme.surface,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
         ),
         child: loading
             ? const SizedBox(
-                height: 280,
-                child: Center(child: CircularProgressIndicator(color: AppColors.lime)),
+                height: 300,
+                child: Center(
+                  child: CircularProgressIndicator(color: AppColors.lime),
+                ),
               )
             : error != null
                 ? SizedBox(
-                    height: 280,
+                    height: 300,
                     child: Center(
                       child: Padding(
                         padding: const EdgeInsets.all(24),
@@ -272,7 +278,10 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
                           children: [
                             Text(error!, textAlign: TextAlign.center),
                             const SizedBox(height: 12),
-                            FilledButton(onPressed: _load, child: const Text('Tekrar dene')),
+                            FilledButton(
+                              onPressed: _load,
+                              child: const Text('Tekrar dene'),
+                            ),
                           ],
                         ),
                       ),
@@ -298,19 +307,22 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 15),
+                        const SizedBox(height: 14),
                         Row(
                           children: [
                             Container(
-                              width: 44,
-                              height: 44,
+                              width: 42,
+                              height: 42,
                               decoration: const BoxDecoration(
                                 color: AppColors.lime,
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(Icons.card_giftcard_rounded, color: AppColors.navy),
+                              child: const Icon(
+                                Icons.card_giftcard_rounded,
+                                color: AppColors.navy,
+                              ),
                             ),
-                            const SizedBox(width: 11),
+                            const SizedBox(width: 10),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -324,11 +336,11 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
                                     ),
                                   ),
                                   Text(
-                                    'Hediyeler eşleşme şansını etkilemez.',
+                                    'Günde 3 Selam ücretsiz · +1 Meet6 XP',
                                     style: TextStyle(
                                       color: scheme.onSurfaceVariant,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.w700,
                                     ),
                                   ),
                                 ],
@@ -338,56 +350,26 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
                               onTap: _openCoinStore,
                               borderRadius: BorderRadius.circular(14),
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 8,
+                                ),
                                 decoration: BoxDecoration(
                                   color: scheme.surfaceContainerHigh,
                                   borderRadius: BorderRadius.circular(14),
                                 ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      '🪙 $balance',
-                                      style: TextStyle(
-                                        color: scheme.onSurface,
-                                        fontWeight: FontWeight.w900,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    const Icon(Icons.add_circle_rounded, color: AppColors.lime, size: 18),
-                                  ],
+                                child: Text(
+                                  '🪙 $balance',
+                                  style: TextStyle(
+                                    color: scheme.onSurface,
+                                    fontWeight: FontWeight.w900,
+                                  ),
                                 ),
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 12),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                          decoration: BoxDecoration(
-                            color: AppColors.lime.withValues(alpha: .12),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: AppColors.lime.withValues(alpha: .38)),
-                          ),
-                          child: Row(
-                            children: [
-                              const Text('🎁', style: TextStyle(fontSize: 18)),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'Bugün $freeRemaining/$freeDailyLimit ücretsiz hediye hakkın kaldı · ücretsiz hediye yalnız +1 Meet6 XP verir.',
-                                  style: TextStyle(
-                                    color: scheme.onSurface,
-                                    fontSize: 10.5,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 18),
                         Text(
                           'Kime?',
                           style: TextStyle(
@@ -396,7 +378,7 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
                             fontWeight: FontWeight.w900,
                           ),
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 9),
                         SizedBox(
                           height: 76,
                           child: ListView.separated(
@@ -408,6 +390,7 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
                               final id = member['user_id']?.toString() ?? '';
                               final selected = id == selectedRecipientId;
                               final name = member['display_name']?.toString() ?? 'Meet6';
+
                               return InkWell(
                                 onTap: () => setState(() => selectedRecipientId = id),
                                 borderRadius: BorderRadius.circular(18),
@@ -416,10 +399,14 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
                                   width: 72,
                                   padding: const EdgeInsets.all(7),
                                   decoration: BoxDecoration(
-                                    color: selected ? AppColors.lime.withValues(alpha: .16) : scheme.surfaceContainerLow,
+                                    color: selected
+                                        ? AppColors.lime.withValues(alpha: .16)
+                                        : scheme.surfaceContainerLow,
                                     borderRadius: BorderRadius.circular(18),
                                     border: Border.all(
-                                      color: selected ? AppColors.lime : scheme.outlineVariant,
+                                      color: selected
+                                          ? AppColors.lime
+                                          : scheme.outlineVariant,
                                       width: selected ? 2 : 1,
                                     ),
                                   ),
@@ -445,15 +432,28 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
                           ),
                         ),
                         const SizedBox(height: 18),
-                        Text(
-                          'Hediyeler',
-                          style: TextStyle(
-                            color: scheme.onSurface,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w900,
-                          ),
+                        Row(
+                          children: [
+                            Text(
+                              'Hediyeler',
+                              style: TextStyle(
+                                color: scheme.onSurface,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const Spacer(),
+                            Text(
+                              '$freeRemaining/$freeDailyLimit ücretsiz Selam',
+                              style: TextStyle(
+                                color: scheme.onSurfaceVariant,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 9),
                         GridView.builder(
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
@@ -470,26 +470,33 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
                             final selected = code == selectedGiftCode;
                             final dailyFree = item['dailyFree'] == true;
                             final exhausted = dailyFree && freeRemaining <= 0;
+
                             return Opacity(
-                              opacity: exhausted ? .5 : 1,
+                              opacity: exhausted ? .45 : 1,
                               child: InkWell(
-                                onTap: exhausted ? null : () => setState(() => selectedGiftCode = code),
+                                onTap: exhausted
+                                    ? null
+                                    : () => setState(() => selectedGiftCode = code),
                                 borderRadius: BorderRadius.circular(18),
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 150),
                                   padding: const EdgeInsets.fromLTRB(6, 5, 6, 7),
                                   decoration: BoxDecoration(
-                                    color: selected ? AppColors.lime.withValues(alpha: .15) : scheme.surfaceContainerLow,
+                                    color: selected
+                                        ? AppColors.lime.withValues(alpha: .15)
+                                        : scheme.surfaceContainerLow,
                                     borderRadius: BorderRadius.circular(18),
                                     border: Border.all(
-                                      color: selected ? AppColors.lime : scheme.outlineVariant,
+                                      color: selected
+                                          ? AppColors.lime
+                                          : scheme.outlineVariant,
                                       width: selected ? 2 : 1,
                                     ),
                                   ),
                                   child: Column(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      _giftVisual(item, size: dailyFree ? 43 : 52),
+                                      _giftVisual(item, size: 52),
                                       const SizedBox(height: 2),
                                       Text(
                                         item['name']?.toString() ?? '',
@@ -507,7 +514,9 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
                                             ? (exhausted ? 'Bitti' : 'Ücretsiz')
                                             : '🪙 ${item['coinCost'] ?? 0}',
                                         style: TextStyle(
-                                          color: dailyFree ? AppColors.lime : scheme.onSurfaceVariant,
+                                          color: dailyFree
+                                              ? AppColors.lime
+                                              : scheme.onSurfaceVariant,
                                           fontSize: 9,
                                           fontWeight: FontWeight.w900,
                                         ),
@@ -547,20 +556,28 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
                           width: double.infinity,
                           height: 52,
                           child: FilledButton.icon(
-                            onPressed: recipients.isEmpty || gift == null || sending || selectedFreeExhausted
+                            onPressed: recipients.isEmpty ||
+                                    gift == null ||
+                                    sending ||
+                                    selectedFreeExhausted
                                 ? null
                                 : _send,
                             style: FilledButton.styleFrom(
                               backgroundColor: AppColors.lime,
                               foregroundColor: AppColors.navy,
                               disabledBackgroundColor: scheme.surfaceContainerHigh,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(17),
+                              ),
                             ),
                             icon: sending
                                 ? const SizedBox(
                                     width: 18,
                                     height: 18,
-                                    child: CircularProgressIndicator(strokeWidth: 2.3, color: AppColors.navy),
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.3,
+                                      color: AppColors.navy,
+                                    ),
                                   )
                                 : const Icon(Icons.card_giftcard_rounded),
                             label: Text(
@@ -573,16 +590,6 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
                             ),
                           ),
                         ),
-                        if (!selectedDailyFree && balance < selectedCost) ...[
-                          const SizedBox(height: 6),
-                          Center(
-                            child: TextButton.icon(
-                              onPressed: _openCoinStore,
-                              icon: const Icon(Icons.add_circle_rounded, size: 17),
-                              label: const Text('Yeterli jeton yok · Jeton yükle'),
-                            ),
-                          ),
-                        ],
                       ],
                     ),
                   ),
@@ -600,6 +607,7 @@ Widget _giftPersonAvatar(
 }) {
   final scheme = Theme.of(context).colorScheme;
   final path = photos is List && photos.isNotEmpty ? photos.first.toString() : '';
+
   return Container(
     width: size,
     height: size,
@@ -650,166 +658,53 @@ class RoomGiftMessageCard extends StatefulWidget {
 }
 
 class _RoomGiftMessageCardState extends State<RoomGiftMessageCard> {
-  static final Set<String> _shownGiftFlashes = <String>{};
-  OverlayEntry? _flashEntry;
+  static const _visibleFor = Duration(seconds: 20);
+  Timer? _hideTimer;
+  bool _visible = true;
 
   Map<String, dynamic> get gift => widget.gift;
 
   String get _senderName {
     if (gift['sender_user_id']?.toString() == widget.myUserId) return 'Sen';
-    return gift['display_name']?.toString().trim().isNotEmpty == true
-        ? gift['display_name'].toString().trim()
-        : 'Meet6';
+    final value = gift['display_name']?.toString().trim() ?? '';
+    return value.isEmpty ? 'Meet6' : value;
   }
 
   String get _recipientName {
     if (gift['recipient_user_id']?.toString() == widget.myUserId) return 'Sen';
-    return gift['recipient_display_name']?.toString().trim().isNotEmpty == true
-        ? gift['recipient_display_name'].toString().trim()
-        : 'Meet6';
-  }
-
-  String get _giftIdentity {
-    final id = gift['gift_id']?.toString();
-    if (id != null && id.isNotEmpty) return id;
-    return '${gift['sender_user_id']}:${gift['recipient_user_id']}:${gift['created_at']}';
-  }
-
-  bool get _isRecentGift {
-    final created = DateTime.tryParse(gift['created_at']?.toString() ?? '');
-    if (created == null) return false;
-    return DateTime.now().difference(created.toLocal()).inSeconds.abs() <= 8;
+    final value = gift['recipient_display_name']?.toString().trim() ?? '';
+    return value.isEmpty ? 'Meet6' : value;
   }
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _showGiftFlash());
-  }
+    final created = DateTime.tryParse(gift['created_at']?.toString() ?? '');
+    final elapsed = created == null
+        ? Duration.zero
+        : DateTime.now().difference(created.toLocal());
+    final safeElapsed = elapsed.isNegative ? Duration.zero : elapsed;
+    final remaining = _visibleFor - safeElapsed;
 
-  void _showGiftFlash() {
-    if (!mounted || !_isRecentGift || _shownGiftFlashes.contains(_giftIdentity)) return;
-    final overlay = Overlay.maybeOf(context, rootOverlay: true);
-    if (overlay == null) return;
-    _shownGiftFlashes.add(_giftIdentity);
-
-    final entry = OverlayEntry(
-      builder: (overlayContext) {
-        final topPadding = MediaQuery.paddingOf(overlayContext).top;
-        final scheme = Theme.of(overlayContext).colorScheme;
-        return Positioned(
-          top: topPadding + 154,
-          left: 14,
-          right: 14,
-          child: IgnorePointer(
-            child: Center(
-              child: TweenAnimationBuilder<double>(
-                tween: Tween(begin: .92, end: 1),
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOutBack,
-                builder: (_, value, child) => Opacity(
-                  opacity: value.clamp(0, 1),
-                  child: Transform.scale(scale: value, child: child),
-                ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: Container(
-                    constraints: const BoxConstraints(maxWidth: 345),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-                    decoration: BoxDecoration(
-                      color: scheme.surface,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: AppColors.lime.withValues(alpha: .75), width: 1.4),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: .14),
-                          blurRadius: 22,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _giftPersonAvatar(
-                          overlayContext,
-                          photos: gift['photo_urls'],
-                          name: _senderName,
-                          size: 34,
-                        ),
-                        const SizedBox(width: 7),
-                        Icon(Icons.arrow_forward_rounded, size: 17, color: scheme.onSurfaceVariant),
-                        const SizedBox(width: 5),
-                        _giftVisual(gift, size: 42),
-                        const SizedBox(width: 5),
-                        Icon(Icons.arrow_forward_rounded, size: 17, color: scheme.onSurfaceVariant),
-                        const SizedBox(width: 7),
-                        _giftPersonAvatar(
-                          overlayContext,
-                          photos: gift['recipient_photo_urls'],
-                          name: _recipientName,
-                          size: 44,
-                          accent: true,
-                        ),
-                        const SizedBox(width: 9),
-                        Flexible(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _recipientName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: scheme.onSurface,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                              Text(
-                                '$_senderName · ${gift['gift_name'] ?? 'Hediye'} gönderdi',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: scheme.onSurfaceVariant,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-
-    _flashEntry = entry;
-    overlay.insert(entry);
-    Future<void>.delayed(const Duration(milliseconds: 2800), () {
-      if (_flashEntry == entry) {
-        entry.remove();
-        _flashEntry = null;
-      }
-    });
+    if (remaining <= Duration.zero) {
+      _visible = false;
+    } else {
+      _hideTimer = Timer(remaining, () {
+        if (mounted) setState(() => _visible = false);
+      });
+    }
   }
 
   @override
   void dispose() {
-    _flashEntry?.remove();
-    _flashEntry = null;
+    _hideTimer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (!_visible) return const SizedBox.shrink();
+
     final scheme = Theme.of(context).colorScheme;
     final senderId = gift['sender_user_id']?.toString();
     final recipientId = gift['recipient_user_id']?.toString();
@@ -820,74 +715,107 @@ class _RoomGiftMessageCardState extends State<RoomGiftMessageCard> {
     final giftXp = gift['gift_xp'] ?? 0;
     final generosityXp = gift['generosity_xp'] ?? 0;
 
-    return Align(
-      alignment: senderId == widget.myUserId ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 310),
-        margin: const EdgeInsets.symmetric(vertical: 3),
-        padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-        decoration: BoxDecoration(
-          color: receivedByMe ? AppColors.lime.withValues(alpha: .09) : scheme.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: receivedByMe ? AppColors.lime.withValues(alpha: .7) : scheme.outlineVariant,
-            width: receivedByMe ? 1.2 : 1,
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: .94, end: 1),
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutBack,
+      builder: (_, scale, child) => Transform.scale(scale: scale, child: child),
+      child: Align(
+        alignment: senderId == widget.myUserId
+            ? Alignment.centerRight
+            : Alignment.centerLeft,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 330),
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.fromLTRB(9, 7, 10, 7),
+          decoration: BoxDecoration(
+            color: receivedByMe
+                ? AppColors.lime.withValues(alpha: .10)
+                : scheme.surface,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: receivedByMe
+                  ? AppColors.lime.withValues(alpha: .75)
+                  : scheme.outlineVariant,
+              width: receivedByMe ? 1.4 : 1,
+            ),
           ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _giftPersonAvatar(
-              context,
-              photos: gift['photo_urls'],
-              name: _senderName,
-              size: 24,
-            ),
-            const SizedBox(width: 4),
-            Icon(Icons.arrow_forward_rounded, size: 13, color: scheme.onSurfaceVariant),
-            const SizedBox(width: 4),
-            _giftPersonAvatar(
-              context,
-              photos: gift['recipient_photo_urls'],
-              name: _recipientName,
-              size: 24,
-              accent: receivedByMe,
-            ),
-            const SizedBox(width: 7),
-            Flexible(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '$senderFirst → $recipientFirst · $giftName',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: scheme.onSurface,
-                      fontSize: 10.5,
-                      height: 1.1,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 1),
-                  Text(
-                    '+$giftXp Hediye XP · +$generosityXp Cömertlik XP',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: scheme.onSurfaceVariant,
-                      fontSize: 8.5,
-                      height: 1.05,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _giftPersonAvatar(
+                context,
+                photos: gift['photo_urls'],
+                name: _senderName,
+                size: 29,
               ),
-            ),
-            const SizedBox(width: 5),
-            _giftVisual(gift, size: 31),
-          ],
+              const SizedBox(width: 5),
+              Icon(
+                Icons.arrow_forward_rounded,
+                size: 14,
+                color: scheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 5),
+              _giftVisual(gift, size: 40),
+              const SizedBox(width: 5),
+              Icon(
+                Icons.arrow_forward_rounded,
+                size: 14,
+                color: scheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 5),
+              _giftPersonAvatar(
+                context,
+                photos: gift['recipient_photo_urls'],
+                name: _recipientName,
+                size: 38,
+                accent: true,
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$senderFirst → $recipientFirst',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: scheme.onSurface,
+                        fontSize: 10.5,
+                        height: 1.1,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      '$giftName gönderdi',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: scheme.onSurfaceVariant,
+                        fontSize: 9,
+                        height: 1.05,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      '+$giftXp Hediye XP · +$generosityXp Cömertlik XP',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: scheme.onSurfaceVariant,
+                        fontSize: 7.8,
+                        height: 1.05,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
