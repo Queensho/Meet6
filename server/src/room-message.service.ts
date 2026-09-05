@@ -103,14 +103,14 @@ export class RoomMessageService {
                 $3,
                 $4,
                 jsonb_build_object(
-                  'roomId', $1::text,
-                  'senderUserId', $2::text,
+                  'roomId', ($1::bigint)::text,
+                  'senderUserId', ($2::bigint)::text,
                   'messageId', $5::text
                 )
          from room_members rm
          join users u on u.id=rm.user_id and u.status='active'
-         where rm.room_id=$1
-           and rm.user_id<>$2
+         where rm.room_id=$1::bigint
+           and rm.user_id<>$2::bigint
            and rm.left_at is null
            and rm.admin_removed_at is null`,
         [roomId, userId, `${senderName} · Meet6 odası`, pushBody, messageId],
