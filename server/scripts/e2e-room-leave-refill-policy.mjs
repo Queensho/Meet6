@@ -179,21 +179,9 @@ async function main() {
 
   await cleanup(allIds);
   await normalizeBaseUsers(baseIds);
-  await pool.query(
-    `delete from matches
-     where user_a_id=any($1::bigint[]) and user_b_id=any($1::bigint[])`,
-    [allIds],
-  );
-  await pool.query(
-    `delete from reports
-     where reporter_user_id=any($1::bigint[]) and reported_user_id=any($1::bigint[])`,
-    [allIds],
-  );
-  await pool.query(
-    `delete from blocked_users
-     where blocker_user_id=any($1::bigint[]) and blocked_user_id=any($1::bigint[])`,
-    [allIds],
-  );
+
+  // Keep the earlier product E2E match/private-chat state intact. The extra
+  // refill user is fresh, so there are no block/report/match relations involving it.
 
   // 1) First five minutes: a voluntary leave opens exactly one replacement seat.
   const early = await createTextRoom(baseIds, 2);
