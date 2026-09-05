@@ -211,9 +211,9 @@ export class GiftService {
       const rewards = await client.query<RewardRow>(
         `select reward_key,level,reward_type,amount,title,cosmetic_code
          from xp_reward_catalog
-         where active=true and level<=$2
+         where active=true and level<=$1
          order by level asc,sort_order asc,reward_key asc`,
-        [userId, level],
+        [level],
       );
 
       for (const reward of rewards.rows) {
