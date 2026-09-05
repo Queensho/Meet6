@@ -71,6 +71,30 @@ class VoiceRoomService {
     _decode(response);
   }
 
+  static Future<Map<String, dynamic>> previewStatus(String roomId) async {
+    final response = await http
+        .get(
+          _uri('/api/voice-rooms/$roomId/preview'),
+          headers: await _headers(),
+        )
+        .timeout(const Duration(seconds: 15));
+    return _decode(response);
+  }
+
+  static Future<Map<String, dynamic>> previewDecision(
+    String roomId,
+    bool shouldContinue,
+  ) async {
+    final response = await http
+        .put(
+          _uri('/api/voice-rooms/$roomId/preview-decision'),
+          headers: await _headers(),
+          body: jsonEncode({'continue': shouldContinue}),
+        )
+        .timeout(const Duration(seconds: 15));
+    return _decode(response);
+  }
+
   static Future<VoiceRoomConnection> connection(String roomId) async {
     final response = await http
         .post(
