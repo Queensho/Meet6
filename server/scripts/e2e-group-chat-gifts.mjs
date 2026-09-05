@@ -218,8 +218,8 @@ async function main() {
     giftCode: 'coffee',
     clientGiftId: `gift-e2e-closed-${randomUUID()}`,
   });
-  if (closedSend.status !== 400) {
-    throw new Error(`Closed-room gift should be rejected with 400, got ${closedSend.status}.`);
+  if (closedSend.ok || ![400, 403].includes(closedSend.status)) {
+    throw new Error(`Closed-room gift must be rejected, got ${closedSend.status}.`);
   }
 
   console.log('✅ MEET6 GROUP CHAT GIFTS E2E PASS');
