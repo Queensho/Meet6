@@ -508,9 +508,9 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
 
   String _timerText() {
     final status = room?['status']?.toString();
-    final raw = isPreview && status == 'selection'
-        ? room?['selectionSecondsLeft']
-        : room?['secondsLeft'];
+    final previewRaw = room?['selectionSecondsLeft'];
+    final activeRaw = room?['secondsLeft'];
+    final raw = isPreview && status == 'selection' ? previewRaw : activeRaw;
     final seconds = ((raw as num?)?.toInt() ?? 0).clamp(0, 60 * 60);
     return '${(seconds ~/ 60).toString().padLeft(2, '0')}:${(seconds % 60).toString().padLeft(2, '0')}';
   }
