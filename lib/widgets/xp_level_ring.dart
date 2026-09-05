@@ -79,7 +79,7 @@ class _XpLevelRingState extends State<XpLevelRing>
     super.dispose();
   }
 
-  int get _safeLevel => widget.level.clamp(1, 30);
+  int get _safeLevel => widget.level.clamp(1, 30).toInt();
 
   XpRewardTier get _tier => xpRewardTierForLevel(_safeLevel);
 
@@ -388,7 +388,9 @@ class _EliteRoomAuraState extends State<EliteRoomAura>
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: AppColors.lime.withValues(alpha: .05 + (.04 * t)),
+                        color: AppColors.lime.withValues(
+                          alpha: .05 + (.04 * t),
+                        ),
                         blurRadius: 16 + (8 * t),
                         spreadRadius: 1,
                       ),
