@@ -3,12 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../services/api_service.dart';
+import '../../services/gift_service.dart';
 import '../../services/live_service.dart';
 import '../../services/realtime_service.dart';
 import '../../services/session_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/phone_frame.dart';
 import 'room_force_selection_button.dart';
+import 'room_gift_sheet.dart';
 import 'room_selection_screen.dart';
 
 class RoomChatScreen extends StatefulWidget {
@@ -35,10 +37,12 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
   String? myUserId;
   Map<String, dynamic>? room;
   int lastMessageId = 0;
+  int lastGiftId = 0;
   bool sending = false;
   bool loading = true;
   bool navigating = false;
   bool extensionSheetOpen = false;
+  bool giftSheetOpen = false;
   String? error;
 
   @override
@@ -84,11 +88,18 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
     }
     if (event.type == 'room:message' && event.data['roomId']?.toString() == widget.roomId) {
       final raw = event.data['message'];
-      if (raw is Map) _appendMessage(Map<String, dynamic>.from(raw));
+      if (raw is Map) {
+        final message = Map<String, dynamic>.from(raw);
+        if (message['_kind']?.toString() == 'gift') {
+          _appendGift(message);
+        } else {
+          _appendMessage(message);
+        }
+      }
       return;
     }
     if (event.type == 'room:sync-messages' && event.data['roomId']?.toString() == widget.roomId) {
-      unawaited(_loadNewMessages());
+      unawaited(_loadTimeline());
     }
   }
 
@@ -103,7 +114,7 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
     if (!mounted || navigating) return;
     try {
       final roomData = await LiveService.room(widget.roomId);
-      await _loadNewMessages();
+      await _loadTimeline();
       if (!mounted) return;
       setState(() {
         room = roomData;
@@ -120,27 +131,105 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
     }
   }
 
+  Future<void> _loadTimeline() async {
+    await Future.wait([
+      _loadNewMessages(),
+      _loadNewGifts(),
+    ]);
+  }
+
   Future<void> _loadNewMessages() async {
     try {
       final incoming = await LiveService.roomMessages(widget.roomId, after: lastMessageId);
       if (!mounted) return;
       for (final message in incoming) {
-        _appendMessage(message, rebuild: false);
+        _appendMessage(message, rebuild: false, scroll: false);
       }
       if (incoming.isNotEmpty) {
+        _sortTimeline();
         setState(() {});
         _scrollToBottom();
       }
     } catch (_) {}
   }
 
-  void _appendMessage(Map<String, dynamic> message, {bool rebuild = true}) {
+  Future<void> _loadNewGifts() async {
+    try {
+      final incoming = await GiftService.roomHistory(widget.roomId, after: lastGiftId);
+      if (!mounted) return;
+      for (final gift in incoming) {
+        _appendGift(gift, rebuild: false, scroll: false);
+      }
+      if (incoming.isNotEmpty) {
+        _sortTimeline();
+        setState(() {});
+        _scrollToBottom();
+      }
+    } catch (_) {
+      // Hediye geçmişi geçici olarak alınamazsa normal sohbet çalışmaya devam eder.
+    }
+  }
+
+  void _appendMessage(
+    Map<String, dynamic> message, {
+    bool rebuild = true,
+    bool scroll = true,
+  }) {
     final id = int.tryParse(message['id']?.toString() ?? '') ?? 0;
-    if (id > 0 && messages.any((item) => item['id']?.toString() == '$id')) return;
+    if (id > 0 && messages.any((item) => item['_kind'] != 'gift' && item['id']?.toString() == '$id')) {
+      return;
+    }
     if (id > lastMessageId) lastMessageId = id;
-    messages.add(message);
+    messages.add({...message, '_kind': message['_kind'] ?? 'text'});
+    _sortTimeline();
     if (rebuild && mounted) setState(() {});
-    _scrollToBottom();
+    if (scroll) _scrollToBottom();
+  }
+
+  void _appendGift(
+    Map<String, dynamic> gift, {
+    bool rebuild = true,
+    bool scroll = true,
+  }) {
+    final giftId = int.tryParse(gift['gift_id']?.toString() ?? '') ?? 0;
+    if (giftId > 0 && messages.any((item) => item['_kind'] == 'gift' && item['gift_id']?.toString() == '$giftId')) {
+      return;
+    }
+    if (giftId > lastGiftId) lastGiftId = giftId;
+    messages.add({...gift, '_kind': 'gift'});
+    _sortTimeline();
+    if (rebuild && mounted) setState(() {});
+    if (scroll) _scrollToBottom();
+
+    if (gift['recipient_user_id']?.toString() == myUserId &&
+        gift['sender_user_id']?.toString() != myUserId &&
+        rebuild &&
+        mounted) {
+      final sender = gift['display_name']?.toString() ?? 'Biri';
+      final emoji = gift['emoji']?.toString() ?? '🎁';
+      final name = gift['gift_name']?.toString() ?? 'hediye';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+          content: Text('$sender sana $emoji $name gönderdi.'),
+        ),
+      );
+    }
+  }
+
+  void _sortTimeline() {
+    messages.sort((a, b) {
+      final aTime = DateTime.tryParse(a['created_at']?.toString() ?? '')?.millisecondsSinceEpoch ?? 0;
+      final bTime = DateTime.tryParse(b['created_at']?.toString() ?? '')?.millisecondsSinceEpoch ?? 0;
+      if (aTime != bTime) return aTime.compareTo(bTime);
+      final aGift = a['_kind'] == 'gift';
+      final bGift = b['_kind'] == 'gift';
+      if (aGift != bGift) return aGift ? 1 : -1;
+      final aId = int.tryParse((aGift ? a['gift_id'] : a['id'])?.toString() ?? '') ?? 0;
+      final bId = int.tryParse((bGift ? b['gift_id'] : b['id'])?.toString() ?? '') ?? 0;
+      return aId.compareTo(bId);
+    });
   }
 
   void _startCountdown() {
@@ -262,6 +351,31 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
     extensionSheetOpen = false;
   }
 
+  Future<void> _openGiftSheet() async {
+    final userId = myUserId;
+    if (userId == null || userId.isEmpty || giftSheetOpen || room?['status'] != 'active') return;
+    if (members.length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Hediye gönderebileceğin başka biri odada değil.')),
+      );
+      return;
+    }
+
+    giftSheetOpen = true;
+    final result = await RoomGiftSheet.show(
+      context,
+      roomId: widget.roomId,
+      members: members,
+      myUserId: userId,
+    );
+    giftSheetOpen = false;
+    if (!mounted || result == null) return;
+    final rawGift = result['gift'];
+    if (rawGift is Map) {
+      _appendGift(Map<String, dynamic>.from(rawGift));
+    }
+  }
+
   Future<void> _send() async {
     final text = messageController.text.trim();
     if (text.isEmpty || sending || room?['status'] != 'active') return;
@@ -296,6 +410,39 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
     final raw = room?['members'];
     if (raw is! List) return const [];
     return raw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+  }
+
+  Widget _avatar(Map<String, dynamic> member, {double size = 44}) {
+    final scheme = Theme.of(context).colorScheme;
+    final photos = member['photo_urls'];
+    final path = photos is List && photos.isNotEmpty ? photos.first.toString() : '';
+    final name = member['display_name']?.toString().trim() ?? '';
+    final mine = member['user_id']?.toString() == myUserId;
+    return Container(
+      width: size,
+      height: size,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: AppColors.navy,
+        border: Border.all(
+          color: mine ? AppColors.lime : scheme.outlineVariant,
+          width: mine ? 2.5 : 1.5,
+        ),
+      ),
+      child: path.isEmpty
+          ? Center(
+              child: Text(
+                name.isEmpty ? '?' : name.characters.first.toUpperCase(),
+                style: const TextStyle(color: AppColors.lime, fontWeight: FontWeight.w900),
+              ),
+            )
+          : Image.network(
+              ApiService.absoluteMediaUrl(path),
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => const Icon(Icons.person_rounded, color: AppColors.lime),
+            ),
+    );
   }
 
   @override
@@ -388,8 +535,6 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
                 separatorBuilder: (_, __) => const SizedBox(width: 10),
                 itemBuilder: (context, index) {
                   final member = members[index];
-                  final photos = member['photo_urls'];
-                  final path = photos is List && photos.isNotEmpty ? photos.first.toString() : '';
                   final name = member['display_name']?.toString() ?? 'Meet6';
                   final mine = member['user_id']?.toString() == myUserId;
                   return SizedBox(
@@ -397,37 +542,7 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Container(
-                          width: 44,
-                          height: 44,
-                          clipBehavior: Clip.antiAlias,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: AppColors.navy,
-                            border: Border.all(
-                              color: mine ? AppColors.lime : scheme.outlineVariant,
-                              width: mine ? 2.5 : 1.5,
-                            ),
-                          ),
-                          child: path.isEmpty
-                              ? Center(
-                                  child: Text(
-                                    name.characters.first.toUpperCase(),
-                                    style: const TextStyle(
-                                      color: AppColors.lime,
-                                      fontWeight: FontWeight.w900,
-                                    ),
-                                  ),
-                                )
-                              : Image.network(
-                                  ApiService.absoluteMediaUrl(path),
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => const Icon(
-                                    Icons.person_rounded,
-                                    color: AppColors.lime,
-                                  ),
-                                ),
-                        ),
+                        _avatar(member),
                         const SizedBox(height: 3),
                         Text(
                           mine ? 'Sen' : name.split(' ').first,
@@ -467,6 +582,10 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
                           itemCount: messages.length,
                           itemBuilder: (context, index) {
                             final message = messages[index];
+                            if (message['_kind']?.toString() == 'gift') {
+                              return RoomGiftMessageCard(gift: message, myUserId: myUserId);
+                            }
+
                             final senderId = message['sender_user_id']?.toString();
                             final system = senderId == null || senderId == 'null';
                             if (system) {
@@ -562,7 +681,18 @@ class _RoomChatScreenState extends State<RoomChatScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
+                    IconButton(
+                      tooltip: 'Hediye gönder',
+                      onPressed: room?['status'] == 'active' ? _openGiftSheet : null,
+                      style: IconButton.styleFrom(
+                        backgroundColor: scheme.surfaceContainerHigh,
+                        foregroundColor: scheme.onSurface,
+                        minimumSize: const Size(46, 46),
+                      ),
+                      icon: const Icon(Icons.card_giftcard_rounded),
+                    ),
+                    const SizedBox(width: 6),
                     IconButton.filled(
                       onPressed: sending ? null : _send,
                       style: IconButton.styleFrom(
