@@ -24,6 +24,13 @@ type SubscriptionRow = {
   updated_at: Date;
 };
 
+type PremiumGrantRow = {
+  source: string;
+  source_key: string;
+  starts_at: Date;
+  expires_at: Date;
+};
+
 type RevenueCatEntitlement = {
   expires_date?: string | null;
   product_identifier?: string | null;
@@ -90,13 +97,32 @@ export class BillingService {
     return result.rows[0];
   }
 
+  private async activeGrant(userId: string) {
+    const result = await this.infra.db.query<PremiumGrantRow>(
+      `select source,source_key,starts_at,expires_at
+       from premium_grants
+       where user_id=$1 and starts_at<=now() and expires_at>now()
+       order by expires_at desc
+       limit 1`,
+      [userId],
+    );
+    return result.rows[0];
+  }
+
   async isPremium(userId: string) {
-    return this.isActiveRow(await this.row(userId));
+    const [subscription, grant] = await Promise.all([
+      this.row(userId),
+      this.activeGrant(userId),
+    ]);
+    return this.isActiveRow(subscription) || grant != null;
   }
 
   async getSubscription(userId: string) {
-    const row = await this.row(userId);
-    const premium = this.isActiveRow(row);
+    const [row, grant] = await Promise.all([
+      this.row(userId),
+      this.activeGrant(userId),
+    ]);
+    const premium = this.isActiveRow(row) || grant != null;
     return {
       ok: true,
       premium,
@@ -111,6 +137,14 @@ export class BillingService {
             expiresAt: row.expires_at,
             willRenew: row.will_renew,
             updatedAt: row.updated_at,
+          }
+        : null,
+      rewardPremium: grant
+        ? {
+            source: grant.source,
+            sourceKey: grant.source_key,
+            startsAt: grant.starts_at,
+            expiresAt: grant.expires_at,
           }
         : null,
       benefits: {
