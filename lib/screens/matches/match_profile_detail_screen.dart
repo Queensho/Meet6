@@ -6,6 +6,7 @@ import '../../services/gift_service.dart';
 import '../../services/live_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/phone_frame.dart';
+import '../../widgets/xp_level_ring.dart';
 import '../messages/private_chat_screen.dart';
 
 class MatchProfileDetailScreen extends StatefulWidget {
@@ -21,7 +22,8 @@ class MatchProfileDetailScreen extends StatefulWidget {
   final MatchingPreferences preferences;
 
   @override
-  State<MatchProfileDetailScreen> createState() => _MatchProfileDetailScreenState();
+  State<MatchProfileDetailScreen> createState() =>
+      _MatchProfileDetailScreenState();
 }
 
 class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
@@ -52,7 +54,7 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
             nextSummary = Map<String, dynamic>.from(rawSummary);
           }
         } catch (_) {
-          // Seviye bilgisi yüklenemese de profil detayını göstermeye devam et.
+          // Profil seviye özeti alınamasa da detay ekranı açılmaya devam eder.
         }
       }
 
@@ -75,18 +77,26 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
   List<String> get photos {
     final raw = profile?['photo_urls'];
     if (raw is! List) return const [];
-    return raw.map((e) => e.toString()).where((e) => e.isNotEmpty).toList();
+    return raw
+        .map((e) => e.toString())
+        .where((e) => e.isNotEmpty)
+        .toList();
   }
 
   List<String> get interests {
     final raw = profile?['interests'];
     if (raw is! List) return const [];
-    return raw.map((e) => e.toString()).where((e) => e.isNotEmpty).toList();
+    return raw
+        .map((e) => e.toString())
+        .where((e) => e.isNotEmpty)
+        .toList();
   }
 
   String get name => profile?['display_name']?.toString() ?? 'Meet6';
   String get userId => profile?['user_id']?.toString() ?? '';
-  int get profileLevel => (socialSummary?['profileLevel'] as num?)?.toInt() ?? 1;
+  int get profileLevel =>
+      (socialSummary?['profileLevel'] as num?)?.toInt() ?? 1;
+  int get profileXp => (socialSummary?['profileXp'] as num?)?.toInt() ?? 0;
   bool get isOnline => profile?['online'] == true;
   bool get isPremium =>
       profile?['premium'] == true ||
@@ -94,7 +104,8 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
       profile?['premium_active'] == true;
 
   String get locationText => [profile?['city'], profile?['country']]
-      .where((value) => value != null && value.toString().trim().isNotEmpty)
+      .where((value) =>
+          value != null && value.toString().trim().isNotEmpty)
       .map((value) => value.toString().trim())
       .join(', ');
 
@@ -124,7 +135,8 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
       if (mounted) Navigator.of(context).pop();
     } on ApiException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
       }
     }
   }
@@ -160,14 +172,19 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
                   'Sahte profil',
                   'Spam',
                   'Diğer',
-                ].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-                onChanged: (value) => setDialogState(() => reason = value ?? reason),
+                ]
+                    .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                    .toList(),
+                onChanged: (value) =>
+                    setDialogState(() => reason = value ?? reason),
               ),
               const SizedBox(height: 10),
               TextField(
                 controller: detail,
                 maxLines: 3,
-                decoration: const InputDecoration(hintText: 'Ayrıntı ekle (isteğe bağlı)'),
+                decoration: const InputDecoration(
+                  hintText: 'Ayrıntı ekle (isteğe bağlı)',
+                ),
               ),
             ],
           ),
@@ -184,11 +201,18 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
         ),
       ),
     );
+
     if (approved == true) {
-      await LiveService.reportUser(userId, reason: reason, detail: detail.text);
+      await LiveService.reportUser(
+        userId,
+        reason: reason,
+        detail: detail.text,
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Şikâyetin inceleme kuyruğuna alındı.')),
+          const SnackBar(
+            content: Text('Şikâyetin inceleme kuyruğuna alındı.'),
+          ),
         );
       }
     }
@@ -243,7 +267,10 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
                   onTap: () => Navigator.pop(sheetContext, 'unmatch'),
                 ),
                 ListTile(
-                  leading: const Icon(Icons.block_rounded, color: Color(0xFFE24A4A)),
+                  leading: const Icon(
+                    Icons.block_rounded,
+                    color: Color(0xFFE24A4A),
+                  ),
                   title: const Text(
                     'Kullanıcıyı engelle',
                     style: TextStyle(color: Color(0xFFE24A4A)),
@@ -256,6 +283,7 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
         );
       },
     );
+
     if (action == 'report') await _report();
     if (action == 'unmatch') await _unmatch();
     if (action == 'block') await _block();
@@ -314,7 +342,7 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
           ),
         ),
         if (isPremium)
-          Positioned(
+          const Positioned(
             left: 8,
             bottom: -12,
             child: _StatusPill(
@@ -327,9 +355,13 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
             ),
           ),
         Positioned(
-          right: 8,
-          bottom: -12,
-          child: _LevelBadge(level: profileLevel),
+          right: -10,
+          bottom: -28,
+          child: XpLevelRing(
+            level: profileLevel,
+            totalXp: profileXp,
+            size: 62,
+          ),
         ),
       ],
     );
@@ -348,7 +380,9 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
       backgroundColor: theme.scaffoldBackgroundColor,
       body: PhoneFrame(
         child: loading
-            ? const Center(child: CircularProgressIndicator(color: AppColors.lime))
+            ? const Center(
+                child: CircularProgressIndicator(color: AppColors.lime),
+              )
             : error != null
                 ? Center(
                     child: Padding(
@@ -362,7 +396,10 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
                             style: TextStyle(color: scheme.onSurfaceVariant),
                           ),
                           const SizedBox(height: 12),
-                          FilledButton(onPressed: _load, child: const Text('Tekrar dene')),
+                          FilledButton(
+                            onPressed: _load,
+                            child: const Text('Tekrar dene'),
+                          ),
                         ],
                       ),
                     ),
@@ -372,17 +409,26 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
                       Positioned(
                         top: 28,
                         right: -42,
-                        child: _DecorCircle(size: 156, color: AppColors.lime.withValues(alpha: .22)),
+                        child: _DecorCircle(
+                          size: 156,
+                          color: AppColors.lime.withValues(alpha: .22),
+                        ),
                       ),
                       Positioned(
                         top: 245,
                         left: -66,
-                        child: _DecorCircle(size: 168, color: AppColors.lime.withValues(alpha: .11)),
+                        child: _DecorCircle(
+                          size: 168,
+                          color: AppColors.lime.withValues(alpha: .11),
+                        ),
                       ),
                       Positioned(
                         top: 500,
                         right: -76,
-                        child: _DecorCircle(size: 190, color: AppColors.navy.withValues(alpha: .035)),
+                        child: _DecorCircle(
+                          size: 190,
+                          color: AppColors.navy.withValues(alpha: .035),
+                        ),
                       ),
                       Positioned.fill(
                         child: SingleChildScrollView(
@@ -390,10 +436,11 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
                           child: Column(
                             children: [
                               Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 34),
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 34),
                                 child: _heroPhoto(context),
                               ),
-                              const SizedBox(height: 38),
+                              const SizedBox(height: 48),
                               Text(
                                 age == null ? name : '$name, $age',
                                 textAlign: TextAlign.center,
@@ -464,7 +511,9 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
                                 icon: Icons.article_outlined,
                                 title: 'Hakkında',
                                 child: Text(
-                                  bio.isEmpty ? 'Henüz hakkında bilgisi eklenmemiş.' : bio,
+                                  bio.isEmpty
+                                      ? 'Henüz hakkında bilgisi eklenmemiş.'
+                                      : bio,
                                   style: TextStyle(
                                     color: scheme.onSurfaceVariant,
                                     fontSize: 13.5,
@@ -489,8 +538,10 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
                                               vertical: 8,
                                             ),
                                             decoration: BoxDecoration(
-                                              color: scheme.surfaceContainerHigh,
-                                              borderRadius: BorderRadius.circular(999),
+                                              color:
+                                                  scheme.surfaceContainerHigh,
+                                              borderRadius:
+                                                  BorderRadius.circular(999),
                                             ),
                                             child: Text(
                                               item,
@@ -506,17 +557,17 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
                                   ),
                                 ),
                               ],
-                              if (prompt.isNotEmpty && answer.isNotEmpty) ...[
+                              if (prompt.isNotEmpty || answer.isNotEmpty) ...[
                                 const SizedBox(height: 14),
                                 _ProfileSection(
                                   icon: Icons.chat_bubble_outline_rounded,
-                                  title: prompt,
+                                  title: prompt.isEmpty ? 'Profil sorusu' : prompt,
                                   child: Text(
                                     answer,
                                     style: TextStyle(
                                       color: scheme.onSurfaceVariant,
                                       fontSize: 13.5,
-                                      height: 1.45,
+                                      height: 1.5,
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),
@@ -561,12 +612,16 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
                                 height: 62,
                                 decoration: BoxDecoration(
                                   gradient: const LinearGradient(
-                                    colors: [Color(0xFFD8FF2F), Color(0xFFBFFF24)],
+                                    colors: [
+                                      Color(0xFFD8FF2F),
+                                      Color(0xFFBFFF24),
+                                    ],
                                   ),
                                   borderRadius: BorderRadius.circular(28),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: AppColors.lime.withValues(alpha: .26),
+                                      color: AppColors.lime
+                                          .withValues(alpha: .26),
                                       blurRadius: 24,
                                       offset: const Offset(0, 10),
                                     ),
@@ -575,7 +630,11 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
                                 child: const Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(Icons.send_rounded, color: AppColors.navy, size: 24),
+                                    Icon(
+                                      Icons.send_rounded,
+                                      color: AppColors.navy,
+                                      size: 24,
+                                    ),
                                     SizedBox(width: 12),
                                     Text(
                                       'Mesaj gönder',
@@ -600,7 +659,10 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
 }
 
 class _CircleActionButton extends StatelessWidget {
-  const _CircleActionButton({required this.onPressed, required this.icon});
+  const _CircleActionButton({
+    required this.onPressed,
+    required this.icon,
+  });
 
   final VoidCallback onPressed;
   final IconData icon;
@@ -615,7 +677,9 @@ class _CircleActionButton extends StatelessWidget {
         foregroundColor: AppColors.navy,
         minimumSize: const Size(54, 54),
         shape: const CircleBorder(),
-        side: BorderSide(color: scheme.outlineVariant.withValues(alpha: .65)),
+        side: BorderSide(
+          color: scheme.outlineVariant.withValues(alpha: .65),
+        ),
         elevation: 2,
       ),
       icon: Icon(icon, size: 24),
@@ -665,41 +729,6 @@ class _StatusPill extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _LevelBadge extends StatelessWidget {
-  const _LevelBadge({required this.level});
-
-  final int level;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 68,
-      height: 68,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: AppColors.navy,
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 5),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.navy.withValues(alpha: .16),
-            blurRadius: 12,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Text(
-        'Lv $level',
-        style: const TextStyle(
-          color: AppColors.lime,
-          fontSize: 13,
-          fontWeight: FontWeight.w900,
-        ),
       ),
     );
   }
@@ -778,14 +807,12 @@ class _DecorCircle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: color,
-        ),
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: color, width: 28),
       ),
     );
   }

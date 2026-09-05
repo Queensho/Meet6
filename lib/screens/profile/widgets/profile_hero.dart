@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../services/api_service.dart';
 import '../../../services/gift_service.dart';
 import '../../../theme/app_colors.dart';
+import '../../../widgets/xp_level_ring.dart';
 import '../../premium/premium_profile_card.dart';
 import 'xp_rewards_sheet.dart';
 
@@ -30,16 +31,6 @@ class _ProfileHeroState extends State<ProfileHero> {
     return value.isEmpty ? 'S' : value.characters.first.toUpperCase();
   }
 
-  String _formatXp(int value) {
-    final raw = math.max(0, value).toString();
-    final out = StringBuffer();
-    for (var i = 0; i < raw.length; i++) {
-      if (i > 0 && (raw.length - i) % 3 == 0) out.write('.');
-      out.write(raw[i]);
-    }
-    return out.toString();
-  }
-
   int _profileLevel(int xp) {
     final safeXp = math.max(0, xp);
     return math.min(30, 1 + math.sqrt(safeXp / 50).floor());
@@ -54,103 +45,31 @@ class _ProfileHeroState extends State<ProfileHero> {
             ? Map<String, dynamic>.from(raw)
             : const <String, dynamic>{};
         final totalXp = (summary['profileXp'] as num?)?.toInt() ?? 0;
-        final level = (summary['profileLevel'] as num?)?.toInt() ?? _profileLevel(totalXp);
+        final level =
+            (summary['profileLevel'] as num?)?.toInt() ?? _profileLevel(totalXp);
 
-        return Semantics(
-          button: true,
-          label: 'Seviye $level, ${_formatXp(totalXp)} XP. Seviye ödüllerini aç.',
-          child: Material(
-            color: Colors.transparent,
-            shape: const CircleBorder(),
-            child: InkWell(
-              onTap: () => XpRewardsSheet.show(context),
-              customBorder: const CircleBorder(),
-              child: Container(
-                width: 58,
-                height: 58,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: const RadialGradient(
-                    center: Alignment(-.18, -.28),
-                    radius: 1.05,
-                    colors: [
-                      Color(0xFF1D2B4D),
-                      Color(0xFF07142F),
-                    ],
-                  ),
-                  border: Border.all(color: AppColors.navy, width: 2),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x2A000000),
-                      blurRadius: 10,
-                      offset: Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Container(
-                  margin: const EdgeInsets.all(3),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: AppColors.lime.withValues(alpha: .85),
-                      width: 1.3,
-                    ),
-                  ),
-                  child: snapshot.connectionState == ConnectionState.waiting
-                      ? const Center(
-                          child: SizedBox(
-                            width: 13,
-                            height: 13,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 1.6,
-                              color: AppColors.lime,
-                            ),
-                          ),
-                        )
-                      : Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text.rich(
-                              TextSpan(
-                                children: [
-                                  const TextSpan(
-                                    text: 'Lv ',
-                                    style: TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 9.5,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                  TextSpan(
-                                    text: '$level',
-                                    style: const TextStyle(
-                                      color: AppColors.lime,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w900,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              maxLines: 1,
-                            ),
-                            const SizedBox(height: 1),
-                            Text(
-                              '${_formatXp(totalXp)} XP',
-                              maxLines: 1,
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 6.3,
-                                height: 1,
-                                letterSpacing: .1,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ],
-                        ),
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox(
+            width: 58,
+            height: 58,
+            child: Center(
+              child: SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 1.8,
+                  color: AppColors.lime,
                 ),
               ),
             ),
-          ),
+          );
+        }
+
+        return XpLevelRing(
+          level: level,
+          totalXp: totalXp,
+          size: 58,
+          onTap: () => XpRewardsSheet.show(context),
         );
       },
     );
@@ -269,21 +188,21 @@ class _ProfileHeroState extends State<ProfileHero> {
         Positioned(
           bottom: -58,
           child: SizedBox(
-            width: 282,
-            height: 136,
+            width: 310,
+            height: 150,
             child: Stack(
               clipBehavior: Clip.none,
               alignment: Alignment.topCenter,
               children: [
                 _avatar(resolvedImage),
                 const Positioned(
-                  left: 23,
+                  left: 28,
                   top: 37,
                   child: PremiumProfileCard(),
                 ),
                 Positioned(
-                  right: 23,
-                  top: 37,
+                  right: 2,
+                  top: 17,
                   child: _xpBadge(),
                 ),
               ],
