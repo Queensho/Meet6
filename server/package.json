@@ -9,6 +9,7 @@
     "migrate": "node scripts/migrate.mjs",
     "admin:grant": "node scripts/grant-admin.mjs",
     "test:room-fill": "node scripts/live-room-test-fill.mjs fill",
+    "test:room-solo": "node scripts/live-room-test-solo.mjs",
     "test:room-clear": "node scripts/live-room-test-fill.mjs clear",
     "e2e:live": "node scripts/e2e-live.mjs",
     "e2e:realtime": "node scripts/e2e-realtime.mjs",
