@@ -29,6 +29,12 @@ export class CoinPurchaseService {
     return (process.env.REVENUECAT_SECRET_API_KEY ?? '').trim();
   }
 
+  private get revenueCatApiBaseUrl() {
+    return (process.env.REVENUECAT_API_BASE_URL ?? 'https://api.revenuecat.com/v1')
+      .trim()
+      .replace(/\/+$/, '');
+  }
+
   private async ensureWallet(userId: string) {
     await this.infra.db.query(
       `insert into user_wallets(user_id) values($1)
@@ -75,7 +81,7 @@ export class CoinPurchaseService {
     }
 
     const response = await fetch(
-      `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(userId)}`,
+      `${this.revenueCatApiBaseUrl}/subscribers/${encodeURIComponent(userId)}`,
       {
         method: 'GET',
         headers: {
