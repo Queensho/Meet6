@@ -6,7 +6,6 @@ import '../../../services/api_service.dart';
 import '../../../services/gift_service.dart';
 import '../../../theme/app_colors.dart';
 import '../../../widgets/xp_level_ring.dart';
-import '../../premium/premium_profile_card.dart';
 import 'xp_rewards_sheet.dart';
 
 class ProfileHero extends StatefulWidget {
@@ -195,10 +194,18 @@ class _ProfileHeroState extends State<ProfileHero> {
               alignment: Alignment.topCenter,
               children: [
                 _avatar(resolvedImage),
-                const Positioned(
-                  left: 28,
-                  top: 37,
-                  child: PremiumProfileCard(),
+                Positioned(
+                  left: 8,
+                  top: 24,
+                  child: IgnorePointer(
+                    child: Image.asset(
+                      'assets/images/premium_badge.png',
+                      width: 92,
+                      height: 76,
+                      fit: BoxFit.contain,
+                      filterQuality: FilterQuality.high,
+                    ),
+                  ),
                 ),
                 Positioned(
                   right: 2,
