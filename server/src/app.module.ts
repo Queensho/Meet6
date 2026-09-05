@@ -17,6 +17,8 @@ import { AuthService } from './auth.service';
 import { BillingController } from './billing.controller';
 import { BillingService } from './billing.service';
 import { ContentSafetyService } from './content-safety.service';
+import { GiftController } from './gift.controller';
+import { GiftService } from './gift.service';
 import { HealthController } from './health.controller';
 import { InfrastructureService } from './infrastructure.service';
 import { MatchmakingSchedulerService } from './matchmaking-scheduler.service';
@@ -53,6 +55,7 @@ import { VoiceRoomService } from './voice-room.service';
     AuthController,
     ProfileController,
     BillingController,
+    GiftController,
     RoomController,
     VoiceRoomController,
     ActiveRoomController,
@@ -69,6 +72,7 @@ import { VoiceRoomService } from './voice-room.service';
     AuthService,
     ProfileService,
     BillingService,
+    GiftService,
     RoomService,
     RoomRefillService,
     VoiceRoomService,

@@ -1,0 +1,567 @@
+import 'package:flutter/material.dart';
+
+import '../../services/api_service.dart';
+import '../../services/gift_service.dart';
+import '../../theme/app_colors.dart';
+
+class RoomGiftSheet extends StatefulWidget {
+  const RoomGiftSheet({
+    super.key,
+    required this.roomId,
+    required this.members,
+    required this.myUserId,
+  });
+
+  final String roomId;
+  final List<Map<String, dynamic>> members;
+  final String myUserId;
+
+  static Future<Map<String, dynamic>?> show(
+    BuildContext context, {
+    required String roomId,
+    required List<Map<String, dynamic>> members,
+    required String myUserId,
+  }) {
+    return showModalBottomSheet<Map<String, dynamic>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => RoomGiftSheet(
+        roomId: roomId,
+        members: members,
+        myUserId: myUserId,
+      ),
+    );
+  }
+
+  @override
+  State<RoomGiftSheet> createState() => _RoomGiftSheetState();
+}
+
+class _RoomGiftSheetState extends State<RoomGiftSheet> {
+  Map<String, dynamic>? catalog;
+  String? selectedRecipientId;
+  String? selectedGiftCode;
+  bool loading = true;
+  bool sending = false;
+  String? error;
+
+  List<Map<String, dynamic>> get recipients => widget.members
+      .where((member) => member['user_id']?.toString() != widget.myUserId)
+      .toList(growable: false);
+
+  List<Map<String, dynamic>> get gifts {
+    final raw = catalog?['gifts'];
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList(growable: false);
+  }
+
+  Map<String, dynamic> get wallet {
+    final raw = catalog?['wallet'];
+    return raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+  }
+
+  Map<String, dynamic>? get selectedGift {
+    for (final gift in gifts) {
+      if (gift['code']?.toString() == selectedGiftCode) return gift;
+    }
+    return null;
+  }
+
+  int get balance => (wallet['coinBalance'] as num?)?.toInt() ?? 0;
+
+  @override
+  void initState() {
+    super.initState();
+    if (recipients.isNotEmpty) {
+      selectedRecipientId = recipients.first['user_id']?.toString();
+    }
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final data = await GiftService.catalog();
+      if (!mounted) return;
+      setState(() {
+        catalog = data;
+        selectedGiftCode = gifts.isEmpty ? null : gifts.first['code']?.toString();
+        loading = false;
+        error = null;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        error = e.message;
+      });
+    }
+  }
+
+  Future<void> _send() async {
+    final recipientId = selectedRecipientId;
+    final gift = selectedGift;
+    if (recipientId == null || gift == null || sending) return;
+    final cost = (gift['coinCost'] as num?)?.toInt() ?? 0;
+    if (balance < cost) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Yeterli jetonun yok.')),
+      );
+      return;
+    }
+
+    setState(() => sending = true);
+    try {
+      final result = await GiftService.sendRoomGift(
+        roomId: widget.roomId,
+        recipientUserId: recipientId,
+        giftCode: gift['code']?.toString() ?? '',
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop(result);
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => sending = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
+  Widget _avatar(Map<String, dynamic> member, {double size = 42}) {
+    final scheme = Theme.of(context).colorScheme;
+    final photos = member['photo_urls'];
+    final path = photos is List && photos.isNotEmpty ? photos.first.toString() : '';
+    final name = member['display_name']?.toString().trim() ?? '';
+    return Container(
+      width: size,
+      height: size,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: AppColors.navy,
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: path.isEmpty
+          ? Center(
+              child: Text(
+                name.isEmpty ? '?' : name.characters.first.toUpperCase(),
+                style: const TextStyle(color: AppColors.lime, fontWeight: FontWeight.w900),
+              ),
+            )
+          : Image.network(
+              ApiService.absoluteMediaUrl(path),
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => const Icon(Icons.person_rounded, color: AppColors.lime),
+            ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final dark = theme.brightness == Brightness.dark;
+    final gift = selectedGift;
+    final selectedCost = (gift?['coinCost'] as num?)?.toInt() ?? 0;
+
+    return SafeArea(
+      top: false,
+      child: Container(
+        constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * .78),
+        decoration: BoxDecoration(
+          color: scheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+        ),
+        child: loading
+            ? const SizedBox(
+                height: 280,
+                child: Center(child: CircularProgressIndicator(color: AppColors.lime)),
+              )
+            : error != null
+                ? SizedBox(
+                    height: 280,
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(error!, textAlign: TextAlign.center),
+                            const SizedBox(height: 12),
+                            FilledButton(onPressed: _load, child: const Text('Tekrar dene')),
+                          ],
+                        ),
+                      ),
+                    ),
+                  )
+                : SingleChildScrollView(
+                    padding: EdgeInsets.fromLTRB(
+                      18,
+                      12,
+                      18,
+                      18 + MediaQuery.viewInsetsOf(context).bottom,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Center(
+                          child: Container(
+                            width: 42,
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: scheme.outlineVariant,
+                              borderRadius: BorderRadius.circular(99),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 15),
+                        Row(
+                          children: [
+                            Container(
+                              width: 44,
+                              height: 44,
+                              decoration: const BoxDecoration(
+                                color: AppColors.lime,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.card_giftcard_rounded, color: AppColors.navy),
+                            ),
+                            const SizedBox(width: 11),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Hediye gönder',
+                                    style: TextStyle(
+                                      color: scheme.onSurface,
+                                      fontSize: 19,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Hediyeler eşleşme şansını etkilemez.',
+                                    style: TextStyle(
+                                      color: scheme.onSurfaceVariant,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: scheme.surfaceContainerHigh,
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Text(
+                                '🪙 $balance',
+                                style: TextStyle(
+                                  color: scheme.onSurface,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        Text(
+                          'Kime?',
+                          style: TextStyle(
+                            color: scheme.onSurface,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          height: 76,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: recipients.length,
+                            separatorBuilder: (_, __) => const SizedBox(width: 9),
+                            itemBuilder: (_, index) {
+                              final member = recipients[index];
+                              final id = member['user_id']?.toString() ?? '';
+                              final selected = id == selectedRecipientId;
+                              final name = member['display_name']?.toString() ?? 'Meet6';
+                              return InkWell(
+                                onTap: () => setState(() => selectedRecipientId = id),
+                                borderRadius: BorderRadius.circular(18),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 160),
+                                  width: 72,
+                                  padding: const EdgeInsets.all(7),
+                                  decoration: BoxDecoration(
+                                    color: selected ? AppColors.lime.withValues(alpha: .16) : scheme.surfaceContainerLow,
+                                    borderRadius: BorderRadius.circular(18),
+                                    border: Border.all(
+                                      color: selected ? AppColors.lime : scheme.outlineVariant,
+                                      width: selected ? 2 : 1,
+                                    ),
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      _avatar(member, size: 38),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        name.split(' ').first,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: scheme.onSurface,
+                                          fontSize: 9.5,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        Text(
+                          'Hediyeler',
+                          style: TextStyle(
+                            color: scheme.onSurface,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: gifts.length,
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 4,
+                            mainAxisSpacing: 9,
+                            crossAxisSpacing: 9,
+                            childAspectRatio: .84,
+                          ),
+                          itemBuilder: (_, index) {
+                            final item = gifts[index];
+                            final code = item['code']?.toString() ?? '';
+                            final selected = code == selectedGiftCode;
+                            return InkWell(
+                              onTap: () => setState(() => selectedGiftCode = code),
+                              borderRadius: BorderRadius.circular(18),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 150),
+                                padding: const EdgeInsets.all(7),
+                                decoration: BoxDecoration(
+                                  color: selected ? AppColors.lime.withValues(alpha: .15) : scheme.surfaceContainerLow,
+                                  borderRadius: BorderRadius.circular(18),
+                                  border: Border.all(
+                                    color: selected ? AppColors.lime : scheme.outlineVariant,
+                                    width: selected ? 2 : 1,
+                                  ),
+                                ),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(item['emoji']?.toString() ?? '🎁', style: const TextStyle(fontSize: 29)),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      item['name']?.toString() ?? '',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: scheme.onSurface,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      '🪙 ${item['coinCost'] ?? 0}',
+                                      style: TextStyle(
+                                        color: scheme.onSurfaceVariant,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 14),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Hediye XP: ${wallet['giftXp'] ?? 0} · Cömertlik XP: ${wallet['generosityXp'] ?? 0}',
+                                style: TextStyle(
+                                  color: scheme.onSurfaceVariant,
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              'Seviye ${wallet['generosityLevel'] ?? 1}',
+                              style: const TextStyle(
+                                color: AppColors.lime,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 52,
+                          child: FilledButton.icon(
+                            onPressed: recipients.isEmpty || gift == null || sending ? null : _send,
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppColors.lime,
+                              foregroundColor: AppColors.navy,
+                              disabledBackgroundColor: scheme.surfaceContainerHigh,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17)),
+                            ),
+                            icon: sending
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2.3, color: AppColors.navy),
+                                  )
+                                : const Icon(Icons.card_giftcard_rounded),
+                            label: Text(
+                              gift == null ? 'Hediye seç' : 'Gönder · 🪙 $selectedCost',
+                              style: const TextStyle(fontWeight: FontWeight.w900),
+                            ),
+                          ),
+                        ),
+                        if (balance < selectedCost) ...[
+                          const SizedBox(height: 8),
+                          Center(
+                            child: Text(
+                              'Bu hediye için yeterli jetonun yok.',
+                              style: TextStyle(
+                                color: scheme.error,
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+      ),
+    );
+  }
+}
+
+class RoomGiftMessageCard extends StatelessWidget {
+  const RoomGiftMessageCard({
+    super.key,
+    required this.gift,
+    required this.myUserId,
+  });
+
+  final Map<String, dynamic> gift;
+  final String? myUserId;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final senderId = gift['sender_user_id']?.toString();
+    final recipientId = gift['recipient_user_id']?.toString();
+    final sender = senderId == myUserId ? 'Sen' : gift['display_name']?.toString() ?? 'Meet6';
+    final recipient = recipientId == myUserId
+        ? 'sana'
+        : '${gift['recipient_display_name']?.toString() ?? 'Meet6'} kişisine';
+    final emoji = gift['emoji']?.toString() ?? '🎁';
+    final name = gift['gift_name']?.toString() ?? 'Hediye';
+    final receivedByMe = recipientId == myUserId;
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: .92, end: 1),
+      duration: const Duration(milliseconds: 360),
+      curve: Curves.easeOutBack,
+      builder: (_, scale, child) => Transform.scale(scale: scale, child: child),
+      child: Center(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 320),
+          margin: const EdgeInsets.symmetric(vertical: 7),
+          padding: const EdgeInsets.fromLTRB(15, 12, 15, 12),
+          decoration: BoxDecoration(
+            color: receivedByMe ? AppColors.lime.withValues(alpha: .13) : scheme.surface,
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(
+              color: receivedByMe ? AppColors.lime : scheme.outlineVariant,
+              width: receivedByMe ? 1.7 : 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: .05),
+                blurRadius: 18,
+                offset: const Offset(0, 7),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: scheme.surfaceContainerHigh,
+                  shape: BoxShape.circle,
+                ),
+                child: Text(emoji, style: const TextStyle(fontSize: 31)),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$sender $recipient',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: scheme.onSurfaceVariant,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '$emoji $name gönderdi',
+                      style: TextStyle(
+                        color: scheme.onSurface,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '+${gift['gift_xp'] ?? 0} Hediye XP · +${gift['generosity_xp'] ?? 0} Cömertlik XP',
+                      style: TextStyle(
+                        color: scheme.onSurfaceVariant,
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
