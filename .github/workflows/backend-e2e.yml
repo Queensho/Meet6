@@ -65,6 +65,8 @@ jobs:
       MATCHMAKING_ROOM_REPEAT_HOURS: '24'
       MATCHMAKING_RECENT_MATCH_DAYS: '7'
       MATCHMAKING_RETRY_SECONDS: '5'
+      REVENUECAT_COIN_SECRET_API_KEY: coin-e2e-secret
+      REVENUECAT_COIN_API_BASE_URL: http://127.0.0.1:3199/v1
 
     steps:
       - name: Checkout
@@ -131,6 +133,10 @@ jobs:
       - name: Run group chat gifts E2E
         working-directory: server
         run: node scripts/e2e-group-chat-gifts.mjs
+
+      - name: Run coin store purchase E2E
+        working-directory: server
+        run: node scripts/e2e-coin-store-purchases.mjs
 
       - name: Run WebSocket E2E smoke
         working-directory: server
