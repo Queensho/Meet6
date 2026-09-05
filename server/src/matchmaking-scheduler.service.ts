@@ -1,5 +1,6 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 
+import { RoomRefillService } from './room-refill.service';
 import { RoomService } from './room.service';
 import { RoomsGateway } from './rooms.gateway';
 
@@ -10,6 +11,7 @@ export class MatchmakingSchedulerService implements OnModuleInit, OnModuleDestro
 
   constructor(
     private readonly rooms: RoomService,
+    private readonly refills: RoomRefillService,
     private readonly gateway: RoomsGateway,
   ) {}
 
@@ -34,6 +36,18 @@ export class MatchmakingSchedulerService implements OnModuleInit, OnModuleDestro
     if (this.running) return;
     this.running = true;
     try {
+      // During the first five minutes, fill empty seats in active text rooms
+      // before creating brand-new six-person rooms.
+      const refilledRooms = await this.refills.processOpenSeats();
+      if (refilledRooms.length) {
+        for (const roomId of refilledRooms) {
+          await this.gateway.broadcastRoomUpdate(roomId);
+        }
+        // Refilled users deliberately remain in matchmaking_queue until this
+        // snapshot runs, so queueStatus can deliver their matched room in realtime.
+        await this.gateway.broadcastQueueStatus();
+      }
+
       const created = await this.rooms.processQueue();
       if (created) {
         await this.gateway.broadcastQueueStatus();
