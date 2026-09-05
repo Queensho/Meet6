@@ -103,19 +103,22 @@ class _XpLevelRingState extends State<XpLevelRing>
   }
 
   double get _frameScale {
+    // The source PNGs include generous transparent padding. Keep each cosmetic
+    // tight to the small Lv badge so it reads as one control, not a separate
+    // floating ring.
     switch (_tier) {
       case XpRewardTier.limeFrame:
-        return 1.48;
+        return 1.30;
       case XpRewardTier.risingBadge:
-        return 1.72;
+        return 1.48;
       case XpRewardTier.neonFrame:
-        return 1.58;
+        return 1.38;
       case XpRewardTier.animatedStar:
-        return 1.70;
+        return 1.48;
       case XpRewardTier.eliteFrame:
-        return 1.72;
+        return 1.50;
       case XpRewardTier.eliteBadge:
-        return 1.82;
+        return 1.56;
       case XpRewardTier.none:
         return 1.0;
     }
