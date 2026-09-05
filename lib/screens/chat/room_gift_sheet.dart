@@ -5,6 +5,54 @@ import '../../services/gift_service.dart';
 import '../../theme/app_colors.dart';
 import 'coin_store_sheet.dart';
 
+const Map<String, String> _giftAssetByCode = {
+  'rose': 'assets/images/H1.png',
+  'coffee': 'assets/images/H2.png',
+  'heart': 'assets/images/H3.png',
+  'sparkle': 'assets/images/H4.png',
+  'balloon': 'assets/images/H5.png',
+  'rocket': 'assets/images/H6.png',
+  'diamond': 'assets/images/H7.png',
+  'crown': 'assets/images/H8.png',
+};
+
+Widget _giftVisual(Map<String, dynamic> gift, {double size = 50}) {
+  final code = gift['code']?.toString() ?? gift['gift_code']?.toString() ?? '';
+  final asset = _giftAssetByCode[code];
+  final emoji = gift['emoji']?.toString() ?? '🎁';
+
+  if (asset == null) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Center(
+        child: Text(
+          emoji,
+          style: TextStyle(fontSize: size * .58),
+        ),
+      ),
+    );
+  }
+
+  return Image.asset(
+    asset,
+    width: size,
+    height: size,
+    fit: BoxFit.contain,
+    filterQuality: FilterQuality.high,
+    errorBuilder: (_, __, ___) => SizedBox(
+      width: size,
+      height: size,
+      child: Center(
+        child: Text(
+          emoji,
+          style: TextStyle(fontSize: size * .58),
+        ),
+      ),
+    ),
+  );
+}
+
 class RoomGiftSheet extends StatefulWidget {
   const RoomGiftSheet({
     super.key,
@@ -414,7 +462,7 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
                             crossAxisCount: 4,
                             mainAxisSpacing: 9,
                             crossAxisSpacing: 9,
-                            childAspectRatio: .84,
+                            childAspectRatio: .78,
                           ),
                           itemBuilder: (_, index) {
                             final item = gifts[index];
@@ -429,7 +477,7 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
                                 borderRadius: BorderRadius.circular(18),
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 150),
-                                  padding: const EdgeInsets.all(7),
+                                  padding: const EdgeInsets.fromLTRB(6, 5, 6, 7),
                                   decoration: BoxDecoration(
                                     color: selected ? AppColors.lime.withValues(alpha: .15) : scheme.surfaceContainerLow,
                                     borderRadius: BorderRadius.circular(18),
@@ -441,8 +489,8 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
                                   child: Column(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      Text(item['emoji']?.toString() ?? '🎁', style: const TextStyle(fontSize: 29)),
-                                      const SizedBox(height: 3),
+                                      _giftVisual(item, size: dailyFree ? 43 : 52),
+                                      const SizedBox(height: 2),
                                       Text(
                                         item['name']?.toString() ?? '',
                                         maxLines: 1,
@@ -543,7 +591,51 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
   }
 }
 
-class RoomGiftMessageCard extends StatelessWidget {
+Widget _giftPersonAvatar(
+  BuildContext context, {
+  required dynamic photos,
+  required String name,
+  double size = 28,
+  bool accent = false,
+}) {
+  final scheme = Theme.of(context).colorScheme;
+  final path = photos is List && photos.isNotEmpty ? photos.first.toString() : '';
+  return Container(
+    width: size,
+    height: size,
+    clipBehavior: Clip.antiAlias,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      color: AppColors.navy,
+      border: Border.all(
+        color: accent ? AppColors.lime : scheme.outlineVariant,
+        width: accent ? 2 : 1,
+      ),
+    ),
+    child: path.isEmpty
+        ? Center(
+            child: Text(
+              name.isEmpty ? '?' : name.characters.first.toUpperCase(),
+              style: TextStyle(
+                color: AppColors.lime,
+                fontSize: size * .34,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          )
+        : Image.network(
+            ApiService.absoluteMediaUrl(path),
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => Icon(
+              Icons.person_rounded,
+              color: AppColors.lime,
+              size: size * .58,
+            ),
+          ),
+  );
+}
+
+class RoomGiftMessageCard extends StatefulWidget {
   const RoomGiftMessageCard({
     super.key,
     required this.gift,
@@ -554,93 +646,248 @@ class RoomGiftMessageCard extends StatelessWidget {
   final String? myUserId;
 
   @override
+  State<RoomGiftMessageCard> createState() => _RoomGiftMessageCardState();
+}
+
+class _RoomGiftMessageCardState extends State<RoomGiftMessageCard> {
+  static final Set<String> _shownGiftFlashes = <String>{};
+  OverlayEntry? _flashEntry;
+
+  Map<String, dynamic> get gift => widget.gift;
+
+  String get _senderName {
+    if (gift['sender_user_id']?.toString() == widget.myUserId) return 'Sen';
+    return gift['display_name']?.toString().trim().isNotEmpty == true
+        ? gift['display_name'].toString().trim()
+        : 'Meet6';
+  }
+
+  String get _recipientName {
+    if (gift['recipient_user_id']?.toString() == widget.myUserId) return 'Sen';
+    return gift['recipient_display_name']?.toString().trim().isNotEmpty == true
+        ? gift['recipient_display_name'].toString().trim()
+        : 'Meet6';
+  }
+
+  String get _giftIdentity {
+    final id = gift['gift_id']?.toString();
+    if (id != null && id.isNotEmpty) return id;
+    return '${gift['sender_user_id']}:${gift['recipient_user_id']}:${gift['created_at']}';
+  }
+
+  bool get _isRecentGift {
+    final created = DateTime.tryParse(gift['created_at']?.toString() ?? '');
+    if (created == null) return false;
+    return DateTime.now().difference(created.toLocal()).inSeconds.abs() <= 8;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _showGiftFlash());
+  }
+
+  void _showGiftFlash() {
+    if (!mounted || !_isRecentGift || _shownGiftFlashes.contains(_giftIdentity)) return;
+    final overlay = Overlay.maybeOf(context, rootOverlay: true);
+    if (overlay == null) return;
+    _shownGiftFlashes.add(_giftIdentity);
+
+    final entry = OverlayEntry(
+      builder: (overlayContext) {
+        final topPadding = MediaQuery.paddingOf(overlayContext).top;
+        final scheme = Theme.of(overlayContext).colorScheme;
+        return Positioned(
+          top: topPadding + 154,
+          left: 14,
+          right: 14,
+          child: IgnorePointer(
+            child: Center(
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: .92, end: 1),
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutBack,
+                builder: (_, value, child) => Opacity(
+                  opacity: value.clamp(0, 1),
+                  child: Transform.scale(scale: value, child: child),
+                ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: Container(
+                    constraints: const BoxConstraints(maxWidth: 345),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                    decoration: BoxDecoration(
+                      color: scheme.surface,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppColors.lime.withValues(alpha: .75), width: 1.4),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: .14),
+                          blurRadius: 22,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _giftPersonAvatar(
+                          overlayContext,
+                          photos: gift['photo_urls'],
+                          name: _senderName,
+                          size: 34,
+                        ),
+                        const SizedBox(width: 7),
+                        Icon(Icons.arrow_forward_rounded, size: 17, color: scheme.onSurfaceVariant),
+                        const SizedBox(width: 5),
+                        _giftVisual(gift, size: 42),
+                        const SizedBox(width: 5),
+                        Icon(Icons.arrow_forward_rounded, size: 17, color: scheme.onSurfaceVariant),
+                        const SizedBox(width: 7),
+                        _giftPersonAvatar(
+                          overlayContext,
+                          photos: gift['recipient_photo_urls'],
+                          name: _recipientName,
+                          size: 44,
+                          accent: true,
+                        ),
+                        const SizedBox(width: 9),
+                        Flexible(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _recipientName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: scheme.onSurface,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              Text(
+                                '$_senderName · ${gift['gift_name'] ?? 'Hediye'} gönderdi',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: scheme.onSurfaceVariant,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    _flashEntry = entry;
+    overlay.insert(entry);
+    Future<void>.delayed(const Duration(milliseconds: 2800), () {
+      if (_flashEntry == entry) {
+        entry.remove();
+        _flashEntry = null;
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _flashEntry?.remove();
+    _flashEntry = null;
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final senderId = gift['sender_user_id']?.toString();
     final recipientId = gift['recipient_user_id']?.toString();
-    final sender = senderId == myUserId ? 'Sen' : gift['display_name']?.toString() ?? 'Meet6';
-    final recipient = recipientId == myUserId
-        ? 'sana'
-        : '${gift['recipient_display_name']?.toString() ?? 'Meet6'} kişisine';
-    final emoji = gift['emoji']?.toString() ?? '🎁';
-    final name = gift['gift_name']?.toString() ?? 'Hediye';
-    final receivedByMe = recipientId == myUserId;
+    final receivedByMe = recipientId == widget.myUserId;
+    final senderFirst = _senderName.split(' ').first;
+    final recipientFirst = _recipientName.split(' ').first;
+    final giftName = gift['gift_name']?.toString() ?? 'Hediye';
+    final giftXp = gift['gift_xp'] ?? 0;
+    final generosityXp = gift['generosity_xp'] ?? 0;
 
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: .92, end: 1),
-      duration: const Duration(milliseconds: 360),
-      curve: Curves.easeOutBack,
-      builder: (_, scale, child) => Transform.scale(scale: scale, child: child),
-      child: Center(
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 320),
-          margin: const EdgeInsets.symmetric(vertical: 7),
-          padding: const EdgeInsets.fromLTRB(15, 12, 15, 12),
-          decoration: BoxDecoration(
-            color: receivedByMe ? AppColors.lime.withValues(alpha: .13) : scheme.surface,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(
-              color: receivedByMe ? AppColors.lime : scheme.outlineVariant,
-              width: receivedByMe ? 1.7 : 1,
+    return Align(
+      alignment: senderId == widget.myUserId ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 310),
+        margin: const EdgeInsets.symmetric(vertical: 3),
+        padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+        decoration: BoxDecoration(
+          color: receivedByMe ? AppColors.lime.withValues(alpha: .09) : scheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: receivedByMe ? AppColors.lime.withValues(alpha: .7) : scheme.outlineVariant,
+            width: receivedByMe ? 1.2 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _giftPersonAvatar(
+              context,
+              photos: gift['photo_urls'],
+              name: _senderName,
+              size: 24,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: .05),
-                blurRadius: 18,
-                offset: const Offset(0, 7),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 52,
-                height: 52,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: scheme.surfaceContainerHigh,
-                  shape: BoxShape.circle,
-                ),
-                child: Text(emoji, style: const TextStyle(fontSize: 31)),
-              ),
-              const SizedBox(width: 11),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '$sender $recipient',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: scheme.onSurfaceVariant,
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w800,
-                      ),
+            const SizedBox(width: 4),
+            Icon(Icons.arrow_forward_rounded, size: 13, color: scheme.onSurfaceVariant),
+            const SizedBox(width: 4),
+            _giftPersonAvatar(
+              context,
+              photos: gift['recipient_photo_urls'],
+              name: _recipientName,
+              size: 24,
+              accent: receivedByMe,
+            ),
+            const SizedBox(width: 7),
+            Flexible(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '$senderFirst → $recipientFirst · $giftName',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: scheme.onSurface,
+                      fontSize: 10.5,
+                      height: 1.1,
+                      fontWeight: FontWeight.w900,
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '$emoji $name gönderdi',
-                      style: TextStyle(
-                        color: scheme.onSurface,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w900,
-                      ),
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    '+$giftXp Hediye XP · +$generosityXp Cömertlik XP',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: scheme.onSurfaceVariant,
+                      fontSize: 8.5,
+                      height: 1.05,
+                      fontWeight: FontWeight.w700,
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '+${gift['gift_xp'] ?? 0} Hediye XP · +${gift['generosity_xp'] ?? 0} Cömertlik XP',
-                      style: TextStyle(
-                        color: scheme.onSurfaceVariant,
-                        fontSize: 9.5,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 5),
+            _giftVisual(gift, size: 31),
+          ],
         ),
       ),
     );
