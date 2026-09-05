@@ -5,6 +5,54 @@ import '../../services/gift_service.dart';
 import '../../theme/app_colors.dart';
 import 'coin_store_sheet.dart';
 
+const Map<String, String> _giftAssetByCode = {
+  'rose': 'assets/images/H1.png',
+  'coffee': 'assets/images/H2.png',
+  'heart': 'assets/images/H3.png',
+  'sparkle': 'assets/images/H4.png',
+  'balloon': 'assets/images/H5.png',
+  'rocket': 'assets/images/H6.png',
+  'diamond': 'assets/images/H7.png',
+  'crown': 'assets/images/H8.png',
+};
+
+Widget _giftVisual(Map<String, dynamic> gift, {double size = 50}) {
+  final code = gift['code']?.toString() ?? gift['gift_code']?.toString() ?? '';
+  final asset = _giftAssetByCode[code];
+  final emoji = gift['emoji']?.toString() ?? '🎁';
+
+  if (asset == null) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Center(
+        child: Text(
+          emoji,
+          style: TextStyle(fontSize: size * .58),
+        ),
+      ),
+    );
+  }
+
+  return Image.asset(
+    asset,
+    width: size,
+    height: size,
+    fit: BoxFit.contain,
+    filterQuality: FilterQuality.high,
+    errorBuilder: (_, __, ___) => SizedBox(
+      width: size,
+      height: size,
+      child: Center(
+        child: Text(
+          emoji,
+          style: TextStyle(fontSize: size * .58),
+        ),
+      ),
+    ),
+  );
+}
+
 class RoomGiftSheet extends StatefulWidget {
   const RoomGiftSheet({
     super.key,
@@ -414,7 +462,7 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
                             crossAxisCount: 4,
                             mainAxisSpacing: 9,
                             crossAxisSpacing: 9,
-                            childAspectRatio: .84,
+                            childAspectRatio: .78,
                           ),
                           itemBuilder: (_, index) {
                             final item = gifts[index];
@@ -429,7 +477,7 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
                                 borderRadius: BorderRadius.circular(18),
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 150),
-                                  padding: const EdgeInsets.all(7),
+                                  padding: const EdgeInsets.fromLTRB(6, 5, 6, 7),
                                   decoration: BoxDecoration(
                                     color: selected ? AppColors.lime.withValues(alpha: .15) : scheme.surfaceContainerLow,
                                     borderRadius: BorderRadius.circular(18),
@@ -441,8 +489,8 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
                                   child: Column(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      Text(item['emoji']?.toString() ?? '🎁', style: const TextStyle(fontSize: 29)),
-                                      const SizedBox(height: 3),
+                                      _giftVisual(item, size: dailyFree ? 43 : 52),
+                                      const SizedBox(height: 2),
                                       Text(
                                         item['name']?.toString() ?? '',
                                         maxLines: 1,
@@ -562,7 +610,6 @@ class RoomGiftMessageCard extends StatelessWidget {
     final recipient = recipientId == myUserId
         ? 'sana'
         : '${gift['recipient_display_name']?.toString() ?? 'Meet6'} kişisine';
-    final emoji = gift['emoji']?.toString() ?? '🎁';
     final name = gift['gift_name']?.toString() ?? 'Hediye';
     final receivedByMe = recipientId == myUserId;
 
@@ -575,7 +622,7 @@ class RoomGiftMessageCard extends StatelessWidget {
         child: Container(
           constraints: const BoxConstraints(maxWidth: 320),
           margin: const EdgeInsets.symmetric(vertical: 7),
-          padding: const EdgeInsets.fromLTRB(15, 12, 15, 12),
+          padding: const EdgeInsets.fromLTRB(13, 10, 14, 10),
           decoration: BoxDecoration(
             color: receivedByMe ? AppColors.lime.withValues(alpha: .13) : scheme.surface,
             borderRadius: BorderRadius.circular(22),
@@ -594,14 +641,15 @@ class RoomGiftMessageCard extends StatelessWidget {
           child: Row(
             children: [
               Container(
-                width: 52,
-                height: 52,
+                width: 60,
+                height: 60,
+                padding: const EdgeInsets.all(4),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: scheme.surfaceContainerHigh,
-                  shape: BoxShape.circle,
+                  borderRadius: BorderRadius.circular(18),
                 ),
-                child: Text(emoji, style: const TextStyle(fontSize: 31)),
+                child: _giftVisual(gift, size: 52),
               ),
               const SizedBox(width: 11),
               Expanded(
@@ -620,7 +668,7 @@ class RoomGiftMessageCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '$emoji $name gönderdi',
+                      '$name gönderdi',
                       style: TextStyle(
                         color: scheme.onSurface,
                         fontSize: 14,
