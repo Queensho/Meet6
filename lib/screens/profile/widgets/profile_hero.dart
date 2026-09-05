@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../../services/api_service.dart';
@@ -27,52 +29,179 @@ class _ProfileHeroState extends State<ProfileHero> {
     return value.isEmpty ? 'S' : value.characters.first.toUpperCase();
   }
 
-  Widget _giftLevels() {
+  String _formatXp(int value) {
+    final raw = math.max(0, value).toString();
+    final out = StringBuffer();
+    for (var i = 0; i < raw.length; i++) {
+      if (i > 0 && (raw.length - i) % 3 == 0) out.write('.');
+      out.write(raw[i]);
+    }
+    return out.toString();
+  }
+
+  int _profileLevel(int xp) {
+    final safeXp = math.max(0, xp);
+    return math.min(20, 1 + math.sqrt(safeXp / 50).floor());
+  }
+
+  Widget _xpBadge() {
     return FutureBuilder<Map<String, dynamic>>(
       future: _giftSummary,
       builder: (context, snapshot) {
         final raw = snapshot.data?['summary'];
-        if (raw is! Map) return const SizedBox.shrink();
-        final summary = Map<String, dynamic>.from(raw);
-        final giftLevel = summary['giftLevel'] ?? 1;
-        final generosityLevel = summary['generosityLevel'] ?? 1;
-        final badges = summary['badges'];
-        final firstBadge = badges is List && badges.isNotEmpty ? badges.first.toString() : null;
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-          decoration: BoxDecoration(
-            color: AppColors.navy.withValues(alpha: .92),
-            borderRadius: BorderRadius.circular(999),
-            border: Border.all(color: Colors.white.withValues(alpha: .2)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '🎁 Lv $giftLevel  ·  ✨ Lv $generosityLevel',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w900,
-                ),
+        final summary = raw is Map
+            ? Map<String, dynamic>.from(raw)
+            : const <String, dynamic>{};
+        final giftXp = (summary['giftXp'] as num?)?.toInt() ?? 0;
+        final generosityXp = (summary['generosityXp'] as num?)?.toInt() ?? 0;
+        final totalXp = giftXp + generosityXp;
+        final level = _profileLevel(totalXp);
+
+        return Semantics(
+          label: 'Seviye $level, ${_formatXp(totalXp)} XP',
+          child: Container(
+            width: 78,
+            height: 78,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const RadialGradient(
+                center: Alignment(-.18, -.28),
+                radius: 1.05,
+                colors: [
+                  Color(0xFF1D2B4D),
+                  Color(0xFF07142F),
+                ],
               ),
-              if (firstBadge != null) ...[
-                const SizedBox(width: 7),
-                Container(width: 1, height: 12, color: Colors.white24),
-                const SizedBox(width: 7),
-                Text(
-                  firstBadge,
-                  style: const TextStyle(
-                    color: AppColors.lime,
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w900,
-                  ),
+              border: Border.all(color: AppColors.navy, width: 3),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x33000000),
+                  blurRadius: 16,
+                  offset: Offset(0, 7),
                 ),
               ],
-            ],
+            ),
+            child: Container(
+              margin: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: AppColors.lime.withValues(alpha: .85),
+                  width: 1.7,
+                ),
+              ),
+              child: snapshot.connectionState == ConnectionState.waiting
+                  ? const Center(
+                      child: SizedBox(
+                        width: 17,
+                        height: 17,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.lime,
+                        ),
+                      ),
+                    )
+                  : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text.rich(
+                          TextSpan(
+                            children: [
+                              const TextSpan(
+                                text: 'Lv ',
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              TextSpan(
+                                text: '$level',
+                                style: const TextStyle(
+                                  color: AppColors.lime,
+                                  fontSize: 19,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ],
+                          ),
+                          maxLines: 1,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${_formatXp(totalXp)} XP',
+                          maxLines: 1,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 8.3,
+                            height: 1,
+                            letterSpacing: .15,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
           ),
         );
       },
+    );
+  }
+
+  Widget _avatar(String resolvedImage) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          width: 132,
+          height: 132,
+          padding: const EdgeInsets.all(5),
+          decoration: BoxDecoration(
+            color: AppColors.lime,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: AppColors.navy.withValues(alpha: .72),
+              width: 2,
+            ),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x32000000),
+                blurRadius: 18,
+                offset: Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(3),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+            child: ClipOval(
+              child: resolvedImage.isNotEmpty
+                  ? Image.network(
+                      resolvedImage,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _Fallback(initial: initial),
+                    )
+                  : _Fallback(initial: initial),
+            ),
+          ),
+        ),
+        Positioned(
+          right: 7,
+          bottom: 8,
+          child: Container(
+            width: 25,
+            height: 25,
+            decoration: BoxDecoration(
+              color: const Color(0xFF2ED66B),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 4),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -126,58 +255,31 @@ class _ProfileHeroState extends State<ProfileHero> {
                   ),
                 ),
               ),
-              const Positioned(
-                top: 18,
-                left: 0,
-                right: 0,
-                child: Center(child: PremiumProfileCard()),
-              ),
-              Positioned(
-                top: 58,
-                left: 12,
-                right: 12,
-                child: Center(child: _giftLevels()),
-              ),
             ],
           ),
         ),
         Positioned(
           bottom: -58,
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Container(
-                width: 116,
-                height: 116,
-                padding: const EdgeInsets.all(5),
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
+          child: SizedBox(
+            width: 282,
+            height: 136,
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.topCenter,
+              children: [
+                _avatar(resolvedImage),
+                const Positioned(
+                  left: 17,
+                  top: 29,
+                  child: PremiumProfileCard(),
                 ),
-                child: ClipOval(
-                  child: resolvedImage.isNotEmpty
-                      ? Image.network(
-                          resolvedImage,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _Fallback(initial: initial),
-                        )
-                      : _Fallback(initial: initial),
+                Positioned(
+                  right: 17,
+                  top: 29,
+                  child: _xpBadge(),
                 ),
-              ),
-              Positioned(
-                right: 2,
-                bottom: 8,
-                child: Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF34C759),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 4),
-                  ),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ],
