@@ -135,8 +135,8 @@ async function main() {
   );
 
   const catalog = await request('GET', '/gifts/catalog', sender.sessionId);
-  if (!Array.isArray(catalog.gifts) || catalog.gifts.length !== 9) {
-    throw new Error(`Expected 9 active gifts including the free gift, got ${catalog.gifts?.length}.`);
+  if (!Array.isArray(catalog.gifts) || catalog.gifts.length !== 8) {
+    throw new Error(`Expected 8 active gifts including the free gift, got ${catalog.gifts?.length}.`);
   }
   const freeGift = catalog.gifts.find((gift) => gift.code === 'free_wave');
   if (!freeGift || Number(freeGift.coinCost) !== 0 || Number(freeGift.profileXp) !== 1 || freeGift.dailyFree !== true) {
