@@ -106,7 +106,7 @@ async function main() {
   );
 
   const beforeWallets = await pool.query(
-    `select user_id::text,coin_balance,gift_xp,generosity_xp,gifts_received,gifts_sent
+    `select user_id::text,coin_balance,gift_xp,generosity_xp,profile_xp,gifts_received,gifts_sent
      from user_wallets where user_id=any($1::bigint[])`,
     [ids],
   );
@@ -126,16 +126,24 @@ async function main() {
 
   const sender = users[0];
   const recipient = users[1];
+  await pool.query('delete from user_daily_gift_usage where user_id=any($1::bigint[])', [[sender.id, recipient.id]]);
   await pool.query(
     `update user_wallets
-     set coin_balance=500,gift_xp=0,generosity_xp=0,gifts_received=0,gifts_sent=0,updated_at=now()
+     set coin_balance=500,gift_xp=0,generosity_xp=0,profile_xp=0,gifts_received=0,gifts_sent=0,updated_at=now()
      where user_id=any($1::bigint[])`,
     [[sender.id, recipient.id]],
   );
 
   const catalog = await request('GET', '/gifts/catalog', sender.sessionId);
-  if (!Array.isArray(catalog.gifts) || catalog.gifts.length !== 8) {
-    throw new Error(`Expected 8 active gifts, got ${catalog.gifts?.length}.`);
+  if (!Array.isArray(catalog.gifts) || catalog.gifts.length !== 9) {
+    throw new Error(`Expected 9 active gifts including the free gift, got ${catalog.gifts?.length}.`);
+  }
+  const freeGift = catalog.gifts.find((gift) => gift.code === 'free_wave');
+  if (!freeGift || Number(freeGift.coinCost) !== 0 || Number(freeGift.profileXp) !== 1 || freeGift.dailyFree !== true) {
+    throw new Error(`Free gift catalog entry mismatch: ${JSON.stringify(freeGift)}`);
+  }
+  if (Number(catalog.freeGiftAllowance?.remaining) !== 3) {
+    throw new Error(`Expected 3 daily free gifts: ${JSON.stringify(catalog.freeGiftAllowance)}`);
   }
   if (Number(catalog.wallet?.coinBalance) !== 500) {
     throw new Error(`Catalog wallet balance mismatch: ${JSON.stringify(catalog.wallet)}`);
@@ -156,8 +164,14 @@ async function main() {
   if (Number(sent.wallet?.coinBalance) !== 495 || Number(sent.wallet?.generosityXp) !== 5) {
     throw new Error(`Sender wallet/XP did not update atomically: ${JSON.stringify(sent.wallet)}`);
   }
+  if (Number(sent.wallet?.profileXp) !== 2) {
+    throw new Error(`Sender profile XP should gain 2 from rose: ${JSON.stringify(sent.wallet)}`);
+  }
   if (Number(sent.recipientSummary?.giftXp) !== 5 || Number(sent.recipientSummary?.giftsReceived) !== 1) {
     throw new Error(`Recipient gift XP did not update: ${JSON.stringify(sent.recipientSummary)}`);
+  }
+  if (Number(sent.recipientSummary?.profileXp) !== 2) {
+    throw new Error(`Recipient profile XP should gain 2 from rose: ${JSON.stringify(sent.recipientSummary)}`);
   }
 
   const replay = await request('POST', `/gifts/rooms/${roomId}/send`, sender.sessionId, {
@@ -167,6 +181,9 @@ async function main() {
   });
   if (replay.deduplicated !== true || Number(replay.wallet?.coinBalance) !== 495) {
     throw new Error(`Gift idempotency failed: ${JSON.stringify(replay)}`);
+  }
+  if (Number(replay.wallet?.profileXp) !== 2) {
+    throw new Error('Idempotent replay must not grant profile XP twice.');
   }
 
   const history = await request('GET', `/gifts/rooms/${roomId}?after=0`, recipient.sessionId);
@@ -187,6 +204,39 @@ async function main() {
   }
 
   await pool.query('update user_wallets set coin_balance=0 where user_id=$1', [sender.id]);
+  for (let index = 0; index < 3; index += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 2100));
+    const freeSent = await request('POST', `/gifts/rooms/${roomId}/send`, sender.sessionId, {
+      recipientUserId: Number(recipient.id),
+      giftCode: 'free_wave',
+      clientGiftId: `gift-e2e-free-${index}-${randomUUID()}`,
+    });
+    if (Number(freeSent.wallet?.coinBalance) !== 0) {
+      throw new Error('Daily free gift must not spend coins.');
+    }
+    if (Number(freeSent.freeGiftAllowance?.remaining) !== 2 - index) {
+      throw new Error(`Free gift allowance did not decrement: ${JSON.stringify(freeSent.freeGiftAllowance)}`);
+    }
+  }
+
+  const afterFree = await request('GET', '/gifts/catalog', sender.sessionId);
+  if (Number(afterFree.freeGiftAllowance?.remaining) !== 0) {
+    throw new Error(`Free gift allowance should be exhausted: ${JSON.stringify(afterFree.freeGiftAllowance)}`);
+  }
+  if (Number(afterFree.wallet?.profileXp) !== 5) {
+    throw new Error(`Three free gifts should add only 3 tiny profile XP: ${JSON.stringify(afterFree.wallet)}`);
+  }
+
+  await new Promise((resolve) => setTimeout(resolve, 2100));
+  const fourthFree = await rawRequest('POST', `/gifts/rooms/${roomId}/send`, sender.sessionId, {
+    recipientUserId: Number(recipient.id),
+    giftCode: 'free_wave',
+    clientGiftId: `gift-e2e-free-limit-${randomUUID()}`,
+  });
+  if (fourthFree.status !== 400) {
+    throw new Error(`Fourth daily free gift should be rejected with 400, got ${fourthFree.status}.`);
+  }
+
   await new Promise((resolve) => setTimeout(resolve, 2100));
   const insufficient = await rawRequest('POST', `/gifts/rooms/${roomId}/send`, sender.sessionId, {
     recipientUserId: Number(recipient.id),
@@ -201,8 +251,8 @@ async function main() {
     'select count(*)::int as count from room_gifts where room_id=$1',
     [roomId],
   );
-  if (Number(giftCount.rows[0]?.count) !== 1) {
-    throw new Error('Rejected/replayed gift created extra room_gifts rows.');
+  if (Number(giftCount.rows[0]?.count) !== 4) {
+    throw new Error('Rejected/replayed gift created an unexpected room_gifts count.');
   }
 
   const matchesAfter = await pool.query('select count(*)::int as count from matches');
@@ -222,23 +272,27 @@ async function main() {
     throw new Error(`Closed-room gift must be rejected, got ${closedSend.status}.`);
   }
 
-  console.log('✅ MEET6 GROUP CHAT GIFTS E2E PASS');
-  console.log('Rules: catalog + atomic wallet debit + recipient XP + idempotency + history + no self/closed/insufficient gift + matching unaffected');
+  console.log('✅ MEET6 GROUP CHAT GIFTS + XP REWARDS E2E PASS');
+  console.log('Rules: paid gifts + 3 daily free gifts + tiny free XP + profile XP + idempotency + no self/closed/insufficient gift + matching unaffected');
 
   await pool.query('delete from wallet_transactions where reference_type=$1 and reference_id in (select id from room_gifts where room_id=$2)', ['room_gift', roomId]);
   await pool.query('delete from room_gifts where room_id=$1', [roomId]);
+  await pool.query('delete from user_daily_gift_usage where user_id=any($1::bigint[])', [ids]);
+  await pool.query('delete from premium_grants where user_id=any($1::bigint[]) and source=$2', [ids, 'xp_reward']);
+  await pool.query('delete from user_xp_reward_claims where user_id=any($1::bigint[])', [ids]);
   for (const userId of ids) {
     const previous = walletSnapshot.get(String(userId));
     if (!previous) continue;
     await pool.query(
       `update user_wallets set
-         coin_balance=$2,gift_xp=$3,generosity_xp=$4,gifts_received=$5,gifts_sent=$6,updated_at=now()
+         coin_balance=$2,gift_xp=$3,generosity_xp=$4,profile_xp=$5,gifts_received=$6,gifts_sent=$7,updated_at=now()
        where user_id=$1`,
       [
         userId,
         Number(previous.coin_balance),
         Number(previous.gift_xp),
         Number(previous.generosity_xp),
+        Number(previous.profile_xp),
         Number(previous.gifts_received),
         Number(previous.gifts_sent),
       ],
