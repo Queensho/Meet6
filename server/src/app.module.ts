@@ -29,6 +29,7 @@ import { ReportService } from './report.service';
 import { RoomControlController } from './room-control.controller';
 import { RoomController } from './room.controller';
 import { RoomMessageService } from './room-message.service';
+import { RoomRefillService } from './room-refill.service';
 import { RoomService } from './room.service';
 import { RoomsGateway } from './rooms.gateway';
 import { RuntimeSettingsService } from './runtime-settings.service';
@@ -69,6 +70,7 @@ import { VoiceRoomService } from './voice-room.service';
     ProfileService,
     BillingService,
     RoomService,
+    RoomRefillService,
     VoiceRoomService,
     RoomMessageService,
     SocialService,
