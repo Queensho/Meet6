@@ -61,8 +61,8 @@ class _PremiumProfileCardState extends State<PremiumProfileCard> {
           onTap: _loading ? null : _openPremium,
           customBorder: const CircleBorder(),
           child: Ink(
-            width: 78,
-            height: 78,
+            width: 58,
+            height: 58,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: const RadialGradient(
@@ -73,28 +73,28 @@ class _PremiumProfileCardState extends State<PremiumProfileCard> {
                   Color(0xFF09142C),
                 ],
               ),
-              border: Border.all(color: accent, width: 2.2),
+              border: Border.all(color: accent, width: 1.8),
               boxShadow: [
                 const BoxShadow(
-                  color: Color(0x33000000),
-                  blurRadius: 16,
-                  offset: Offset(0, 7),
+                  color: Color(0x2A000000),
+                  blurRadius: 10,
+                  offset: Offset(0, 4),
                 ),
                 if (_premium)
                   const BoxShadow(
-                    color: Color(0x44FFC94A),
-                    blurRadius: 16,
-                    spreadRadius: 1,
+                    color: Color(0x36FFC94A),
+                    blurRadius: 11,
+                    spreadRadius: .5,
                   ),
               ],
             ),
             child: _loading
                 ? const Center(
                     child: SizedBox(
-                      width: 18,
-                      height: 18,
+                      width: 14,
+                      height: 14,
                       child: CircularProgressIndicator(
-                        strokeWidth: 2,
+                        strokeWidth: 1.7,
                         color: AppColors.lime,
                       ),
                     ),
@@ -103,17 +103,17 @@ class _PremiumProfileCardState extends State<PremiumProfileCard> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       CustomPaint(
-                        size: const Size(30, 25),
+                        size: const Size(22, 18),
                         painter: _CrownPainter(color: accent),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 3),
                       Text(
                         'PREMIUM',
                         style: TextStyle(
                           color: accent,
-                          fontSize: 8.3,
+                          fontSize: 6.2,
                           height: 1,
-                          letterSpacing: .45,
+                          letterSpacing: .32,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
