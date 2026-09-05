@@ -40,6 +40,13 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
   bool muted = false;
   bool navigating = false;
   bool extensionSheetOpen = false;
+  bool previewDecisionSheetOpen = false;
+  bool previewDecisionSending = false;
+  String voicePhase = 'preview';
+  bool? myPreviewDecision;
+
+  bool get isPreview => voicePhase == 'preview';
+  bool get previewDecisionOpen => isPreview && room?['status'] == 'selection';
 
   @override
   void initState() {
@@ -52,9 +59,14 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
     realtimeSub = RealtimeService.events.listen(_onRealtimeEvent);
     try {
       await RealtimeService.connect();
+      await _refreshPreviewState();
       await _refreshSnapshot();
       if (!mounted || navigating) return;
-      await _connectAudio();
+      if (room?['status'] == 'active') {
+        await _connectAudio();
+      } else {
+        audioConnecting = false;
+      }
       _startCountdown();
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -73,6 +85,16 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
     }
   }
 
+  Future<void> _refreshPreviewState() async {
+    final data = await VoiceRoomService.previewStatus(widget.roomId);
+    if (!mounted) return;
+    setState(() {
+      voicePhase = data['phase']?.toString() == 'main' ? 'main' : 'preview';
+      final rawDecision = data['myDecision'];
+      myPreviewDecision = rawDecision is bool ? rawDecision : null;
+    });
+  }
+
   void _onRealtimeEvent(RealtimeEvent event) {
     if (!mounted || navigating) return;
     if (event.type == 'connection:connected') {
@@ -84,10 +106,27 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
       final raw = event.data['room'];
       if (raw is Map) {
         final latest = Map<String, dynamic>.from(raw);
+        final previousStatus = room?['status']?.toString();
+        final latestStatus = latest['status']?.toString();
+        final mainJustStarted = isPreview &&
+            myPreviewDecision == true &&
+            previousStatus == 'selection' &&
+            latestStatus == 'active';
+
         setState(() {
           room = latest;
           error = null;
+          if (mainJustStarted) voicePhase = 'main';
         });
+
+        if (mainJustStarted) {
+          previewDecisionSheetOpen = false;
+          _startCountdown();
+          unawaited(_connectAudio());
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('İkiniz de devam ettiniz · 15 dakika başladı.')),
+          );
+        }
         _handleRoomState(latest);
       }
     }
@@ -95,9 +134,10 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
 
   Future<void> _rejoinAfterReconnect() async {
     try {
+      await _refreshPreviewState();
       await _refreshSnapshot();
-      if (audioRoom == null ||
-          audioRoom!.connectionState == ConnectionState.disconnected) {
+      if (room?['status'] == 'active' &&
+          (audioRoom == null || audioRoom!.connectionState == ConnectionState.disconnected)) {
         await _connectAudio();
       }
     } catch (_) {}
@@ -115,7 +155,7 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
   }
 
   Future<void> _connectAudio() async {
-    if (navigating) return;
+    if (navigating || room?['status'] != 'active') return;
     if (mounted) {
       setState(() {
         audioConnecting = true;
@@ -165,15 +205,44 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
   void _startCountdown() {
     countdownTimer?.cancel();
     countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted || room?['status'] != 'active') return;
-      final current = (room?['secondsLeft'] as num?)?.toInt() ?? 0;
-      if (current <= 0) return;
-      setState(() => room = {...?room, 'secondsLeft': current - 1});
+      if (!mounted) return;
+      final status = room?['status']?.toString();
+      if (status == 'active') {
+        final current = (room?['secondsLeft'] as num?)?.toInt() ?? 0;
+        if (current <= 0) return;
+        setState(() => room = {...?room, 'secondsLeft': current - 1});
+        return;
+      }
+      if (isPreview && status == 'selection') {
+        final current = (room?['selectionSecondsLeft'] as num?)?.toInt() ?? 0;
+        if (current <= 0) return;
+        setState(() => room = {...?room, 'selectionSecondsLeft': current - 1});
+      }
     });
   }
 
   void _handleRoomState(Map<String, dynamic> data) {
     final status = data['status']?.toString();
+
+    if (status == 'closed' && !navigating) {
+      navigating = true;
+      countdownTimer?.cancel();
+      unawaited(_disconnectAudio());
+      Navigator.of(context).popUntil((route) => route.isFirst);
+      return;
+    }
+
+    if (isPreview) {
+      if (status == 'selection') {
+        unawaited(_disconnectAudio());
+        if (myPreviewDecision == null && !previewDecisionSheetOpen) {
+          previewDecisionSheetOpen = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) => _showPreviewDecision());
+        }
+      }
+      return;
+    }
+
     if (status == 'selection' && !navigating) {
       navigating = true;
       countdownTimer?.cancel();
@@ -188,13 +257,6 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
       );
       return;
     }
-    if (status == 'closed' && !navigating) {
-      navigating = true;
-      countdownTimer?.cancel();
-      unawaited(_disconnectAudio());
-      Navigator.of(context).popUntil((route) => route.isFirst);
-      return;
-    }
 
     final canVote = data['canVoteExtension'] == true;
     final myVote = data['myExtensionVote'];
@@ -204,8 +266,141 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
     }
   }
 
+  Future<void> _showPreviewDecision() async {
+    if (!mounted || !previewDecisionOpen || myPreviewDecision != null) {
+      previewDecisionSheetOpen = false;
+      return;
+    }
+    final decision = await showModalBottomSheet<bool>(
+      context: context,
+      isDismissible: false,
+      enableDrag: false,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(28),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 58,
+                height: 58,
+                decoration: const BoxDecoration(
+                  color: AppColors.navy,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.timer_rounded, color: AppColors.lime, size: 30),
+              ),
+              const SizedBox(height: 14),
+              const Text(
+                '45 saniye tamamlandı',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 7),
+              Text(
+                'Devam etmek ister misin? Kararın gizli. İkiniz de Devam et derseniz 15 dakikalık görüşme başlar.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 12.5,
+                  height: 1.35,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => Navigator.pop(sheetContext, false),
+                      icon: const Icon(Icons.close_rounded),
+                      label: const Text('Geç', style: TextStyle(fontWeight: FontWeight.w900)),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: () => Navigator.pop(sheetContext, true),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.lime,
+                        foregroundColor: AppColors.navy,
+                      ),
+                      icon: const Icon(Icons.favorite_rounded),
+                      label: const Text('Devam et', style: TextStyle(fontWeight: FontWeight.w900)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    previewDecisionSheetOpen = false;
+    if (decision == null || !mounted) return;
+    await _submitPreviewDecision(decision);
+  }
+
+  Future<void> _submitPreviewDecision(bool shouldContinue) async {
+    if (previewDecisionSending || navigating) return;
+    setState(() => previewDecisionSending = true);
+    try {
+      final result = await VoiceRoomService.previewDecision(widget.roomId, shouldContinue);
+      if (!mounted) return;
+      final outcome = result['outcome']?.toString();
+      setState(() {
+        previewDecisionSending = false;
+        myPreviewDecision = shouldContinue;
+      });
+
+      if (!shouldContinue || outcome == 'ended') {
+        navigating = true;
+        countdownTimer?.cancel();
+        await _disconnectAudio();
+        if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
+        return;
+      }
+
+      if (outcome == 'continued') {
+        setState(() => voicePhase = 'main');
+        await _refreshSnapshot();
+        if (!mounted || navigating) return;
+        await _connectAudio();
+        _startCountdown();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('İkiniz de devam ettiniz · 15 dakika başladı.')),
+          );
+        }
+      }
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => previewDecisionSending = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      if (previewDecisionOpen && myPreviewDecision == null && !previewDecisionSheetOpen) {
+        previewDecisionSheetOpen = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) => _showPreviewDecision());
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => previewDecisionSending = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Kararın gönderilemedi. Tekrar dene.')),
+      );
+    }
+  }
+
   Future<void> _showExtensionVote() async {
-    if (!mounted) return;
+    if (!mounted || isPreview) {
+      extensionSheetOpen = false;
+      return;
+    }
     final vote = await showModalBottomSheet<bool>(
       context: context,
       isDismissible: false,
@@ -312,8 +507,22 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
   }
 
   String _timerText() {
-    final seconds = ((room?['secondsLeft'] as num?)?.toInt() ?? 0).clamp(0, 60 * 60);
+    final status = room?['status']?.toString();
+    final raw = isPreview && status == 'selection'
+        ? room?['selectionSecondsLeft']
+        : room?['secondsLeft'];
+    final seconds = ((raw as num?)?.toInt() ?? 0).clamp(0, 60 * 60);
     return '${(seconds ~/ 60).toString().padLeft(2, '0')}:${(seconds % 60).toString().padLeft(2, '0')}';
+  }
+
+  String _subtitle() {
+    if (!isPreview) return '1’e 1 sesli sohbet · 15 dakika';
+    if (room?['status'] == 'selection') {
+      return myPreviewDecision == true
+          ? 'Kararın gizli · karşı taraf bekleniyor'
+          : 'Gizli karar · Devam et veya Geç';
+    }
+    return '45 sn ön görüşme · kararınız gizli';
   }
 
   @override
@@ -351,14 +560,18 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
                         color: AppColors.navy,
                         borderRadius: BorderRadius.circular(99),
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.mic_rounded, size: 13, color: AppColors.lime),
-                          SizedBox(width: 5),
+                          Icon(
+                            isPreview ? Icons.bolt_rounded : Icons.mic_rounded,
+                            size: 13,
+                            color: AppColors.lime,
+                          ),
+                          const SizedBox(width: 5),
                           Text(
-                            'PREMIUM 1’E 1',
-                            style: TextStyle(
+                            isPreview ? 'ÖN GÖRÜŞME' : 'PREMIUM 1’E 1',
+                            style: const TextStyle(
                               color: AppColors.lime,
                               fontSize: 9.5,
                               fontWeight: FontWeight.w900,
@@ -380,7 +593,7 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
                 ),
               ),
               Text(
-                '1’e 1 sesli sohbet · 15 dakika',
+                _subtitle(),
                 style: TextStyle(
                   color: scheme.onSurfaceVariant,
                   fontSize: 11.5,
@@ -388,9 +601,53 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              if (error != null || audioError != null)
+              if (isPreview && room?['status'] == 'active')
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 18),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: AppColors.lime.withValues(alpha: .13),
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    child: const Text(
+                      'İlk izlenim için 45 saniye. Süre bitince ikinize de gizlice Devam et / Geç sorulacak.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 10.8, height: 1.3, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+              if (isPreview && room?['status'] == 'selection' && myPreviewDecision == true)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: AppColors.navy,
+                      borderRadius: BorderRadius.circular(15),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 15,
+                          height: 15,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.lime),
+                        ),
+                        SizedBox(width: 9),
+                        Text(
+                          'Kararın gönderildi · diğer kişinin kararı bekleniyor',
+                          style: TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.w800),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              if (error != null || audioError != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
                   child: Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(11),
@@ -444,39 +701,53 @@ class _VoiceRoomScreenState extends State<VoiceRoomScreen> {
                 padding: const EdgeInsets.fromLTRB(18, 4, 18, 18),
                 child: Column(
                   children: [
-                    SizedBox(
-                      width: 72,
-                      height: 72,
-                      child: FilledButton(
-                        onPressed: audioConnecting ? null : _toggleMicrophone,
-                        style: FilledButton.styleFrom(
-                          padding: EdgeInsets.zero,
-                          shape: const CircleBorder(),
-                          backgroundColor: muted ? const Color(0xFFE76A60) : AppColors.lime,
-                          foregroundColor: muted ? Colors.white : AppColors.navy,
+                    if (!previewDecisionOpen) ...[
+                      SizedBox(
+                        width: 72,
+                        height: 72,
+                        child: FilledButton(
+                          onPressed: audioConnecting ? null : _toggleMicrophone,
+                          style: FilledButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            shape: const CircleBorder(),
+                            backgroundColor: muted ? const Color(0xFFE76A60) : AppColors.lime,
+                            foregroundColor: muted ? Colors.white : AppColors.navy,
+                          ),
+                          child: audioConnecting
+                              ? const SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(strokeWidth: 2.4),
+                                )
+                              : Icon(muted ? Icons.mic_off_rounded : Icons.mic_rounded, size: 31),
                         ),
-                        child: audioConnecting
-                            ? const SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: CircularProgressIndicator(strokeWidth: 2.4),
-                              )
-                            : Icon(muted ? Icons.mic_off_rounded : Icons.mic_rounded, size: 31),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      audioConnecting
-                          ? 'Ses bağlantısı kuruluyor...'
-                          : muted
-                              ? 'Mikrofon kapalı'
-                              : 'Mikrofon açık',
-                      style: TextStyle(
-                        color: scheme.onSurfaceVariant,
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w800,
+                      const SizedBox(height: 8),
+                      Text(
+                        audioConnecting
+                            ? 'Ses bağlantısı kuruluyor...'
+                            : muted
+                                ? 'Mikrofon kapalı'
+                                : 'Mikrofon açık',
+                        style: TextStyle(
+                          color: scheme.onSurfaceVariant,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
-                    ),
+                    ],
+                    if (isPreview && room?['status'] == 'active') ...[
+                      const SizedBox(height: 6),
+                      TextButton.icon(
+                        onPressed: previewDecisionSending ? null : () => _submitPreviewDecision(false),
+                        icon: const Icon(Icons.close_rounded, size: 17),
+                        label: const Text('Şimdi geç'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: const Color(0xFFE76A60),
+                          textStyle: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w900),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
