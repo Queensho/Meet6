@@ -706,7 +706,6 @@ class _RoomGiftMessageCardState extends State<RoomGiftMessageCard> {
     if (!_visible) return const SizedBox.shrink();
 
     final scheme = Theme.of(context).colorScheme;
-    final senderId = gift['sender_user_id']?.toString();
     final recipientId = gift['recipient_user_id']?.toString();
     final receivedByMe = recipientId == widget.myUserId;
     final senderFirst = _senderName.split(' ').first;
@@ -721,7 +720,7 @@ class _RoomGiftMessageCardState extends State<RoomGiftMessageCard> {
       curve: Curves.easeOutBack,
       builder: (_, scale, child) => Transform.scale(scale: scale, child: child),
       child: Align(
-        alignment: senderId == widget.myUserId
+        alignment: recipientId == widget.myUserId
             ? Alignment.centerRight
             : Alignment.centerLeft,
         child: Container(
