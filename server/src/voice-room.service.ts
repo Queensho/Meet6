@@ -27,10 +27,20 @@ type VoiceQueueProfileRow = {
   joined_at: Date;
 };
 
+type VoicePreviewRoomRow = {
+  room_mode: string;
+  status: string;
+  voice_stage: string | null;
+  ends_at: Date;
+  selection_ends_at: Date | null;
+  member: boolean;
+};
+
 @Injectable()
 export class VoiceRoomService {
   private static readonly pairSize = 2;
   private static readonly pairDurationMinutes = 15;
+  private static readonly previewDurationSeconds = 45;
 
   constructor(
     private readonly infra: InfrastructureService,
@@ -135,6 +145,25 @@ export class VoiceRoomService {
       [userId],
     );
     return result.rows[0] ?? null;
+  }
+
+  private async previewRoom(userId: string, roomId: string) {
+    await this.rooms.syncExpiredRooms();
+    const result = await this.infra.db.query<VoicePreviewRoomRow>(
+      `select r.room_mode, r.status, r.voice_stage, r.ends_at, r.selection_ends_at,
+              exists(
+                select 1 from room_members rm
+                where rm.room_id=r.id and rm.user_id=$2
+                  and rm.admin_removed_at is null
+              ) as member
+       from rooms r where r.id=$1`,
+      [roomId, userId],
+    );
+    const row = result.rows[0];
+    if (!row || !row.member || row.room_mode !== 'voice') {
+      throw new ForbiddenException('Bu birebir sesli görüşmeye erişimin yok.');
+    }
+    return row;
   }
 
   async joinQueue(userId: string) {
@@ -339,12 +368,15 @@ export class VoiceRoomService {
         return null;
       }
 
-      const roomDurationMinutes = VoiceRoomService.pairDurationMinutes;
       const room = await client.query<{ id: string }>(
-        `insert into rooms(status,started_at,ends_at,room_duration_minutes,room_mode)
-         values('active',now(),now() + ($1::int * interval '1 minute'),$1,'voice')
+        `insert into rooms(
+           status,started_at,ends_at,room_duration_minutes,room_mode,voice_stage,extended
+         )
+         values(
+           'active',now(),now() + ($1::int * interval '1 second'),$2,'voice','preview',true
+         )
          returning id::text`,
-        [roomDurationMinutes],
+        [VoiceRoomService.previewDurationSeconds, VoiceRoomService.pairDurationMinutes],
       );
       const roomId = room.rows[0].id;
       const pairIds = pair.map((row) => row.user_id);
@@ -355,7 +387,7 @@ export class VoiceRoomService {
       await client.query(
         `insert into room_messages(room_id,sender_user_id,body)
          values($1,null,$2)`,
-        [roomId, `Premium birebir sesli eşleşme hazır. 15 dakika boyunca birbirinizi tanıyın.`],
+        [roomId, '45 saniyelik ön görüşme başladı. Süre bitince kararın gizli olarak sorulacak.'],
       );
       await client.query('delete from voice_matchmaking_queue where user_id=any($1::bigint[])', [pairIds]);
       await client.query('commit');
@@ -366,6 +398,150 @@ export class VoiceRoomService {
     } finally {
       client.release();
     }
+  }
+
+  async previewStatus(userId: string, roomId: string) {
+    const room = await this.previewRoom(userId, roomId);
+    const stage = room.voice_stage ?? 'main';
+    const decision = await this.infra.db.query<{ decision: boolean }>(
+      `select decision from voice_preview_decisions where room_id=$1 and user_id=$2`,
+      [roomId, userId],
+    );
+    const now = Date.now();
+    const previewSecondsLeft = stage === 'preview' && room.status === 'active'
+      ? Math.max(0, Math.ceil((new Date(room.ends_at).getTime() - now) / 1000))
+      : 0;
+    const decisionSecondsLeft = stage === 'preview' && room.status === 'selection' && room.selection_ends_at
+      ? Math.max(0, Math.ceil((new Date(room.selection_ends_at).getTime() - now) / 1000))
+      : 0;
+
+    return {
+      ok: true,
+      phase: stage === 'preview' ? 'preview' : 'main',
+      roomStatus: room.status,
+      decisionOpen: stage === 'preview' && room.status === 'selection',
+      myDecision: decision.rows[0]?.decision ?? null,
+      previewSecondsLeft,
+      decisionSecondsLeft,
+      previewDurationSeconds: VoiceRoomService.previewDurationSeconds,
+      mainDurationMinutes: VoiceRoomService.pairDurationMinutes,
+    };
+  }
+
+  async submitPreviewDecision(userId: string, roomId: string, decisionInput: unknown) {
+    await this.runtimeSettings.assertOperational();
+    if (typeof decisionInput !== 'boolean') {
+      throw new BadRequestException('Ön görüşme kararı geçersiz.');
+    }
+
+    await this.rooms.syncExpiredRooms();
+    const client = await this.infra.db.connect();
+    let outcome: 'pending' | 'continued' | 'ended' = 'pending';
+    try {
+      await client.query('begin');
+      const roomResult = await client.query<{
+        room_mode: string;
+        status: string;
+        voice_stage: string | null;
+        member: boolean;
+      }>(
+        `select r.room_mode, r.status, r.voice_stage,
+                exists(
+                  select 1 from room_members rm
+                  where rm.room_id=r.id and rm.user_id=$2
+                    and rm.admin_removed_at is null
+                ) as member
+         from rooms r
+         where r.id=$1
+         for update of r`,
+        [roomId, userId],
+      );
+      const room = roomResult.rows[0];
+      if (!room || !room.member || room.room_mode !== 'voice') {
+        throw new ForbiddenException('Bu birebir sesli görüşmeye erişimin yok.');
+      }
+
+      const stage = room.voice_stage ?? 'main';
+      if (stage === 'main') {
+        await client.query('commit');
+        return { ok: true, outcome: 'continued', phase: 'main' };
+      }
+      if (room.status === 'closed') {
+        await client.query('commit');
+        return { ok: true, outcome: 'ended', phase: 'preview' };
+      }
+      if (decisionInput === true && room.status !== 'selection') {
+        throw new BadRequestException('Devam kararı ön görüşme bittikten sonra verilebilir.');
+      }
+      if (!['active', 'selection'].includes(room.status)) {
+        throw new BadRequestException('Ön görüşme kararı şu anda açık değil.');
+      }
+
+      await client.query(
+        `insert into voice_preview_decisions(room_id,user_id,decision)
+         values($1,$2,$3)
+         on conflict(room_id,user_id) do update set
+           decision=excluded.decision, updated_at=now()`,
+        [roomId, userId, decisionInput],
+      );
+
+      if (decisionInput === false) {
+        await client.query(
+          `update rooms
+           set status='closed', closed_at=coalesce(closed_at,now()),
+               closed_reason=coalesce(closed_reason,'voice_preview_skipped')
+           where id=$1`,
+          [roomId],
+        );
+        await client.query(
+          `update room_members set left_at=coalesce(left_at,now())
+           where room_id=$1 and left_at is null`,
+          [roomId],
+        );
+        outcome = 'ended';
+      } else {
+        const count = await client.query<{ yes: string; members: string }>(
+          `select
+             (select count(*) from voice_preview_decisions where room_id=$1 and decision)::text as yes,
+             (select count(*) from room_members where room_id=$1 and admin_removed_at is null)::text as members`,
+          [roomId],
+        );
+        const yes = Number(count.rows[0]?.yes ?? 0);
+        const members = Number(count.rows[0]?.members ?? 0);
+        if (members === VoiceRoomService.pairSize && yes === members) {
+          await client.query(
+            `update rooms
+             set status='active', voice_stage='main', started_at=now(),
+                 ends_at=now() + ($2::int * interval '1 minute'),
+                 room_duration_minutes=$2, extended=false,
+                 selection_started_at=null, selection_ends_at=null,
+                 closed_at=null, closed_reason=null
+             where id=$1`,
+            [roomId, VoiceRoomService.pairDurationMinutes],
+          );
+          await client.query('delete from room_extension_votes where room_id=$1', [roomId]);
+          await client.query(
+            `insert into room_messages(room_id,sender_user_id,body)
+             values($1,null,$2)`,
+            [roomId, 'İkiniz de devam etmek istediniz. 15 dakikalık birebir görüşme başladı.'],
+          );
+          outcome = 'continued';
+        }
+      }
+
+      await client.query('commit');
+    } catch (error) {
+      await client.query('rollback').catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
+
+    return {
+      ok: true,
+      outcome,
+      phase: outcome === 'continued' ? 'main' : 'preview',
+    };
   }
 
   async liveKitToken(userId: string, roomId: string) {
@@ -392,7 +568,7 @@ export class VoiceRoomService {
       throw new ForbiddenException('Bu birebir sesli görüşmeye erişimin yok.');
     }
     if (row.status !== 'active') {
-      throw new BadRequestException('Birebir sesli görüşme süresi sona erdi.');
+      throw new BadRequestException('Birebir sesli görüşme şu anda aktif değil.');
     }
 
     const url = (process.env.LIVEKIT_URL ?? '').trim();
@@ -413,7 +589,6 @@ export class VoiceRoomService {
       canSubscribe: true,
       canPublish: true,
       canPublishData: false,
-      // LiveKit TrackSource.MICROPHONE = 2. Restrict token to microphone only.
       canPublishSources: [2 as any],
     });
 
