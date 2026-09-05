@@ -260,7 +260,7 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
     super.dispose();
   }
 
-  Widget _searchOrb(BuildContext context, bool dark) {
+  Widget _searchOrb(bool dark) {
     return AnimatedBuilder(
       animation: pulse,
       builder: (context, _) {
@@ -443,7 +443,7 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                     ],
                   ),
                   const Spacer(),
-                  _searchOrb(context, dark),
+                  _searchOrb(dark),
                   const SizedBox(height: 24),
                   Text(
                     error != null && error != 'Bağlantı yenileniyor...'
