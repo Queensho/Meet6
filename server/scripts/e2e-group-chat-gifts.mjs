@@ -135,12 +135,20 @@ async function main() {
   );
 
   const catalog = await request('GET', '/gifts/catalog', sender.sessionId);
-  if (!Array.isArray(catalog.gifts) || catalog.gifts.length !== 9) {
-    throw new Error(`Expected 9 active gifts including the free gift, got ${catalog.gifts?.length}.`);
+  if (!Array.isArray(catalog.gifts) || catalog.gifts.length !== 8) {
+    throw new Error(`Expected 8 active PNG gifts, got ${catalog.gifts?.length}.`);
   }
-  const freeGift = catalog.gifts.find((gift) => gift.code === 'free_wave');
+  const expectedNames = ['Selam', 'Kalp', 'Hediye', 'Sürpriz', 'Parti', 'Taç', 'Kahve', 'Gül'];
+  const visibleNames = catalog.gifts.map((gift) => gift.name);
+  if (JSON.stringify(visibleNames) !== JSON.stringify(expectedNames)) {
+    throw new Error(`Gift visual names/order mismatch: ${JSON.stringify(visibleNames)}`);
+  }
+  const freeGift = catalog.gifts.find((gift) => gift.code === 'rose');
   if (!freeGift || Number(freeGift.coinCost) !== 0 || Number(freeGift.profileXp) !== 1 || freeGift.dailyFree !== true) {
-    throw new Error(`Free gift catalog entry mismatch: ${JSON.stringify(freeGift)}`);
+    throw new Error(`Free Selam catalog entry mismatch: ${JSON.stringify(freeGift)}`);
+  }
+  if (catalog.gifts.some((gift) => gift.code === 'free_wave')) {
+    throw new Error('Legacy free_wave gift must not remain active.');
   }
   if (Number(catalog.freeGiftAllowance?.remaining) !== 3) {
     throw new Error(`Expected 3 daily free gifts: ${JSON.stringify(catalog.freeGiftAllowance)}`);
@@ -152,37 +160,39 @@ async function main() {
     throw new Error('Gift rules must explicitly keep matchmaking unaffected.');
   }
 
+  // Use Kalp (stable internal code coffee) to verify a paid gift independently
+  // from the free Selam gift (stable internal code rose).
   const clientGiftId = `gift-e2e-${randomUUID()}`;
   const sent = await request('POST', `/gifts/rooms/${roomId}/send`, sender.sessionId, {
     recipientUserId: Number(recipient.id),
-    giftCode: 'rose',
+    giftCode: 'coffee',
     clientGiftId,
   });
-  if (sent.deduplicated !== false || sent.gift?.gift_code !== 'rose') {
-    throw new Error(`First gift send failed: ${JSON.stringify(sent)}`);
+  if (sent.deduplicated !== false || sent.gift?.gift_code !== 'coffee') {
+    throw new Error(`First paid gift send failed: ${JSON.stringify(sent)}`);
   }
-  if (Number(sent.wallet?.coinBalance) !== 495 || Number(sent.wallet?.generosityXp) !== 5) {
+  if (Number(sent.wallet?.coinBalance) !== 488 || Number(sent.wallet?.generosityXp) !== 12) {
     throw new Error(`Sender wallet/XP did not update atomically: ${JSON.stringify(sent.wallet)}`);
   }
-  if (Number(sent.wallet?.profileXp) !== 2) {
-    throw new Error(`Sender profile XP should gain 2 from rose: ${JSON.stringify(sent.wallet)}`);
+  if (Number(sent.wallet?.profileXp) !== 3) {
+    throw new Error(`Sender profile XP should gain 3 from Kalp: ${JSON.stringify(sent.wallet)}`);
   }
-  if (Number(sent.recipientSummary?.giftXp) !== 5 || Number(sent.recipientSummary?.giftsReceived) !== 1) {
+  if (Number(sent.recipientSummary?.giftXp) !== 12 || Number(sent.recipientSummary?.giftsReceived) !== 1) {
     throw new Error(`Recipient gift XP did not update: ${JSON.stringify(sent.recipientSummary)}`);
   }
-  if (Number(sent.recipientSummary?.profileXp) !== 2) {
-    throw new Error(`Recipient profile XP should gain 2 from rose: ${JSON.stringify(sent.recipientSummary)}`);
+  if (Number(sent.recipientSummary?.profileXp) !== 3) {
+    throw new Error(`Recipient profile XP should gain 3 from Kalp: ${JSON.stringify(sent.recipientSummary)}`);
   }
 
   const replay = await request('POST', `/gifts/rooms/${roomId}/send`, sender.sessionId, {
     recipientUserId: Number(recipient.id),
-    giftCode: 'rose',
+    giftCode: 'coffee',
     clientGiftId,
   });
-  if (replay.deduplicated !== true || Number(replay.wallet?.coinBalance) !== 495) {
+  if (replay.deduplicated !== true || Number(replay.wallet?.coinBalance) !== 488) {
     throw new Error(`Gift idempotency failed: ${JSON.stringify(replay)}`);
   }
-  if (Number(replay.wallet?.profileXp) !== 2) {
+  if (Number(replay.wallet?.profileXp) !== 3) {
     throw new Error('Idempotent replay must not grant profile XP twice.');
   }
 
@@ -196,7 +206,7 @@ async function main() {
 
   const selfGift = await rawRequest('POST', `/gifts/rooms/${roomId}/send`, sender.sessionId, {
     recipientUserId: Number(sender.id),
-    giftCode: 'rose',
+    giftCode: 'coffee',
     clientGiftId: `gift-e2e-self-${randomUUID()}`,
   });
   if (selfGift.status !== 400) {
@@ -208,11 +218,11 @@ async function main() {
     await new Promise((resolve) => setTimeout(resolve, 2100));
     const freeSent = await request('POST', `/gifts/rooms/${roomId}/send`, sender.sessionId, {
       recipientUserId: Number(recipient.id),
-      giftCode: 'free_wave',
+      giftCode: 'rose',
       clientGiftId: `gift-e2e-free-${index}-${randomUUID()}`,
     });
     if (Number(freeSent.wallet?.coinBalance) !== 0) {
-      throw new Error('Daily free gift must not spend coins.');
+      throw new Error('Daily free Selam must not spend coins.');
     }
     if (Number(freeSent.freeGiftAllowance?.remaining) !== 2 - index) {
       throw new Error(`Free gift allowance did not decrement: ${JSON.stringify(freeSent.freeGiftAllowance)}`);
@@ -223,14 +233,14 @@ async function main() {
   if (Number(afterFree.freeGiftAllowance?.remaining) !== 0) {
     throw new Error(`Free gift allowance should be exhausted: ${JSON.stringify(afterFree.freeGiftAllowance)}`);
   }
-  if (Number(afterFree.wallet?.profileXp) !== 5) {
-    throw new Error(`Three free gifts should add only 3 tiny profile XP: ${JSON.stringify(afterFree.wallet)}`);
+  if (Number(afterFree.wallet?.profileXp) !== 6) {
+    throw new Error(`Paid Kalp + three free Selam gifts should total 6 profile XP: ${JSON.stringify(afterFree.wallet)}`);
   }
 
   await new Promise((resolve) => setTimeout(resolve, 2100));
   const fourthFree = await rawRequest('POST', `/gifts/rooms/${roomId}/send`, sender.sessionId, {
     recipientUserId: Number(recipient.id),
-    giftCode: 'free_wave',
+    giftCode: 'rose',
     clientGiftId: `gift-e2e-free-limit-${randomUUID()}`,
   });
   if (fourthFree.status !== 400) {
@@ -273,7 +283,7 @@ async function main() {
   }
 
   console.log('✅ MEET6 GROUP CHAT GIFTS + XP REWARDS E2E PASS');
-  console.log('Rules: paid gifts + 3 daily free gifts + tiny free XP + profile XP + idempotency + no self/closed/insufficient gift + matching unaffected');
+  console.log('Rules: 8 PNG gifts + paid gift + 3 daily free Selam gifts + tiny free XP + profile XP + idempotency + no self/closed/insufficient gift + matching unaffected');
 
   await pool.query('delete from wallet_transactions where reference_type=$1 and reference_id in (select id from room_gifts where room_id=$2)', ['room_gift', roomId]);
   await pool.query('delete from room_gifts where room_id=$1', [roomId]);
