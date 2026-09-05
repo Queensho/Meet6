@@ -195,8 +195,8 @@ class _ProfileHeroState extends State<ProfileHero> {
               children: [
                 _avatar(resolvedImage),
                 Positioned(
-                  left: 8,
-                  top: 24,
+                  left: 28,
+                  top: 37,
                   child: IgnorePointer(
                     child: Image.asset(
                       'assets/images/premium_badge.png',
@@ -208,8 +208,8 @@ class _ProfileHeroState extends State<ProfileHero> {
                   ),
                 ),
                 Positioned(
-                  right: 2,
-                  top: 17,
+                  right: 28,
+                  top: 37,
                   child: _xpBadge(),
                 ),
               ],
