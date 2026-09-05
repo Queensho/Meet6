@@ -8,6 +8,7 @@
     "start:dev": "nest start --watch",
     "migrate": "node scripts/migrate.mjs",
     "admin:grant": "node scripts/grant-admin.mjs",
+    "admin:coins-unlimited": "node scripts/grant-unlimited-coins.mjs",
     "test:room-fill": "node scripts/live-room-test-fill.mjs fill",
     "test:room-solo": "node scripts/live-room-test-solo.mjs",
     "test:room-clear": "node scripts/live-room-test-fill.mjs clear",
