@@ -26,11 +26,18 @@ export class CoinPurchaseService {
   constructor(private readonly infra: InfrastructureService) {}
 
   private get secretApiKey() {
-    return (process.env.REVENUECAT_SECRET_API_KEY ?? '').trim();
+    return (
+      process.env.REVENUECAT_COIN_SECRET_API_KEY
+      ?? process.env.REVENUECAT_SECRET_API_KEY
+      ?? ''
+    ).trim();
   }
 
   private get revenueCatApiBaseUrl() {
-    return (process.env.REVENUECAT_API_BASE_URL ?? 'https://api.revenuecat.com/v1')
+    return (
+      process.env.REVENUECAT_COIN_API_BASE_URL
+      ?? 'https://api.revenuecat.com/v1'
+    )
       .trim()
       .replace(/\/+$/, '');
   }
@@ -153,7 +160,10 @@ export class CoinPurchaseService {
       const client = await this.infra.db.connect();
       try {
         await client.query('begin');
-        await client.query('insert into user_wallets(user_id) values($1) on conflict(user_id) do nothing', [userId]);
+        await client.query(
+          'insert into user_wallets(user_id) values($1) on conflict(user_id) do nothing',
+          [userId],
+        );
 
         const receipt = await client.query<{ id: string }>(
           `insert into coin_purchase_receipts(
