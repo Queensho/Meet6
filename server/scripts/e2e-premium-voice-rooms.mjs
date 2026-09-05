@@ -36,13 +36,15 @@ async function activeSession(userId) {
   throw new Error(`No active session for CI user ${userId}.`);
 }
 
-async function request(method, pathName, sessionId) {
+async function request(method, pathName, sessionId, body) {
   const response = await fetch(`${API}${pathName}`, {
     method,
     headers: {
       Accept: 'application/json',
+      'Content-Type': 'application/json',
       Authorization: `Bearer ${sessionId}`,
     },
+    body: body === undefined ? undefined : JSON.stringify(body),
   });
   const text = await response.text();
   let data = {};
@@ -52,8 +54,8 @@ async function request(method, pathName, sessionId) {
   return { response, data };
 }
 
-async function ok(method, pathName, sessionId) {
-  const result = await request(method, pathName, sessionId);
+async function ok(method, pathName, sessionId, body) {
+  const result = await request(method, pathName, sessionId, body);
   if (!result.response.ok) {
     throw new Error(`${method} ${pathName} -> ${result.response.status}: ${result.data.message ?? result.data.raw ?? result.response.statusText}`);
   }
@@ -62,6 +64,11 @@ async function ok(method, pathName, sessionId) {
 
 async function cleanup(ids) {
   await pool.query('delete from voice_matchmaking_queue where user_id=any($1::bigint[])', [ids]);
+  await pool.query(
+    `delete from voice_preview_decisions
+     where room_id in (select distinct room_id from room_members where user_id=any($1::bigint[]))`,
+    [ids],
+  ).catch(() => undefined);
   await pool.query(
     `update rooms r set status='closed',closed_at=coalesce(closed_at,now())
      where r.id in (select distinct room_id from room_members where user_id=any($1::bigint[]))`,
@@ -106,14 +113,12 @@ async function main() {
     [ids],
   );
 
-  // A free account cannot enter Premium one-to-one voice matchmaking.
   await pool.query('delete from user_subscriptions where user_id=any($1::bigint[])', [ids]);
   const denied = await request('POST', '/voice-rooms/queue', users[0].sessionId);
   if (denied.response.status !== 403) {
     throw new Error(`Expected free voice queue request to be 403, got ${denied.response.status}.`);
   }
 
-  // Grant all six CI users active Premium. Six users must become three isolated pairs.
   for (const user of users) {
     await pool.query(
       `insert into user_subscriptions(user_id,status,expires_at,will_renew,product_id,store)
@@ -145,7 +150,8 @@ async function main() {
 
   for (const roomId of uniqueRoomIds) {
     const roomResult = await pool.query(
-      `select r.room_mode,r.room_duration_minutes,
+      `select r.room_mode,r.room_duration_minutes,r.voice_stage,r.extended,
+              extract(epoch from (r.ends_at-now()))::int as seconds_left,
               (select count(*)::int from room_members rm
                where rm.room_id=r.id and rm.admin_removed_at is null) as member_count
        from rooms r where r.id=$1`,
@@ -153,21 +159,95 @@ async function main() {
     );
     const row = roomResult.rows[0];
     if (row?.room_mode !== 'voice') throw new Error(`Room ${roomId} is not marked voice.`);
+    if (row?.voice_stage !== 'preview') throw new Error(`Room ${roomId} did not start in preview stage.`);
+    if (row?.extended !== true) throw new Error(`Room ${roomId} preview must suppress extension voting.`);
     if (Number(row?.room_duration_minutes) !== 15) {
-      throw new Error(`Premium one-to-one voice room ${roomId} must be 15 minutes.`);
+      throw new Error(`Premium one-to-one voice room ${roomId} must reserve a 15 minute main call.`);
     }
     if (Number(row?.member_count) !== 2) {
       throw new Error(`Premium one-to-one voice room ${roomId} must contain exactly 2 users.`);
     }
-  }
-
-  for (const user of users) {
-    const ownRoomId = String(statuses[users.indexOf(user)].room?.id ?? '');
-    const sameRoomUsers = roomIds.filter((roomId) => roomId === ownRoomId).length;
-    if (sameRoomUsers !== 2) {
-      throw new Error(`User ${user.id} room ${ownRoomId} does not have exactly two matched users.`);
+    const secondsLeft = Number(row?.seconds_left ?? 0);
+    if (secondsLeft < 35 || secondsLeft > 45) {
+      throw new Error(`Preview room ${roomId} should start near 45 seconds, got ${secondsLeft}.`);
     }
   }
+
+  const firstRoomId = uniqueRoomIds[0];
+  const firstPair = users.filter((_, index) => roomIds[index] === firstRoomId);
+  if (firstPair.length !== 2) throw new Error('Could not resolve first preview pair.');
+
+  const initialPreview = await ok('GET', `/voice-rooms/${firstRoomId}/preview`, firstPair[0].sessionId);
+  if (initialPreview.phase !== 'preview' || initialPreview.decisionOpen !== false) {
+    throw new Error(`Unexpected initial preview state: ${JSON.stringify(initialPreview)}`);
+  }
+
+  // Fast-forward the 45 second preview without slowing CI down.
+  await pool.query(`update rooms set ends_at=now()-interval '1 second' where id=$1`, [firstRoomId]);
+  const decisionState = await ok('GET', `/voice-rooms/${firstRoomId}/preview`, firstPair[0].sessionId);
+  if (decisionState.phase !== 'preview' || decisionState.decisionOpen !== true) {
+    throw new Error(`Preview did not enter hidden decision stage: ${JSON.stringify(decisionState)}`);
+  }
+
+  const tokenDuringDecision = await request('POST', `/voice-rooms/${firstRoomId}/token`, firstPair[0].sessionId);
+  if (tokenDuringDecision.response.status !== 400) {
+    throw new Error(`Expected audio token to be blocked during preview decision, got ${tokenDuringDecision.response.status}.`);
+  }
+
+  const firstDecision = await ok(
+    'PUT',
+    `/voice-rooms/${firstRoomId}/preview-decision`,
+    firstPair[0].sessionId,
+    { continue: true },
+  );
+  if (firstDecision.outcome !== 'pending') {
+    throw new Error(`First hidden continue should wait for partner: ${JSON.stringify(firstDecision)}`);
+  }
+
+  const secondDecision = await ok(
+    'PUT',
+    `/voice-rooms/${firstRoomId}/preview-decision`,
+    firstPair[1].sessionId,
+    { continue: true },
+  );
+  if (secondDecision.outcome !== 'continued') {
+    throw new Error(`Mutual continue did not start main call: ${JSON.stringify(secondDecision)}`);
+  }
+
+  const mainRoom = await pool.query(
+    `select status,voice_stage,extended,
+            extract(epoch from (ends_at-now()))::int as seconds_left
+     from rooms where id=$1`,
+    [firstRoomId],
+  );
+  const main = mainRoom.rows[0];
+  if (main?.status !== 'active' || main?.voice_stage !== 'main' || main?.extended !== false) {
+    throw new Error(`Main call state invalid: ${JSON.stringify(main)}`);
+  }
+  if (Number(main?.seconds_left ?? 0) < 890 || Number(main?.seconds_left ?? 0) > 900) {
+    throw new Error(`Main call must restart at 15 minutes: ${JSON.stringify(main)}`);
+  }
+
+  const tokenResult = await request('POST', `/voice-rooms/${firstRoomId}/token`, firstPair[0].sessionId);
+  if (tokenResult.response.status !== 503) {
+    throw new Error(`Expected unconfigured LiveKit token request to return 503 after mutual continue, got ${tokenResult.response.status}.`);
+  }
+
+  // A single Skip must end a different preview without revealing who skipped.
+  const skipRoomId = uniqueRoomIds[1];
+  const skipPair = users.filter((_, index) => roomIds[index] === skipRoomId);
+  if (skipPair.length !== 2) throw new Error('Could not resolve skip preview pair.');
+  await pool.query(`update rooms set ends_at=now()-interval '1 second' where id=$1`, [skipRoomId]);
+  await ok('GET', `/voice-rooms/${skipRoomId}/preview`, skipPair[0].sessionId);
+  const skipped = await ok(
+    'PUT',
+    `/voice-rooms/${skipRoomId}/preview-decision`,
+    skipPair[0].sessionId,
+    { continue: false },
+  );
+  if (skipped.outcome !== 'ended') throw new Error(`Skip did not close preview: ${JSON.stringify(skipped)}`);
+  const closed = await pool.query('select status from rooms where id=$1', [skipRoomId]);
+  if (closed.rows[0]?.status !== 'closed') throw new Error('Skipped preview room stayed open.');
 
   const queueCount = await pool.query(
     'select count(*)::int as count from voice_matchmaking_queue where user_id=any($1::bigint[])',
@@ -175,23 +255,15 @@ async function main() {
   );
   if (Number(queueCount.rows[0]?.count) !== 0) throw new Error('Matched voice users remained queued.');
 
-  // CI intentionally has no LiveKit production credential. Reaching 503 proves
-  // membership + Premium authorization passed before provider configuration.
-  const tokenRoomId = roomIds[0];
-  const tokenResult = await request('POST', `/voice-rooms/${tokenRoomId}/token`, users[0].sessionId);
-  if (tokenResult.response.status !== 503) {
-    throw new Error(`Expected unconfigured LiveKit token request to return 503 in CI, got ${tokenResult.response.status}.`);
-  }
-
   await cleanup(ids);
-  console.log('✅ MEET6 PREMIUM ONE-TO-ONE VOICE E2E PASS');
-  console.log('Rules: free denied → six Premium users → three isolated pairs → 2 users each → 15m duration → token remains server-gated');
+  console.log('✅ MEET6 PREMIUM 45S PREVIEW + ONE-TO-ONE VOICE E2E PASS');
+  console.log('Rules: free denied → 3 pairs → 45s preview → hidden decision → mutual continue starts fresh 15m → skip closes privately');
 }
 
 try {
   await main();
 } catch (error) {
-  console.error('❌ MEET6 PREMIUM ONE-TO-ONE VOICE E2E FAIL');
+  console.error('❌ MEET6 PREMIUM 45S PREVIEW + ONE-TO-ONE VOICE E2E FAIL');
   console.error(error?.stack ?? error);
   process.exitCode = 1;
 } finally {
