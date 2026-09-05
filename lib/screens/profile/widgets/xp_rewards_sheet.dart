@@ -20,130 +20,51 @@ class XpRewardsSheet extends StatefulWidget {
   State<XpRewardsSheet> createState() => _XpRewardsSheetState();
 }
 
+class _RewardItem {
+  const _RewardItem({
+    required this.level,
+    required this.type,
+    required this.title,
+    required this.unlocked,
+    required this.claimed,
+  });
+
+  final int level;
+  final String type;
+  final String title;
+  final bool unlocked;
+  final bool claimed;
+}
+
+class _RewardGroup {
+  const _RewardGroup({required this.level, required this.items});
+
+  final int level;
+  final List<_RewardItem> items;
+
+  bool get unlocked => items.any((item) => item.unlocked);
+  bool get claimed => items.isNotEmpty && items.every((item) => item.claimed);
+}
+
 class _XpRewardsSheetState extends State<XpRewardsSheet> {
   static const int _maxLevel = 30;
 
-  static const List<Map<String, dynamic>> _fallbackRewards = [
-    {
-      'rewardKey': 'lv2_coins',
-      'level': 2,
-      'rewardType': 'coins',
-      'amount': 25,
-      'title': '25 jeton',
-      'cosmeticCode': null,
-    },
-    {
-      'rewardKey': 'lv3_frame',
-      'level': 3,
-      'rewardType': 'frame',
-      'amount': 0,
-      'title': 'Lime profil çerçevesi',
-      'cosmeticCode': 'frame_lime',
-    },
-    {
-      'rewardKey': 'lv5_coins',
-      'level': 5,
-      'rewardType': 'coins',
-      'amount': 75,
-      'title': '75 jeton',
-      'cosmeticCode': null,
-    },
-    {
-      'rewardKey': 'lv5_badge',
-      'level': 5,
-      'rewardType': 'badge',
-      'amount': 0,
-      'title': 'Yükselen rozet',
-      'cosmeticCode': 'badge_rising',
-    },
-    {
-      'rewardKey': 'lv7_premium',
-      'level': 7,
-      'rewardType': 'premium_days',
-      'amount': 1,
-      'title': '1 günlük Premium',
-      'cosmeticCode': null,
-    },
-    {
-      'rewardKey': 'lv10_premium',
-      'level': 10,
-      'rewardType': 'premium_days',
-      'amount': 3,
-      'title': '3 günlük Premium',
-      'cosmeticCode': null,
-    },
-    {
-      'rewardKey': 'lv10_frame',
-      'level': 10,
-      'rewardType': 'frame',
-      'amount': 0,
-      'title': 'Neon profil çerçevesi',
-      'cosmeticCode': 'frame_neon',
-    },
-    {
-      'rewardKey': 'lv12_coins',
-      'level': 12,
-      'rewardType': 'coins',
-      'amount': 150,
-      'title': '150 jeton',
-      'cosmeticCode': null,
-    },
-    {
-      'rewardKey': 'lv15_premium',
-      'level': 15,
-      'rewardType': 'premium_days',
-      'amount': 7,
-      'title': '7 günlük Premium',
-      'cosmeticCode': null,
-    },
-    {
-      'rewardKey': 'lv18_badge',
-      'level': 18,
-      'rewardType': 'badge',
-      'amount': 0,
-      'title': 'Animasyonlu yıldız rozeti',
-      'cosmeticCode': 'badge_animated_star',
-    },
-    {
-      'rewardKey': 'lv20_coins',
-      'level': 20,
-      'rewardType': 'coins',
-      'amount': 300,
-      'title': '300 jeton',
-      'cosmeticCode': null,
-    },
-    {
-      'rewardKey': 'lv20_frame',
-      'level': 20,
-      'rewardType': 'frame',
-      'amount': 0,
-      'title': 'Elite profil çerçevesi',
-      'cosmeticCode': 'frame_elite',
-    },
-    {
-      'rewardKey': 'lv25_premium',
-      'level': 25,
-      'rewardType': 'premium_days',
-      'amount': 7,
-      'title': '7 günlük Premium',
-      'cosmeticCode': null,
-    },
-    {
-      'rewardKey': 'lv30_badge',
-      'level': 30,
-      'rewardType': 'badge',
-      'amount': 0,
-      'title': 'Meet6 Elite rozeti',
-      'cosmeticCode': 'badge_meet6_elite',
-    },
-    {
-      'rewardKey': 'lv30_effect',
-      'level': 30,
-      'rewardType': 'effect',
-      'amount': 0,
-      'title': 'Elite oda efekti',
-      'cosmeticCode': 'effect_elite_room',
-    },
+  static const List<(int, String, String)> _fallbackRewards = [
+    (2, 'coins', '25 jeton'),
+    (3, 'frame', 'Lime profil çerçevesi'),
+    (5, 'coins', '75 jeton'),
+    (5, 'badge', 'Yükselen rozet'),
+    (7, 'premium_days', '1 günlük Premium'),
+    (10, 'premium_days', '3 günlük Premium'),
+    (10, 'frame', 'Neon profil çerçevesi'),
+    (12, 'coins', '150 jeton'),
+    (15, 'premium_days', '7 günlük Premium'),
+    (18, 'badge', 'Animasyonlu yıldız rozeti'),
+    (20, 'coins', '300 jeton'),
+    (20, 'frame', 'Elite profil çerçevesi'),
+    (25, 'premium_days', '7 günlük Premium'),
+    (30, 'badge', 'Meet6 Elite rozeti'),
+    (30, 'effect', 'Elite oda efekti'),
   ];
 
   late Future<Map<String, dynamic>> _future = GiftService.me();
@@ -190,91 +111,81 @@ class _XpRewardsSheetState extends State<XpRewardsSheet> {
     }
   }
 
-  List<Map<String, dynamic>> _rewardsFrom(
+  List<_RewardItem> _rewardItems(
     Map<String, dynamic> rewardsInfo,
-  ) {
-    final rawList = rewardsInfo['rewards'];
-    final fromApi = rawList is List
-        ? rawList
-            .whereType<Map>()
-            .map((item) => Map<String, dynamic>.from(item))
-            .toList(growable: false)
-        : const <Map<String, dynamic>>[];
-
-    if (fromApi.isNotEmpty) return fromApi;
-    return _fallbackRewards
-        .map((item) => Map<String, dynamic>.from(item))
-        .toList(growable: false);
-  }
-
-  List<Map<String, dynamic>> _groupRewards(
-    List<Map<String, dynamic>> rewards,
     int currentLevel,
   ) {
-    final grouped = <int, List<Map<String, dynamic>>>{};
-    for (final reward in rewards) {
-      final level = (reward['level'] as num?)?.toInt() ?? 1;
-      grouped.putIfAbsent(level, () => []).add(reward);
+    final raw = rewardsInfo['rewards'];
+    if (raw is List && raw.isNotEmpty) {
+      return raw.whereType<Map>().map((value) {
+        final item = Map<String, dynamic>.from(value);
+        final rewardLevel = (item['level'] as num?)?.toInt() ?? 1;
+        return _RewardItem(
+          level: rewardLevel,
+          type: item['rewardType']?.toString() ?? '',
+          title: item['title']?.toString().trim().isNotEmpty == true
+              ? item['title'].toString().trim()
+              : 'Meet6 seviye ödülü',
+          unlocked: item['unlocked'] == true || currentLevel >= rewardLevel,
+          claimed: item['claimed'] == true,
+        );
+      }).toList(growable: false);
     }
 
-    final levels = grouped.keys.toList()..sort();
-    return levels.map((level) {
-      final items = grouped[level] ?? const <Map<String, dynamic>>[];
-      final unlockedByLevel = currentLevel >= level;
-      final unlocked = unlockedByLevel ||
-          items.any((item) => item['unlocked'] == true);
-      final claimed = items.isNotEmpty &&
-          items.every((item) => item['claimed'] == true);
-      return <String, dynamic>{
-        'level': level,
-        'items': items,
-        'unlocked': unlocked,
-        'claimed': claimed,
-      };
+    return _fallbackRewards.map((reward) {
+      return _RewardItem(
+        level: reward.$1,
+        type: reward.$2,
+        title: reward.$3,
+        unlocked: currentLevel >= reward.$1,
+        claimed: false,
+      );
     }).toList(growable: false);
   }
 
-  Widget _rewardCard({
-    required BuildContext context,
-    required Map<String, dynamic> group,
-    required int xp,
-    required bool isNext,
-  }) {
+  List<_RewardGroup> _groupRewards(List<_RewardItem> rewards) {
+    final grouped = <int, List<_RewardItem>>{};
+    for (final reward in rewards) {
+      grouped.putIfAbsent(reward.level, () => []).add(reward);
+    }
+    final levels = grouped.keys.toList()..sort();
+    return levels
+        .map((level) => _RewardGroup(level: level, items: grouped[level]!))
+        .toList(growable: false);
+  }
+
+  _RewardGroup? _nextReward(List<_RewardGroup> groups) {
+    for (final group in groups) {
+      if (!group.unlocked) return group;
+    }
+    return null;
+  }
+
+  Widget _rewardCard(
+    BuildContext context,
+    _RewardGroup group,
+    int xp,
+    bool isNext,
+  ) {
     final scheme = Theme.of(context).colorScheme;
-    final rewardLevel = (group['level'] as num?)?.toInt() ?? 1;
-    final itemsRaw = group['items'];
-    final items = itemsRaw is List
-        ? itemsRaw
-            .whereType<Map>()
-            .map((item) => Map<String, dynamic>.from(item))
-            .toList(growable: false)
-        : const <Map<String, dynamic>>[];
-    final unlocked = group['unlocked'] == true;
-    final claimed = group['claimed'] == true;
-    final targetXp = _xpForLevel(rewardLevel);
-    final remainingXp = targetXp > xp ? targetXp - xp : 0;
+    final targetXp = _xpForLevel(group.level);
+    final remaining = targetXp > xp ? targetXp - xp : 0;
     final progress = targetXp <= 0
         ? 1.0
         : (xp / targetXp).clamp(0.0, 1.0).toDouble();
     final percent = (progress * 100).round();
-    final titles = items
-        .map((item) => item['title']?.toString().trim() ?? '')
-        .where((title) => title.isNotEmpty)
-        .toList(growable: false);
-    final firstType = items.isEmpty
-        ? ''
-        : items.first['rewardType']?.toString() ?? '';
+    final title = group.items.map((item) => item.title).join(' + ');
+    final icon = group.items.length > 1
+        ? Icons.redeem_rounded
+        : _rewardIcon(group.items.first.type);
 
-    String status;
-    if (claimed) {
-      status = 'Alındı';
-    } else if (unlocked) {
-      status = 'Açıldı';
-    } else if (isNext) {
-      status = 'Sıradaki';
-    } else {
-      status = 'Yakında';
-    }
+    final status = group.claimed
+        ? 'Alındı'
+        : group.unlocked
+            ? 'Açıldı'
+            : isNext
+                ? 'Sıradaki'
+                : 'Yakında';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 11),
@@ -282,21 +193,20 @@ class _XpRewardsSheetState extends State<XpRewardsSheet> {
       decoration: BoxDecoration(
         color: isNext
             ? AppColors.lime.withValues(alpha: .10)
-            : unlocked
-                ? AppColors.lime.withValues(alpha: .055)
+            : group.unlocked
+                ? AppColors.lime.withValues(alpha: .05)
                 : scheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(19),
         border: Border.all(
           color: isNext
               ? AppColors.lime
-              : unlocked
-                  ? AppColors.lime.withValues(alpha: .42)
+              : group.unlocked
+                  ? AppColors.lime.withValues(alpha: .40)
                   : scheme.outlineVariant,
           width: isNext ? 1.5 : 1,
         ),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
@@ -304,16 +214,14 @@ class _XpRewardsSheetState extends State<XpRewardsSheet> {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: unlocked || isNext
+                  color: group.unlocked || isNext
                       ? AppColors.lime
                       : scheme.surfaceContainerHighest,
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
-                  items.length > 1
-                      ? Icons.redeem_rounded
-                      : _rewardIcon(firstType),
-                  color: unlocked || isNext
+                  icon,
+                  color: group.unlocked || isNext
                       ? AppColors.navy
                       : scheme.onSurfaceVariant,
                   size: 21,
@@ -327,7 +235,7 @@ class _XpRewardsSheetState extends State<XpRewardsSheet> {
                     Row(
                       children: [
                         Text(
-                          'Lv $rewardLevel',
+                          'Lv ${group.level}',
                           style: TextStyle(
                             color: scheme.onSurface,
                             fontSize: 14,
@@ -347,7 +255,7 @@ class _XpRewardsSheetState extends State<XpRewardsSheet> {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      titles.isEmpty ? 'Meet6 seviye ödülü' : titles.join(' + '),
+                      title,
                       style: TextStyle(
                         color: scheme.onSurface,
                         fontSize: 13,
@@ -361,17 +269,17 @@ class _XpRewardsSheetState extends State<XpRewardsSheet> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
                 decoration: BoxDecoration(
-                  color: claimed
-                      ? AppColors.lime.withValues(alpha: .18)
-                      : isNext
-                          ? AppColors.lime
+                  color: isNext
+                      ? AppColors.lime
+                      : group.claimed
+                          ? AppColors.lime.withValues(alpha: .18)
                           : scheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(99),
                 ),
                 child: Text(
                   status,
                   style: TextStyle(
-                    color: claimed || isNext
+                    color: isNext || group.claimed
                         ? AppColors.navy
                         : scheme.onSurfaceVariant,
                     fontSize: 9.5,
@@ -396,11 +304,11 @@ class _XpRewardsSheetState extends State<XpRewardsSheet> {
             children: [
               Expanded(
                 child: Text(
-                  unlocked
+                  group.unlocked
                       ? 'Bu seviye açıldı.'
-                      : '${_format(remainingXp)} XP kaldı',
+                      : '${_format(remaining)} XP kaldı',
                   style: TextStyle(
-                    color: unlocked
+                    color: group.unlocked
                         ? AppColors.lime
                         : scheme.onSurfaceVariant,
                     fontSize: 10.5,
@@ -409,7 +317,7 @@ class _XpRewardsSheetState extends State<XpRewardsSheet> {
                 ),
               ),
               Text(
-                unlocked ? '100%' : '%$percent',
+                group.unlocked ? '100%' : '%$percent',
                 style: TextStyle(
                   color: scheme.onSurfaceVariant,
                   fontSize: 10.5,
@@ -426,6 +334,7 @@ class _XpRewardsSheetState extends State<XpRewardsSheet> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+
     return SafeArea(
       top: false,
       child: Container(
@@ -447,6 +356,7 @@ class _XpRewardsSheetState extends State<XpRewardsSheet> {
                 ),
               );
             }
+
             if (snapshot.hasError) {
               final message = snapshot.error is ApiException
                   ? (snapshot.error as ApiException).message
@@ -482,6 +392,7 @@ class _XpRewardsSheetState extends State<XpRewardsSheet> {
             final rewardsInfo = rewardsRaw is Map
                 ? Map<String, dynamic>.from(rewardsRaw)
                 : const <String, dynamic>{};
+
             final xp = (summary['profileXp'] as num?)?.toInt() ?? 0;
             final computedLevel = _levelFromXp(xp);
             final apiLevel = (summary['profileLevel'] as num?)?.toInt();
@@ -496,22 +407,15 @@ class _XpRewardsSheetState extends State<XpRewardsSheet> {
                     ? apiNextXp
                     : _xpForLevel(level + 1));
             final currentStart = _xpForLevel(level);
-            final progress = nextXp == null
+            final levelProgress = nextXp == null
                 ? 1.0
                 : ((xp - currentStart) / (nextXp - currentStart))
                     .clamp(0.0, 1.0)
                     .toDouble();
-            final nextLevelRemaining = nextXp == null ? 0 : nextXp - xp;
+            final levelRemaining = nextXp == null ? 0 : nextXp - xp;
 
-            final rewards = _rewardsFrom(rewardsInfo);
-            final groups = _groupRewards(rewards, level);
-            final nextRewardLevel = groups
-                .where((group) => group['unlocked'] != true)
-                .map((group) => (group['level'] as num?)?.toInt() ?? 1)
-                .fold<int?>(null, (current, candidate) {
-              if (current == null || candidate < current) return candidate;
-              return current;
-            });
+            final groups = _groupRewards(_rewardItems(rewardsInfo, level));
+            final nextReward = _nextReward(groups);
 
             return SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(18, 12, 18, 26),
@@ -565,7 +469,7 @@ class _XpRewardsSheetState extends State<XpRewardsSheet> {
                             Text(
                               nextXp == null
                                   ? '${_format(xp)} XP · Maksimum seviye'
-                                  : '${_format(xp)} XP · Lv ${level + 1} için ${_format(nextLevelRemaining)} XP kaldı',
+                                  : '${_format(xp)} XP · Lv ${level + 1} için ${_format(levelRemaining)} XP kaldı',
                               style: TextStyle(
                                 color: scheme.onSurfaceVariant,
                                 fontSize: 12,
@@ -582,7 +486,7 @@ class _XpRewardsSheetState extends State<XpRewardsSheet> {
                     borderRadius: BorderRadius.circular(99),
                     child: LinearProgressIndicator(
                       minHeight: 10,
-                      value: progress,
+                      value: levelProgress,
                       color: AppColors.lime,
                       backgroundColor: scheme.surfaceContainerHighest,
                     ),
@@ -623,10 +527,7 @@ class _XpRewardsSheetState extends State<XpRewardsSheet> {
                   const SizedBox(height: 13),
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(
                       color: scheme.surfaceContainerLow,
                       borderRadius: BorderRadius.circular(15),
@@ -634,11 +535,7 @@ class _XpRewardsSheetState extends State<XpRewardsSheet> {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(
-                          Icons.bolt_rounded,
-                          color: AppColors.lime,
-                          size: 20,
-                        ),
+                        const Icon(Icons.bolt_rounded, color: AppColors.lime, size: 20),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -647,7 +544,7 @@ class _XpRewardsSheetState extends State<XpRewardsSheet> {
                               color: scheme.onSurfaceVariant,
                               fontSize: 11.2,
                               height: 1.35,
-                              fontWeight: FontWeight.w650,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
@@ -666,9 +563,9 @@ class _XpRewardsSheetState extends State<XpRewardsSheet> {
                         ),
                       ),
                       const Spacer(),
-                      if (nextRewardLevel != null)
+                      if (nextReward != null)
                         Text(
-                          'Sıradaki Lv $nextRewardLevel',
+                          'Sıradaki Lv ${nextReward.level}',
                           style: const TextStyle(
                             color: AppColors.lime,
                             fontSize: 10.5,
@@ -678,16 +575,14 @@ class _XpRewardsSheetState extends State<XpRewardsSheet> {
                     ],
                   ),
                   const SizedBox(height: 11),
-                  ...groups.map((group) {
-                    final rewardLevel =
-                        (group['level'] as num?)?.toInt() ?? 1;
-                    return _rewardCard(
-                      context: context,
-                      group: group,
-                      xp: xp,
-                      isNext: nextRewardLevel == rewardLevel,
-                    );
-                  }),
+                  ...groups.map(
+                    (group) => _rewardCard(
+                      context,
+                      group,
+                      xp,
+                      nextReward?.level == group.level,
+                    ),
+                  ),
                 ],
               ),
             );
