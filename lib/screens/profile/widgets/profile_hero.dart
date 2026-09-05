@@ -6,6 +6,7 @@ import '../../../services/api_service.dart';
 import '../../../services/gift_service.dart';
 import '../../../theme/app_colors.dart';
 import '../../premium/premium_profile_card.dart';
+import 'xp_rewards_sheet.dart';
 
 class ProfileHero extends StatefulWidget {
   const ProfileHero({
@@ -41,7 +42,7 @@ class _ProfileHeroState extends State<ProfileHero> {
 
   int _profileLevel(int xp) {
     final safeXp = math.max(0, xp);
-    return math.min(20, 1 + math.sqrt(safeXp / 50).floor());
+    return math.min(30, 1 + math.sqrt(safeXp / 50).floor());
   }
 
   Widget _xpBadge() {
@@ -52,95 +53,102 @@ class _ProfileHeroState extends State<ProfileHero> {
         final summary = raw is Map
             ? Map<String, dynamic>.from(raw)
             : const <String, dynamic>{};
-        final giftXp = (summary['giftXp'] as num?)?.toInt() ?? 0;
-        final generosityXp = (summary['generosityXp'] as num?)?.toInt() ?? 0;
-        final totalXp = giftXp + generosityXp;
-        final level = _profileLevel(totalXp);
+        final totalXp = (summary['profileXp'] as num?)?.toInt() ?? 0;
+        final level = (summary['profileLevel'] as num?)?.toInt() ?? _profileLevel(totalXp);
 
         return Semantics(
-          label: 'Seviye $level, ${_formatXp(totalXp)} XP',
-          child: Container(
-            width: 58,
-            height: 58,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: const RadialGradient(
-                center: Alignment(-.18, -.28),
-                radius: 1.05,
-                colors: [
-                  Color(0xFF1D2B4D),
-                  Color(0xFF07142F),
-                ],
-              ),
-              border: Border.all(color: AppColors.navy, width: 2),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x2A000000),
-                  blurRadius: 10,
-                  offset: Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Container(
-              margin: const EdgeInsets.all(3),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: AppColors.lime.withValues(alpha: .85),
-                  width: 1.3,
-                ),
-              ),
-              child: snapshot.connectionState == ConnectionState.waiting
-                  ? const Center(
-                      child: SizedBox(
-                        width: 13,
-                        height: 13,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 1.6,
-                          color: AppColors.lime,
-                        ),
-                      ),
-                    )
-                  : Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text.rich(
-                          TextSpan(
-                            children: [
-                              const TextSpan(
-                                text: 'Lv ',
-                                style: TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 9.5,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              TextSpan(
-                                text: '$level',
-                                style: const TextStyle(
-                                  color: AppColors.lime,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                            ],
-                          ),
-                          maxLines: 1,
-                        ),
-                        const SizedBox(height: 1),
-                        Text(
-                          '${_formatXp(totalXp)} XP',
-                          maxLines: 1,
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 6.3,
-                            height: 1,
-                            letterSpacing: .1,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ],
+          button: true,
+          label: 'Seviye $level, ${_formatXp(totalXp)} XP. Seviye ödüllerini aç.',
+          child: Material(
+            color: Colors.transparent,
+            shape: const CircleBorder(),
+            child: InkWell(
+              onTap: () => XpRewardsSheet.show(context),
+              customBorder: const CircleBorder(),
+              child: Container(
+                width: 58,
+                height: 58,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: const RadialGradient(
+                    center: Alignment(-.18, -.28),
+                    radius: 1.05,
+                    colors: [
+                      Color(0xFF1D2B4D),
+                      Color(0xFF07142F),
+                    ],
+                  ),
+                  border: Border.all(color: AppColors.navy, width: 2),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x2A000000),
+                      blurRadius: 10,
+                      offset: Offset(0, 4),
                     ),
+                  ],
+                ),
+                child: Container(
+                  margin: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: AppColors.lime.withValues(alpha: .85),
+                      width: 1.3,
+                    ),
+                  ),
+                  child: snapshot.connectionState == ConnectionState.waiting
+                      ? const Center(
+                          child: SizedBox(
+                            width: 13,
+                            height: 13,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 1.6,
+                              color: AppColors.lime,
+                            ),
+                          ),
+                        )
+                      : Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text.rich(
+                              TextSpan(
+                                children: [
+                                  const TextSpan(
+                                    text: 'Lv ',
+                                    style: TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  TextSpan(
+                                    text: '$level',
+                                    style: const TextStyle(
+                                      color: AppColors.lime,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              maxLines: 1,
+                            ),
+                            const SizedBox(height: 1),
+                            Text(
+                              '${_formatXp(totalXp)} XP',
+                              maxLines: 1,
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 6.3,
+                                height: 1,
+                                letterSpacing: .1,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
+              ),
             ),
           ),
         );

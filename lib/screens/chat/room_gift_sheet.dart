@@ -65,6 +65,11 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
     return raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
   }
 
+  Map<String, dynamic> get freeGiftAllowance {
+    final raw = catalog?['freeGiftAllowance'];
+    return raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+  }
+
   Map<String, dynamic>? get selectedGift {
     for (final gift in gifts) {
       if (gift['code']?.toString() == selectedGiftCode) return gift;
@@ -73,6 +78,8 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
   }
 
   int get balance => (wallet['coinBalance'] as num?)?.toInt() ?? 0;
+  int get freeRemaining => (freeGiftAllowance['remaining'] as num?)?.toInt() ?? 0;
+  int get freeDailyLimit => (freeGiftAllowance['dailyLimit'] as num?)?.toInt() ?? 3;
 
   @override
   void initState() {
@@ -127,7 +134,14 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
     final gift = selectedGift;
     if (recipientId == null || gift == null || sending) return;
     final cost = (gift['coinCost'] as num?)?.toInt() ?? 0;
-    if (balance < cost) {
+    final dailyFree = gift['dailyFree'] == true;
+    if (dailyFree && freeRemaining <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bugünkü 3 ücretsiz hediyeni kullandın.')),
+      );
+      return;
+    }
+    if (!dailyFree && balance < cost) {
       await _openCoinStore();
       return;
     }
@@ -183,6 +197,8 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
     final scheme = theme.colorScheme;
     final gift = selectedGift;
     final selectedCost = (gift?['coinCost'] as num?)?.toInt() ?? 0;
+    final selectedDailyFree = gift?['dailyFree'] == true;
+    final selectedFreeExhausted = selectedDailyFree && freeRemaining <= 0;
 
     return SafeArea(
       top: false,
@@ -297,6 +313,32 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
                             ),
                           ],
                         ),
+                        const SizedBox(height: 12),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                          decoration: BoxDecoration(
+                            color: AppColors.lime.withValues(alpha: .12),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: AppColors.lime.withValues(alpha: .38)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Text('🎁', style: TextStyle(fontSize: 18)),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Bugün $freeRemaining/$freeDailyLimit ücretsiz hediye hakkın kaldı · ücretsiz hediye yalnız +1 Meet6 XP verir.',
+                                  style: TextStyle(
+                                    color: scheme.onSurface,
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                         const SizedBox(height: 20),
                         Text(
                           'Kime?',
@@ -378,45 +420,52 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
                             final item = gifts[index];
                             final code = item['code']?.toString() ?? '';
                             final selected = code == selectedGiftCode;
-                            return InkWell(
-                              onTap: () => setState(() => selectedGiftCode = code),
-                              borderRadius: BorderRadius.circular(18),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 150),
-                                padding: const EdgeInsets.all(7),
-                                decoration: BoxDecoration(
-                                  color: selected ? AppColors.lime.withValues(alpha: .15) : scheme.surfaceContainerLow,
-                                  borderRadius: BorderRadius.circular(18),
-                                  border: Border.all(
-                                    color: selected ? AppColors.lime : scheme.outlineVariant,
-                                    width: selected ? 2 : 1,
+                            final dailyFree = item['dailyFree'] == true;
+                            final exhausted = dailyFree && freeRemaining <= 0;
+                            return Opacity(
+                              opacity: exhausted ? .5 : 1,
+                              child: InkWell(
+                                onTap: exhausted ? null : () => setState(() => selectedGiftCode = code),
+                                borderRadius: BorderRadius.circular(18),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 150),
+                                  padding: const EdgeInsets.all(7),
+                                  decoration: BoxDecoration(
+                                    color: selected ? AppColors.lime.withValues(alpha: .15) : scheme.surfaceContainerLow,
+                                    borderRadius: BorderRadius.circular(18),
+                                    border: Border.all(
+                                      color: selected ? AppColors.lime : scheme.outlineVariant,
+                                      width: selected ? 2 : 1,
+                                    ),
                                   ),
-                                ),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(item['emoji']?.toString() ?? '🎁', style: const TextStyle(fontSize: 29)),
-                                    const SizedBox(height: 3),
-                                    Text(
-                                      item['name']?.toString() ?? '',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        color: scheme.onSurface,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w800,
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(item['emoji']?.toString() ?? '🎁', style: const TextStyle(fontSize: 29)),
+                                      const SizedBox(height: 3),
+                                      Text(
+                                        item['name']?.toString() ?? '',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: scheme.onSurface,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w800,
+                                        ),
                                       ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      '🪙 ${item['coinCost'] ?? 0}',
-                                      style: TextStyle(
-                                        color: scheme.onSurfaceVariant,
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.w800,
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        dailyFree
+                                            ? (exhausted ? 'Bitti' : 'Ücretsiz')
+                                            : '🪙 ${item['coinCost'] ?? 0}',
+                                        style: TextStyle(
+                                          color: dailyFree ? AppColors.lime : scheme.onSurfaceVariant,
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w900,
+                                        ),
                                       ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               ),
                             );
@@ -427,7 +476,7 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
                           children: [
                             Expanded(
                               child: Text(
-                                'Hediye XP: ${wallet['giftXp'] ?? 0} · Cömertlik XP: ${wallet['generosityXp'] ?? 0}',
+                                'Meet6 XP: ${wallet['profileXp'] ?? 0} · Hediye XP: ${wallet['giftXp'] ?? 0}',
                                 style: TextStyle(
                                   color: scheme.onSurfaceVariant,
                                   fontSize: 10.5,
@@ -436,7 +485,7 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
                               ),
                             ),
                             Text(
-                              'Seviye ${wallet['generosityLevel'] ?? 1}',
+                              'Lv ${wallet['profileLevel'] ?? 1}',
                               style: const TextStyle(
                                 color: AppColors.lime,
                                 fontSize: 11,
@@ -450,7 +499,9 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
                           width: double.infinity,
                           height: 52,
                           child: FilledButton.icon(
-                            onPressed: recipients.isEmpty || gift == null || sending ? null : _send,
+                            onPressed: recipients.isEmpty || gift == null || sending || selectedFreeExhausted
+                                ? null
+                                : _send,
                             style: FilledButton.styleFrom(
                               backgroundColor: AppColors.lime,
                               foregroundColor: AppColors.navy,
@@ -465,12 +516,16 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
                                   )
                                 : const Icon(Icons.card_giftcard_rounded),
                             label: Text(
-                              gift == null ? 'Hediye seç' : 'Gönder · 🪙 $selectedCost',
+                              gift == null
+                                  ? 'Hediye seç'
+                                  : selectedDailyFree
+                                      ? 'Gönder · Ücretsiz'
+                                      : 'Gönder · 🪙 $selectedCost',
                               style: const TextStyle(fontWeight: FontWeight.w900),
                             ),
                           ),
                         ),
-                        if (balance < selectedCost) ...[
+                        if (!selectedDailyFree && balance < selectedCost) ...[
                           const SizedBox(height: 6),
                           Center(
                             child: TextButton.icon(
