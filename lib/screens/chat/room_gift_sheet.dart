@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
 import '../../services/gift_service.dart';
 import '../../theme/app_colors.dart';
+import 'coin_store_sheet.dart';
 
 class RoomGiftSheet extends StatefulWidget {
   const RoomGiftSheet({
@@ -88,7 +89,7 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
       if (!mounted) return;
       setState(() {
         catalog = data;
-        selectedGiftCode = gifts.isEmpty ? null : gifts.first['code']?.toString();
+        selectedGiftCode ??= gifts.isEmpty ? null : gifts.first['code']?.toString();
         loading = false;
         error = null;
       });
@@ -101,15 +102,33 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
     }
   }
 
+  Future<void> _openCoinStore() async {
+    final newBalance = await CoinStoreSheet.show(context);
+    if (!mounted || newBalance == null) return;
+    final current = catalog;
+    if (current == null) {
+      await _load();
+      return;
+    }
+    final currentWallet = wallet;
+    setState(() {
+      catalog = {
+        ...current,
+        'wallet': {
+          ...currentWallet,
+          'coinBalance': newBalance,
+        },
+      };
+    });
+  }
+
   Future<void> _send() async {
     final recipientId = selectedRecipientId;
     final gift = selectedGift;
     if (recipientId == null || gift == null || sending) return;
     final cost = (gift['coinCost'] as num?)?.toInt() ?? 0;
     if (balance < cost) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Yeterli jetonun yok.')),
-      );
+      await _openCoinStore();
       return;
     }
 
@@ -162,7 +181,6 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final dark = theme.brightness == Brightness.dark;
     final gift = selectedGift;
     final selectedCost = (gift?['coinCost'] as num?)?.toInt() ?? 0;
 
@@ -252,17 +270,28 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
                                 ],
                               ),
                             ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: scheme.surfaceContainerHigh,
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              child: Text(
-                                '🪙 $balance',
-                                style: TextStyle(
-                                  color: scheme.onSurface,
-                                  fontWeight: FontWeight.w900,
+                            InkWell(
+                              onTap: _openCoinStore,
+                              borderRadius: BorderRadius.circular(14),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: scheme.surfaceContainerHigh,
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      '🪙 $balance',
+                                      style: TextStyle(
+                                        color: scheme.onSurface,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    const Icon(Icons.add_circle_rounded, color: AppColors.lime, size: 18),
+                                  ],
                                 ),
                               ),
                             ),
@@ -442,15 +471,12 @@ class _RoomGiftSheetState extends State<RoomGiftSheet> {
                           ),
                         ),
                         if (balance < selectedCost) ...[
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 6),
                           Center(
-                            child: Text(
-                              'Bu hediye için yeterli jetonun yok.',
-                              style: TextStyle(
-                                color: scheme.error,
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w700,
-                              ),
+                            child: TextButton.icon(
+                              onPressed: _openCoinStore,
+                              icon: const Icon(Icons.add_circle_rounded, size: 17),
+                              label: const Text('Yeterli jeton yok · Jeton yükle'),
                             ),
                           ),
                         ],
