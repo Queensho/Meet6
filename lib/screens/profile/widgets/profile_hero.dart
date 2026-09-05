@@ -60,8 +60,8 @@ class _ProfileHeroState extends State<ProfileHero> {
         return Semantics(
           label: 'Seviye $level, ${_formatXp(totalXp)} XP',
           child: Container(
-            width: 78,
-            height: 78,
+            width: 58,
+            height: 58,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: const RadialGradient(
@@ -72,31 +72,31 @@ class _ProfileHeroState extends State<ProfileHero> {
                   Color(0xFF07142F),
                 ],
               ),
-              border: Border.all(color: AppColors.navy, width: 3),
+              border: Border.all(color: AppColors.navy, width: 2),
               boxShadow: const [
                 BoxShadow(
-                  color: Color(0x33000000),
-                  blurRadius: 16,
-                  offset: Offset(0, 7),
+                  color: Color(0x2A000000),
+                  blurRadius: 10,
+                  offset: Offset(0, 4),
                 ),
               ],
             ),
             child: Container(
-              margin: const EdgeInsets.all(4),
+              margin: const EdgeInsets.all(3),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
                   color: AppColors.lime.withValues(alpha: .85),
-                  width: 1.7,
+                  width: 1.3,
                 ),
               ),
               child: snapshot.connectionState == ConnectionState.waiting
                   ? const Center(
                       child: SizedBox(
-                        width: 17,
-                        height: 17,
+                        width: 13,
+                        height: 13,
                         child: CircularProgressIndicator(
-                          strokeWidth: 2,
+                          strokeWidth: 1.6,
                           color: AppColors.lime,
                         ),
                       ),
@@ -111,7 +111,7 @@ class _ProfileHeroState extends State<ProfileHero> {
                                 text: 'Lv ',
                                 style: TextStyle(
                                   color: Colors.white70,
-                                  fontSize: 13,
+                                  fontSize: 9.5,
                                   fontWeight: FontWeight.w800,
                                 ),
                               ),
@@ -119,7 +119,7 @@ class _ProfileHeroState extends State<ProfileHero> {
                                 text: '$level',
                                 style: const TextStyle(
                                   color: AppColors.lime,
-                                  fontSize: 19,
+                                  fontSize: 14,
                                   fontWeight: FontWeight.w900,
                                 ),
                               ),
@@ -127,15 +127,15 @@ class _ProfileHeroState extends State<ProfileHero> {
                           ),
                           maxLines: 1,
                         ),
-                        const SizedBox(height: 2),
+                        const SizedBox(height: 1),
                         Text(
                           '${_formatXp(totalXp)} XP',
                           maxLines: 1,
                           style: const TextStyle(
                             color: Colors.white70,
-                            fontSize: 8.3,
+                            fontSize: 6.3,
                             height: 1,
-                            letterSpacing: .15,
+                            letterSpacing: .1,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
@@ -269,13 +269,13 @@ class _ProfileHeroState extends State<ProfileHero> {
               children: [
                 _avatar(resolvedImage),
                 const Positioned(
-                  left: 17,
-                  top: 29,
+                  left: 23,
+                  top: 37,
                   child: PremiumProfileCard(),
                 ),
                 Positioned(
-                  right: 17,
-                  top: 29,
+                  right: 23,
+                  top: 37,
                   child: _xpBadge(),
                 ),
               ],
