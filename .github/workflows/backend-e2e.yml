@@ -136,6 +136,10 @@ jobs:
         working-directory: server
         run: node scripts/e2e-matchmaking-policy.mjs
 
+      - name: Run Premium voice preview E2E
+        working-directory: server
+        run: node scripts/e2e-premium-voice-rooms.mjs
+
       - name: Run 24-user concurrent load smoke
         working-directory: server
         env:
