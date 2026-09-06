@@ -19,6 +19,7 @@ import { BillingService } from './billing.service';
 import { CoinPurchaseController } from './coin-purchase.controller';
 import { CoinPurchaseService } from './coin-purchase.service';
 import { ContentSafetyService } from './content-safety.service';
+import { GameRoomTestService } from './game-room-test.service';
 import { GiftController } from './gift.controller';
 import { GiftService } from './gift.service';
 import { HealthController } from './health.controller';
@@ -78,6 +79,7 @@ import { VoiceRoomService } from './voice-room.service';
     CoinPurchaseService,
     GiftService,
     RoomService,
+    GameRoomTestService,
     RoomRefillService,
     VoiceRoomService,
     RoomMessageService,
