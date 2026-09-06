@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../services/api_service.dart';
 import '../../../services/gift_service.dart';
+import '../../../services/premium_subscription_service.dart';
 import '../../../theme/app_colors.dart';
 import '../../../widgets/xp_level_ring.dart';
 import 'xp_rewards_sheet.dart';
@@ -24,6 +25,7 @@ class ProfileHero extends StatefulWidget {
 
 class _ProfileHeroState extends State<ProfileHero> {
   late final Future<Map<String, dynamic>> _giftSummary = GiftService.me();
+  late final Future<PremiumStatus> _premiumStatus = PremiumSubscriptionService.status();
 
   String get initial {
     final value = widget.name.trim();
@@ -69,6 +71,26 @@ class _ProfileHeroState extends State<ProfileHero> {
           totalXp: totalXp,
           size: 58,
           onTap: () => XpRewardsSheet.show(context),
+        );
+      },
+    );
+  }
+
+  Widget _premiumBadge() {
+    return FutureBuilder<PremiumStatus>(
+      future: _premiumStatus,
+      builder: (context, snapshot) {
+        final premium = snapshot.data?.premium == true;
+        return IgnorePointer(
+          child: Image.asset(
+            premium
+                ? 'assets/images/premium_badge.png'
+                : 'assets/images/Premiumpasif.png',
+            width: 92,
+            height: 76,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.high,
+          ),
         );
       },
     );
@@ -197,15 +219,7 @@ class _ProfileHeroState extends State<ProfileHero> {
                 Positioned(
                   left: 28,
                   top: 37,
-                  child: IgnorePointer(
-                    child: Image.asset(
-                      'assets/images/premium_badge.png',
-                      width: 92,
-                      height: 76,
-                      fit: BoxFit.contain,
-                      filterQuality: FilterQuality.high,
-                    ),
-                  ),
+                  child: _premiumBadge(),
                 ),
                 Positioned(
                   right: 28,
