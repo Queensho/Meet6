@@ -6,6 +6,7 @@ import '../../services/gift_service.dart';
 import '../../services/live_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/phone_frame.dart';
+import '../../widgets/xp_level_ring.dart';
 import '../messages/private_chat_screen.dart';
 
 class MatchProfileDetailScreen extends StatefulWidget {
@@ -29,6 +30,7 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
   Map<String, dynamic>? socialSummary;
   bool loading = true;
   String? error;
+  int photoIndex = 0;
 
   @override
   void initState() {
@@ -42,20 +44,14 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
       final raw = data['profile'];
       final nextProfile = raw is Map ? Map<String, dynamic>.from(raw) : null;
       Map<String, dynamic>? nextSummary;
-
       final targetUserId = nextProfile?['user_id']?.toString() ?? '';
       if (targetUserId.isNotEmpty) {
         try {
           final giftData = await GiftService.userSummary(targetUserId);
-          final rawSummary = giftData['summary'];
-          if (rawSummary is Map) {
-            nextSummary = Map<String, dynamic>.from(rawSummary);
-          }
-        } catch (_) {
-          // Seviye bilgisi yüklenemese de profil detayını göstermeye devam et.
-        }
+          final summary = giftData['summary'];
+          if (summary is Map) nextSummary = Map<String, dynamic>.from(summary);
+        } catch (_) {}
       }
-
       if (!mounted) return;
       setState(() {
         profile = nextProfile;
@@ -84,709 +80,347 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
     return raw.map((e) => e.toString()).where((e) => e.isNotEmpty).toList();
   }
 
-  String get name => profile?['display_name']?.toString() ?? 'Meet6';
+  String get name => profile?['display_name']?.toString() ?? widget.profileName;
   String get userId => profile?['user_id']?.toString() ?? '';
   int get profileLevel => (socialSummary?['profileLevel'] as num?)?.toInt() ?? 1;
+  int get profileXp => (socialSummary?['profileXp'] as num?)?.toInt() ?? 0;
   bool get isOnline => profile?['online'] == true;
-  bool get isPremium =>
-      profile?['premium'] == true ||
-      profile?['is_premium'] == true ||
-      profile?['premium_active'] == true;
+  bool get isPremium => profile?['premium'] == true || profile?['is_premium'] == true || profile?['premium_active'] == true;
 
   String get locationText => [profile?['city'], profile?['country']]
-      .where((value) => value != null && value.toString().trim().isNotEmpty)
-      .map((value) => value.toString().trim())
+      .where((v) => v != null && v.toString().trim().isNotEmpty)
+      .map((v) => v.toString().trim())
       .join(', ');
 
   void _message() {
-    if (profile == null) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => PrivateChatScreen(
-          matchId: widget.matchId,
-          name: name,
-          userId: userId,
-          photoUrl: photos.isEmpty ? '' : photos.first,
-          isOnline: isOnline,
-        ),
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => PrivateChatScreen(
+        matchId: widget.matchId,
+        name: name,
+        userId: userId,
+        photoUrl: photos.isEmpty ? '' : photos.first,
+        isOnline: isOnline,
       ),
-    );
+    ));
   }
 
+  Future<bool?> _confirm(String title, String body) => showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: Text(title),
+          content: Text(body),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Vazgeç')),
+            FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Onayla')),
+          ],
+        ),
+      );
+
   Future<void> _block() async {
-    final approved = await _confirm(
-      'Kullanıcı engellensin mi?',
-      'Bu eşleşme kapanır ve bu kişiyle gelecekte aynı Meet6 odasına düşmezsin.',
-    );
-    if (approved != true || userId.isEmpty) return;
-    try {
-      await LiveService.blockUser(userId);
-      if (mounted) Navigator.of(context).pop();
-    } on ApiException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
-      }
-    }
+    if (await _confirm('Kullanıcı engellensin mi?', 'Bu eşleşme kapanır ve bu kişiyle tekrar eşleşmezsin.') != true || userId.isEmpty) return;
+    await LiveService.blockUser(userId);
+    if (mounted) Navigator.of(context).pop();
   }
 
   Future<void> _unmatch() async {
-    final approved = await _confirm(
-      'Eşleşme kaldırılsın mı?',
-      'Özel sohbet kapanır. Kullanıcı engellenmez.',
-    );
-    if (approved != true) return;
+    if (await _confirm('Eşleşme kaldırılsın mı?', 'Özel sohbet kapanır. Kullanıcı engellenmez.') != true) return;
     await LiveService.unmatch(widget.matchId);
     if (mounted) Navigator.of(context).pop();
   }
 
   Future<void> _report() async {
     if (userId.isEmpty) return;
-    final detail = TextEditingController();
-    String reason = 'Rahatsız edici davranış';
-    final approved = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Şikâyet et'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DropdownButtonFormField<String>(
-                value: reason,
-                isExpanded: true,
-                items: const [
-                  'Rahatsız edici davranış',
-                  'Taciz / hakaret',
-                  'Sahte profil',
-                  'Spam',
-                  'Diğer',
-                ].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-                onChanged: (value) => setDialogState(() => reason = value ?? reason),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: detail,
-                maxLines: 3,
-                decoration: const InputDecoration(hintText: 'Ayrıntı ekle (isteğe bağlı)'),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Vazgeç'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Gönder'),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (approved == true) {
-      await LiveService.reportUser(userId, reason: reason, detail: detail.text);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Şikâyetin inceleme kuyruğuna alındı.')),
-        );
-      }
-    }
-    detail.dispose();
-  }
-
-  Future<bool?> _confirm(String title, String body) {
-    return showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(title),
-        content: Text(body),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Vazgeç'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Onayla'),
-          ),
-        ],
-      ),
-    );
+    await LiveService.reportUser(userId, reason: 'Rahatsız edici davranış', detail: 'Profil detayından bildirildi');
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Şikâyetin inceleme kuyruğuna alındı.')));
   }
 
   Future<void> _more() async {
     final action = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (sheetContext) {
-        final scheme = Theme.of(sheetContext).colorScheme;
-        return SafeArea(
-          child: Container(
-            margin: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: scheme.surface,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: scheme.outlineVariant),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.flag_outlined),
-                  title: const Text('Şikâyet et'),
-                  onTap: () => Navigator.pop(sheetContext, 'report'),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.heart_broken_outlined),
-                  title: const Text('Eşleşmeyi kaldır'),
-                  onTap: () => Navigator.pop(sheetContext, 'unmatch'),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.block_rounded, color: Color(0xFFE24A4A)),
-                  title: const Text(
-                    'Kullanıcıyı engelle',
-                    style: TextStyle(color: Color(0xFFE24A4A)),
-                  ),
-                  onTap: () => Navigator.pop(sheetContext, 'block'),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+      builder: (c) => SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(28)),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            ListTile(leading: const Icon(Icons.flag_outlined), title: const Text('Şikâyet et'), onTap: () => Navigator.pop(c, 'report')),
+            ListTile(leading: const Icon(Icons.heart_broken_outlined), title: const Text('Eşleşmeyi kaldır'), onTap: () => Navigator.pop(c, 'unmatch')),
+            ListTile(leading: const Icon(Icons.block_rounded, color: Color(0xFFE24A4A)), title: const Text('Kullanıcıyı engelle', style: TextStyle(color: Color(0xFFE24A4A))), onTap: () => Navigator.pop(c, 'block')),
+          ]),
+        ),
+      ),
     );
     if (action == 'report') await _report();
     if (action == 'unmatch') await _unmatch();
     if (action == 'block') await _block();
   }
 
-  Widget _heroPhoto(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+  Widget _networkPhoto(String url, {BoxFit fit = BoxFit.cover}) => Image.network(
+        ApiService.absoluteMediaUrl(url),
+        fit: fit,
+        errorBuilder: (_, __, ___) => Container(
+          color: const Color(0xFFF0F2F7),
+          alignment: Alignment.center,
+          child: const Icon(Icons.person_rounded, size: 72, color: AppColors.navy),
+        ),
+      );
+
+  Widget _hero() {
     return Stack(
       clipBehavior: Clip.none,
       children: [
         AspectRatio(
-          aspectRatio: 1,
-          child: Container(
-            decoration: BoxDecoration(
-              color: scheme.surface,
-              borderRadius: BorderRadius.circular(42),
-              border: Border.all(color: Colors.white, width: 7),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.navy.withValues(alpha: .10),
-                  blurRadius: 28,
-                  offset: const Offset(0, 12),
-                ),
-              ],
-            ),
-            clipBehavior: Clip.antiAlias,
+          aspectRatio: 1.18,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(34),
             child: photos.isEmpty
-                ? Container(
-                    color: AppColors.lime,
-                    alignment: Alignment.center,
-                    child: Text(
-                      name.isEmpty ? '?' : name.characters.first.toUpperCase(),
-                      style: const TextStyle(
-                        color: AppColors.navy,
-                        fontSize: 78,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  )
+                ? Container(color: AppColors.lime, alignment: Alignment.center, child: Text(name.isEmpty ? '?' : name[0].toUpperCase(), style: const TextStyle(fontSize: 76, fontWeight: FontWeight.w900, color: AppColors.navy)))
                 : PageView.builder(
                     itemCount: photos.length,
-                    itemBuilder: (_, index) => Image.network(
-                      ApiService.absoluteMediaUrl(photos[index]),
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        color: AppColors.navy,
-                        alignment: Alignment.center,
-                        child: const Icon(
-                          Icons.person_rounded,
-                          color: AppColors.lime,
-                          size: 76,
-                        ),
-                      ),
-                    ),
+                    onPageChanged: (i) => setState(() => photoIndex = i),
+                    itemBuilder: (_, i) => _networkPhoto(photos[i]),
                   ),
           ),
         ),
+        if (photos.length > 1)
+          Positioned(
+            left: 16,
+            bottom: 16,
+            child: _DarkPill(text: '${photoIndex + 1}/${photos.length}'),
+          ),
         if (isPremium)
           Positioned(
             left: 8,
-            bottom: -12,
-            child: _StatusPill(
-              icon: Icons.workspace_premium_rounded,
-              label: 'Premium',
-              foreground: Colors.white,
-              background: AppColors.navy,
-              iconColor: AppColors.lime,
-              outlined: true,
-            ),
+            bottom: -18,
+            child: Image.asset('assets/images/premium_badge.png', width: 88, height: 68, fit: BoxFit.contain),
           ),
         Positioned(
-          right: 8,
-          bottom: -12,
-          child: _LevelBadge(level: profileLevel),
+          right: -8,
+          bottom: -26,
+          child: XpLevelRing(level: profileLevel, totalXp: profileXp, size: 72),
         ),
       ],
     );
   }
 
+  Widget _actions() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceAround,
+      children: [
+        _Action(icon: Icons.favorite_border_rounded, label: 'Beğen', onTap: () {}),
+        _Action(icon: Icons.chat_bubble_rounded, label: 'Mesaj gönder', active: true, onTap: _message),
+        _Action(icon: Icons.star_border_rounded, label: 'Favoriye ekle', onTap: () {}),
+        _Action(icon: Icons.block_rounded, label: 'Şikâyet et', onTap: _report),
+      ],
+    );
+  }
+
+  Widget _gallery() {
+    if (photos.isEmpty) return const SizedBox.shrink();
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Text('Fotoğraflar (${photos.length})', style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900, color: AppColors.navy)),
+        const Spacer(),
+        const Text('Tümünü gör', style: TextStyle(fontSize: 13, color: Color(0xFF7B8194), fontWeight: FontWeight.w700)),
+        const SizedBox(width: 4),
+        const Icon(Icons.chevron_right_rounded, color: Color(0xFF7B8194)),
+      ]),
+      const SizedBox(height: 12),
+      SizedBox(
+        height: 82,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: photos.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 9),
+          itemBuilder: (_, i) => Container(
+            width: 72,
+            padding: EdgeInsets.all(i == photoIndex ? 3 : 0),
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: i == photoIndex ? Border.all(color: AppColors.lime, width: 3) : null),
+            child: ClipRRect(borderRadius: BorderRadius.circular(14), child: _networkPhoto(photos[i])),
+          ),
+        ),
+      ),
+    ]);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
     final age = (profile?['age'] as num?)?.toInt();
     final bio = profile?['bio']?.toString().trim() ?? '';
     final prompt = profile?['profile_prompt']?.toString().trim() ?? '';
     final answer = profile?['profile_answer']?.toString().trim() ?? '';
 
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
+      backgroundColor: const Color(0xFFF9FAFE),
       body: PhoneFrame(
         child: loading
             ? const Center(child: CircularProgressIndicator(color: AppColors.lime))
             : error != null
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            error!,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(color: scheme.onSurfaceVariant),
-                          ),
-                          const SizedBox(height: 12),
-                          FilledButton(onPressed: _load, child: const Text('Tekrar dene')),
+                ? Center(child: FilledButton(onPressed: _load, child: Text(error!)))
+                : Stack(children: [
+                    const Positioned(top: -70, right: -90, child: _Blob(size: 220, color: Color(0x1ABFFF24))),
+                    const Positioned(top: 360, left: -100, child: _Blob(size: 210, color: Color(0x10BFFF24))),
+                    SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(22, 94, 22, 118),
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Padding(padding: const EdgeInsets.symmetric(horizontal: 18), child: _hero()),
+                        const SizedBox(height: 42),
+                        Row(children: [
+                          Flexible(child: Text(age == null ? name : '$name, $age', style: const TextStyle(color: AppColors.navy, fontSize: 29, height: 1.05, fontWeight: FontWeight.w900, letterSpacing: -1))),
+                          const SizedBox(width: 8),
+                          const Icon(Icons.verified_rounded, color: Color(0xFF2F6BFF), size: 24),
+                        ]),
+                        const SizedBox(height: 10),
+                        Wrap(spacing: 12, runSpacing: 7, children: [
+                          if (isOnline) const _InlineInfo(icon: Icons.circle, text: 'Şu anda aktif', color: Color(0xFF18BF55), iconSize: 11),
+                          if (locationText.isNotEmpty) _InlineInfo(icon: Icons.location_on_rounded, text: locationText, color: const Color(0xFF626A80)),
+                        ]),
+                        if (prompt.isNotEmpty || answer.isNotEmpty) ...[
+                          const SizedBox(height: 9),
+                          Text(answer.isNotEmpty ? '“$answer”' : '“$prompt”', style: const TextStyle(color: Color(0xFF7A8196), fontSize: 14.5, fontWeight: FontWeight.w600)),
                         ],
-                      ),
+                        const SizedBox(height: 22),
+                        _actions(),
+                        const SizedBox(height: 30),
+                        _gallery(),
+                        const SizedBox(height: 20),
+                        _Section(
+                          icon: Icons.article_outlined,
+                          title: 'Hakkında',
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text(bio.isEmpty ? 'Henüz hakkında bilgisi eklenmemiş.' : bio, style: const TextStyle(color: Color(0xFF6E768C), fontSize: 14, height: 1.45, fontWeight: FontWeight.w600)),
+                            const SizedBox(height: 15),
+                            Wrap(spacing: 8, runSpacing: 8, children: [
+                              if (age != null) _InfoChip(icon: Icons.cake_outlined, text: '$age yaş'),
+                              if (locationText.isNotEmpty) _InfoChip(icon: Icons.location_on_rounded, text: profile?['city']?.toString() ?? locationText),
+                              if (profile?['occupation'] != null) _InfoChip(icon: Icons.work_outline_rounded, text: profile!['occupation'].toString()),
+                            ]),
+                          ]),
+                        ),
+                        if (interests.isNotEmpty) ...[
+                          const SizedBox(height: 14),
+                          _Section(
+                            icon: Icons.interests_rounded,
+                            title: 'İlgi alanları',
+                            child: Wrap(spacing: 8, runSpacing: 8, children: interests.map((e) => _TextChip(text: e)).toList()),
+                          ),
+                        ],
+                      ]),
                     ),
-                  )
-                : Stack(
-                    children: [
-                      Positioned(
-                        top: 28,
-                        right: -42,
-                        child: _DecorCircle(size: 156, color: AppColors.lime.withValues(alpha: .22)),
-                      ),
-                      Positioned(
-                        top: 245,
-                        left: -66,
-                        child: _DecorCircle(size: 168, color: AppColors.lime.withValues(alpha: .11)),
-                      ),
-                      Positioned(
-                        top: 500,
-                        right: -76,
-                        child: _DecorCircle(size: 190, color: AppColors.navy.withValues(alpha: .035)),
-                      ),
-                      Positioned.fill(
-                        child: SingleChildScrollView(
-                          padding: const EdgeInsets.fromLTRB(22, 92, 22, 112),
-                          child: Column(
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 34),
-                                child: _heroPhoto(context),
-                              ),
-                              const SizedBox(height: 38),
-                              Text(
-                                age == null ? name : '$name, $age',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: scheme.onSurface,
-                                  fontSize: 30,
-                                  height: 1.05,
-                                  letterSpacing: -1.2,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                              const SizedBox(height: 13),
-                              Wrap(
-                                alignment: WrapAlignment.center,
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: [
-                                  if (isPremium)
-                                    const _StatusPill(
-                                      icon: Icons.workspace_premium_rounded,
-                                      label: 'Premium',
-                                      foreground: Colors.white,
-                                      background: AppColors.navy,
-                                      iconColor: AppColors.lime,
-                                    ),
-                                  _StatusPill(
-                                    label: 'Lv $profileLevel',
-                                    foreground: AppColors.lime,
-                                    background: AppColors.navy,
-                                  ),
-                                  if (isOnline)
-                                    const _StatusPill(
-                                      icon: Icons.circle,
-                                      label: 'Şimdi aktif',
-                                      foreground: Color(0xFF167A3D),
-                                      background: Color(0xFFE8F9DF),
-                                      iconColor: Color(0xFF18BF55),
-                                    ),
-                                ],
-                              ),
-                              if (locationText.isNotEmpty) ...[
-                                const SizedBox(height: 12),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      Icons.location_on_outlined,
-                                      color: scheme.primary,
-                                      size: 20,
-                                    ),
-                                    const SizedBox(width: 5),
-                                    Flexible(
-                                      child: Text(
-                                        locationText,
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          color: scheme.onSurfaceVariant,
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                              const SizedBox(height: 24),
-                              _ProfileSection(
-                                icon: Icons.article_outlined,
-                                title: 'Hakkında',
-                                child: Text(
-                                  bio.isEmpty ? 'Henüz hakkında bilgisi eklenmemiş.' : bio,
-                                  style: TextStyle(
-                                    color: scheme.onSurfaceVariant,
-                                    fontSize: 13.5,
-                                    height: 1.5,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                              if (interests.isNotEmpty) ...[
-                                const SizedBox(height: 14),
-                                _ProfileSection(
-                                  icon: Icons.favorite_border_rounded,
-                                  title: 'İlgi alanları',
-                                  child: Wrap(
-                                    spacing: 8,
-                                    runSpacing: 8,
-                                    children: interests
-                                        .map(
-                                          (item) => Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 13,
-                                              vertical: 8,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: scheme.surfaceContainerHigh,
-                                              borderRadius: BorderRadius.circular(999),
-                                            ),
-                                            child: Text(
-                                              item,
-                                              style: TextStyle(
-                                                color: scheme.onSurface,
-                                                fontSize: 11.5,
-                                                fontWeight: FontWeight.w800,
-                                              ),
-                                            ),
-                                          ),
-                                        )
-                                        .toList(),
-                                  ),
-                                ),
-                              ],
-                              if (prompt.isNotEmpty && answer.isNotEmpty) ...[
-                                const SizedBox(height: 14),
-                                _ProfileSection(
-                                  icon: Icons.chat_bubble_outline_rounded,
-                                  title: prompt,
-                                  child: Text(
-                                    answer,
-                                    style: TextStyle(
-                                      color: scheme.onSurfaceVariant,
-                                      fontSize: 13.5,
-                                      height: 1.45,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        top: 12,
-                        left: 12,
-                        child: SafeArea(
-                          child: _CircleActionButton(
-                            onPressed: () => Navigator.of(context).pop(),
-                            icon: Icons.arrow_back_ios_new_rounded,
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        top: 12,
-                        right: 12,
-                        child: SafeArea(
-                          child: _CircleActionButton(
-                            onPressed: _more,
-                            icon: Icons.more_vert_rounded,
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        left: 18,
-                        right: 18,
-                        bottom: 16,
-                        child: SafeArea(
-                          top: false,
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: _message,
-                              borderRadius: BorderRadius.circular(28),
-                              child: Ink(
-                                height: 62,
-                                decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    colors: [Color(0xFFD8FF2F), Color(0xFFBFFF24)],
-                                  ),
-                                  borderRadius: BorderRadius.circular(28),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: AppColors.lime.withValues(alpha: .26),
-                                      blurRadius: 24,
-                                      offset: const Offset(0, 10),
-                                    ),
-                                  ],
-                                ),
-                                child: const Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(Icons.send_rounded, color: AppColors.navy, size: 24),
-                                    SizedBox(width: 12),
-                                    Text(
-                                      'Mesaj gönder',
-                                      style: TextStyle(
-                                        color: AppColors.navy,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w900,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                    Positioned(top: 12, left: 12, child: SafeArea(child: _CircleButton(icon: Icons.arrow_back_ios_new_rounded, onTap: () => Navigator.pop(context)))),
+                    Positioned(top: 12, right: 12, child: SafeArea(child: _CircleButton(icon: Icons.more_vert_rounded, onTap: _more))),
+                    Positioned(left: 18, right: 18, bottom: 14, child: SafeArea(top: false, child: _MessageButton(onTap: _message))),
+                  ]),
       ),
     );
   }
 }
 
-class _CircleActionButton extends StatelessWidget {
-  const _CircleActionButton({required this.onPressed, required this.icon});
-
-  final VoidCallback onPressed;
+class _CircleButton extends StatelessWidget {
+  const _CircleButton({required this.icon, required this.onTap});
   final IconData icon;
-
+  final VoidCallback onTap;
   @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return IconButton(
-      onPressed: onPressed,
-      style: IconButton.styleFrom(
-        backgroundColor: scheme.surface,
-        foregroundColor: AppColors.navy,
-        minimumSize: const Size(54, 54),
+  Widget build(BuildContext context) => Material(
+        color: Colors.white,
         shape: const CircleBorder(),
-        side: BorderSide(color: scheme.outlineVariant.withValues(alpha: .65)),
         elevation: 2,
-      ),
-      icon: Icon(icon, size: 24),
-    );
-  }
+        child: InkWell(customBorder: const CircleBorder(), onTap: onTap, child: SizedBox(width: 56, height: 56, child: Icon(icon, color: AppColors.navy, size: 25))),
+      );
 }
 
-class _StatusPill extends StatelessWidget {
-  const _StatusPill({
-    this.icon,
-    required this.label,
-    required this.foreground,
-    required this.background,
-    this.iconColor,
-    this.outlined = false,
-  });
-
-  final IconData? icon;
+class _Action extends StatelessWidget {
+  const _Action({required this.icon, required this.label, required this.onTap, this.active = false});
+  final IconData icon;
   final String label;
-  final Color foreground;
-  final Color background;
-  final Color? iconColor;
-  final bool outlined;
-
+  final VoidCallback onTap;
+  final bool active;
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(999),
-        border: outlined ? Border.all(color: Colors.white, width: 3) : null,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null) ...[
-            Icon(icon, color: iconColor ?? foreground, size: 17),
-            const SizedBox(width: 6),
-          ],
-          Text(
-            label,
-            style: TextStyle(
-              color: foreground,
-              fontSize: 12,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _LevelBadge extends StatelessWidget {
-  const _LevelBadge({required this.level});
-
-  final int level;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 68,
-      height: 68,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: AppColors.navy,
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 5),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.navy.withValues(alpha: .16),
-            blurRadius: 12,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Text(
-        'Lv $level',
-        style: const TextStyle(
-          color: AppColors.lime,
-          fontSize: 13,
-          fontWeight: FontWeight.w900,
+  Widget build(BuildContext context) => Expanded(
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Column(children: [
+            Container(width: 58, height: 58, decoration: BoxDecoration(color: active ? AppColors.lime : Colors.white, shape: BoxShape.circle, border: active ? null : Border.all(color: const Color(0xFFE5E8F0)), boxShadow: const [BoxShadow(color: Color(0x100B1745), blurRadius: 14, offset: Offset(0, 5))]), child: Icon(icon, color: AppColors.navy, size: 28)),
+            const SizedBox(height: 7),
+            Text(label, textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF626A80), fontSize: 10.5, fontWeight: FontWeight.w700)),
+          ]),
         ),
-      ),
-    );
-  }
+      );
 }
 
-class _ProfileSection extends StatelessWidget {
-  const _ProfileSection({
-    required this.icon,
-    required this.title,
-    required this.child,
-  });
-
+class _Section extends StatelessWidget {
+  const _Section({required this.icon, required this.title, required this.child});
   final IconData icon;
   final String title;
   final Widget child;
-
   @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: scheme.surface.withValues(alpha: .94),
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: scheme.outlineVariant),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.navy.withValues(alpha: .035),
-            blurRadius: 18,
-            offset: const Offset(0, 7),
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: const BoxDecoration(
-              color: AppColors.lime,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: AppColors.navy, size: 25),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    color: scheme.onSurface,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                child,
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(17),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(26), border: Border.all(color: const Color(0xFFE5E8F0)), boxShadow: const [BoxShadow(color: Color(0x0B0B1745), blurRadius: 18, offset: Offset(0, 7))]),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(width: 48, height: 48, decoration: const BoxDecoration(color: AppColors.lime, shape: BoxShape.circle), child: Icon(icon, color: AppColors.navy, size: 23)),
+          const SizedBox(width: 14),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(color: AppColors.navy, fontSize: 17, fontWeight: FontWeight.w900)), const SizedBox(height: 8), child])),
+        ]),
+      );
 }
 
-class _DecorCircle extends StatelessWidget {
-  const _DecorCircle({required this.size, required this.color});
+class _InfoChip extends StatelessWidget {
+  const _InfoChip({required this.icon, required this.text});
+  final IconData icon;
+  final String text;
+  @override
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9), decoration: BoxDecoration(color: const Color(0xFFF4F5F9), borderRadius: BorderRadius.circular(999)), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 17, color: AppColors.navy), const SizedBox(width: 7), Text(text, style: const TextStyle(color: AppColors.navy, fontSize: 12, fontWeight: FontWeight.w700))]));
+}
 
+class _TextChip extends StatelessWidget {
+  const _TextChip({required this.text});
+  final String text;
+  @override
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9), decoration: BoxDecoration(color: const Color(0xFFF2F3F7), borderRadius: BorderRadius.circular(999)), child: Text(text, style: const TextStyle(color: AppColors.navy, fontSize: 12, fontWeight: FontWeight.w700)));
+}
+
+class _InlineInfo extends StatelessWidget {
+  const _InlineInfo({required this.icon, required this.text, required this.color, this.iconSize = 18});
+  final IconData icon;
+  final String text;
+  final Color color;
+  final double iconSize;
+  @override
+  Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, color: color, size: iconSize), const SizedBox(width: 5), Text(text, style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w700))]);
+}
+
+class _DarkPill extends StatelessWidget {
+  const _DarkPill({required this.text});
+  final String text;
+  @override
+  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7), decoration: BoxDecoration(color: AppColors.navy.withValues(alpha: .88), borderRadius: BorderRadius.circular(999)), child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w900)));
+}
+
+class _MessageButton extends StatelessWidget {
+  const _MessageButton({required this.onTap});
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext context) => Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(30),
+          child: Ink(
+            height: 62,
+            decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFFD8FF2F), Color(0xFFBFFF24)]), borderRadius: BorderRadius.circular(30), boxShadow: const [BoxShadow(color: Color(0x35BFFF24), blurRadius: 24, offset: Offset(0, 9))]),
+            child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.send_rounded, color: AppColors.navy, size: 25), SizedBox(width: 12), Text('Mesaj gönder', style: TextStyle(color: AppColors.navy, fontSize: 17, fontWeight: FontWeight.w900))]),
+          ),
+        ),
+      );
+}
+
+class _Blob extends StatelessWidget {
+  const _Blob({required this.size, required this.color});
   final double size;
   final Color color;
-
   @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: color,
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => IgnorePointer(child: Container(width: size, height: size, decoration: BoxDecoration(color: color, shape: BoxShape.circle)));
 }
