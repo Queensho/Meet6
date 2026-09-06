@@ -79,9 +79,7 @@ class _RoomRulesScreenState extends State<RoomRulesScreen> {
         MaterialPageRoute(builder: (_) => const PremiumScreen()),
       );
       if (!mounted) return;
-      if (activated == true) {
-        await _loadPremium();
-      }
+      if (activated == true) await _loadPremium();
       if (!mounted || !premium) return;
     }
 
@@ -93,8 +91,7 @@ class _RoomRulesScreenState extends State<RoomRulesScreen> {
 
   Future<void> _cycleMode() async {
     const modes = ['text', 'voice', 'game'];
-    final next = modes[(modeIndex + 1) % modes.length];
-    await _selectMode(next);
+    await _selectMode(modes[(modeIndex + 1) % modes.length]);
   }
 
   Future<void> _selectDuration(int minutes) async {
@@ -222,7 +219,7 @@ class _RoomRulesScreenState extends State<RoomRulesScreen> {
                     child: Column(
                       children: [
                         Padding(
-                          padding: const EdgeInsets.fromLTRB(18, 12, 18, 4),
+                          padding: const EdgeInsets.fromLTRB(18, 12, 18, 2),
                           child: Row(
                             children: [
                               IconButton(
@@ -245,7 +242,7 @@ class _RoomRulesScreenState extends State<RoomRulesScreen> {
                         ),
                         Expanded(
                           child: SingleChildScrollView(
-                            padding: const EdgeInsets.fromLTRB(22, 4, 22, 18),
+                            padding: const EdgeInsets.fromLTRB(22, 2, 22, 30),
                             physics: const BouncingScrollPhysics(),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -262,7 +259,7 @@ class _RoomRulesScreenState extends State<RoomRulesScreen> {
                                     },
                                   ),
                                 ),
-                                const SizedBox(height: 4),
+                                const SizedBox(height: 2),
                                 const Center(
                                   child: Text(
                                     '6’ya bas, modu değiştir',
@@ -273,7 +270,7 @@ class _RoomRulesScreenState extends State<RoomRulesScreen> {
                                     ),
                                   ),
                                 ),
-                                const SizedBox(height: 12),
+                                const SizedBox(height: 14),
                                 const Center(
                                   child: Text(
                                     'Odaya katılmadan önce',
@@ -306,7 +303,7 @@ class _RoomRulesScreenState extends State<RoomRulesScreen> {
                                   subtitle: '6’nın çevresindeki modlardan birini seç.',
                                 ),
                                 const SizedBox(height: 10),
-                                _SelectedModeCard(info: info, selectedMode: roomMode),
+                                _SelectedModeCard(info: info),
                                 const SizedBox(height: 22),
                                 const _SectionTitle(
                                   title: 'Süre seçimi',
@@ -378,12 +375,23 @@ class _RoomRulesScreenState extends State<RoomRulesScreen> {
                                       'Hakaret, taciz ve rahatsız edici davranışlara yer yok.',
                                   last: true,
                                 ),
+                                const SizedBox(height: 8),
                               ],
                             ),
                           ),
                         ),
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(22, 8, 22, 14),
+                        Container(
+                          padding: const EdgeInsets.fromLTRB(22, 10, 22, 14),
+                          decoration: BoxDecoration(
+                            color: AppColors.lime.withOpacity(.98),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.navy.withOpacity(.08),
+                                blurRadius: 18,
+                                offset: const Offset(0, -8),
+                              ),
+                            ],
+                          ),
                           child: SizedBox(
                             width: double.infinity,
                             height: 58,
@@ -468,7 +476,6 @@ class _ModeOrbit extends StatelessWidget {
     Icons.mic_rounded,
     Icons.sports_esports_rounded,
   ];
-
   static const _labels = ['Yazılı', 'Sesli', 'Mini Oyun'];
 
   @override
@@ -477,17 +484,18 @@ class _ModeOrbit extends StatelessWidget {
 
     return SizedBox(
       width: 270,
-      height: 205,
+      height: 230,
       child: Stack(
         alignment: Alignment.center,
+        clipBehavior: Clip.none,
         children: [
           Container(
-            width: 178,
-            height: 178,
+            width: 154,
+            height: 154,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
-                color: Colors.white.withOpacity(.6),
+                color: Colors.white.withOpacity(.62),
                 width: 1.5,
               ),
             ),
@@ -496,19 +504,21 @@ class _ModeOrbit extends StatelessWidget {
             tween: Tween(begin: 0, end: targetTurns),
             duration: const Duration(milliseconds: 420),
             curve: Curves.easeOutBack,
-            builder: (context, turns, child) {
+            builder: (context, turns, _) {
               final base = turns * 2 * math.pi - math.pi / 2;
               return Stack(
                 alignment: Alignment.center,
+                clipBehavior: Clip.none,
                 children: List.generate(3, (index) {
                   final angle = base + index * (2 * math.pi / 3);
-                  final radius = 88.0;
-                  final x = math.cos(angle) * radius;
-                  final y = math.sin(angle) * radius;
+                  const radius = 76.0;
                   final selected = index == selectedIndex;
                   final locked = index == 1 && !premium;
                   return Transform.translate(
-                    offset: Offset(x, y),
+                    offset: Offset(
+                      math.cos(angle) * radius,
+                      math.sin(angle) * radius,
+                    ),
                     child: GestureDetector(
                       onTap: loading ? null : () => onModeTap(index),
                       child: AnimatedContainer(
@@ -527,7 +537,8 @@ class _ModeOrbit extends StatelessWidget {
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: AppColors.navy.withOpacity(selected ? .18 : .07),
+                              color: AppColors.navy
+                                  .withOpacity(selected ? .18 : .07),
                               blurRadius: selected ? 18 : 10,
                               spreadRadius: selected ? 2 : 0,
                             ),
@@ -542,7 +553,9 @@ class _ModeOrbit extends StatelessWidget {
                               children: [
                                 Icon(
                                   _icons[index],
-                                  color: selected ? AppColors.lime : AppColors.navy,
+                                  color: selected
+                                      ? AppColors.lime
+                                      : AppColors.navy,
                                   size: selected ? 28 : 23,
                                 ),
                                 const SizedBox(height: 2),
@@ -551,7 +564,9 @@ class _ModeOrbit extends StatelessWidget {
                                   textAlign: TextAlign.center,
                                   maxLines: 1,
                                   style: TextStyle(
-                                    color: selected ? Colors.white : AppColors.navy,
+                                    color: selected
+                                        ? Colors.white
+                                        : AppColors.navy,
                                     fontSize: selected ? 8.5 : 7.5,
                                     fontWeight: FontWeight.w900,
                                   ),
@@ -637,17 +652,12 @@ class _ModeOrbit extends StatelessWidget {
 }
 
 class _SelectedModeCard extends StatelessWidget {
-  const _SelectedModeCard({
-    required this.info,
-    required this.selectedMode,
-  });
+  const _SelectedModeCard({required this.info});
 
   final _ModeInfo info;
-  final String selectedMode;
 
   @override
   Widget build(BuildContext context) {
-    final game = selectedMode == 'game';
     return AnimatedContainer(
       duration: const Duration(milliseconds: 220),
       width: double.infinity,
@@ -700,18 +710,20 @@ class _SelectedModeCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 10),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
             decoration: BoxDecoration(
-              color: game ? AppColors.lime : const Color(0xFFFFD968),
+              color: info.pill == 'Premium'
+                  ? const Color(0xFFFFD968)
+                  : AppColors.lime,
               borderRadius: BorderRadius.circular(999),
             ),
             child: Text(
               info.pill,
               style: const TextStyle(
                 color: AppColors.navy,
-                fontSize: 9.5,
+                fontSize: 10,
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -776,49 +788,55 @@ class _DurationChoice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final foreground = selected ? Colors.white : AppColors.navy;
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(999),
-      child: AnimatedContainer(
+      child: AnimatedOpacity(
         duration: const Duration(milliseconds: 160),
-        height: 52,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        decoration: BoxDecoration(
-          color: selected
-              ? AppColors.navy
-              : Colors.white.withOpacity(disabled ? .24 : .4),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: AppColors.navy.withOpacity(.07)),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.schedule_rounded, color: foreground, size: 21),
-            const SizedBox(width: 7),
-            Text(
-              label,
-              style: TextStyle(
-                color: foreground,
-                fontSize: 16,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            if (premium) ...[
+        opacity: disabled ? .55 : 1,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          height: 52,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          decoration: BoxDecoration(
+            color: selected
+                ? AppColors.navy
+                : Colors.white.withOpacity(disabled ? .25 : .4),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: AppColors.navy.withOpacity(.07)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.schedule_rounded, color: foreground, size: 21),
               const SizedBox(width: 7),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFD968),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: const Icon(
-                  Icons.workspace_premium_rounded,
-                  color: AppColors.navy,
-                  size: 13,
+              Text(
+                label,
+                style: TextStyle(
+                  color: foreground,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
                 ),
               ),
+              if (premium) ...[
+                const SizedBox(width: 7),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFD968),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: const Icon(
+                    Icons.workspace_premium_rounded,
+                    color: AppColors.navy,
+                    size: 13,
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
