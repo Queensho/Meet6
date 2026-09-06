@@ -45,6 +45,49 @@ export class RoomController {
     return result;
   }
 
+  @Get('game/:roomId/state')
+  async gameState(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('roomId') roomId: string,
+  ) {
+    return this.gameRoomTest.state(await this.userId(authorization), roomId);
+  }
+
+  @Post('game/:roomId/statements')
+  async gameStatements(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('roomId') roomId: string,
+    @Body() body: { statements?: unknown; lieIndex?: unknown },
+  ) {
+    return this.gameRoomTest.submitStatements(
+      await this.userId(authorization),
+      roomId,
+      body.statements,
+      body.lieIndex,
+    );
+  }
+
+  @Post('game/:roomId/vote')
+  async gameVote(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('roomId') roomId: string,
+    @Body() body: { choice?: unknown },
+  ) {
+    return this.gameRoomTest.vote(
+      await this.userId(authorization),
+      roomId,
+      body.choice,
+    );
+  }
+
+  @Post('game/:roomId/next')
+  async gameNext(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('roomId') roomId: string,
+  ) {
+    return this.gameRoomTest.nextRound(await this.userId(authorization), roomId);
+  }
+
   @Get('queue')
   async queueStatus(@Headers('authorization') authorization?: string) {
     return this.rooms.queueStatus(await this.userId(authorization));
