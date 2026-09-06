@@ -7,6 +7,7 @@ import '../../../services/gift_service.dart';
 import '../../../services/premium_subscription_service.dart';
 import '../../../theme/app_colors.dart';
 import '../../../widgets/xp_level_ring.dart';
+import '../../premium/premium_screen.dart';
 import 'xp_rewards_sheet.dart';
 
 class ProfileHero extends StatefulWidget {
@@ -25,7 +26,13 @@ class ProfileHero extends StatefulWidget {
 
 class _ProfileHeroState extends State<ProfileHero> {
   late final Future<Map<String, dynamic>> _giftSummary = GiftService.me();
-  late final Future<PremiumStatus> _premiumStatus = PremiumSubscriptionService.status();
+  late Future<PremiumStatus> _premiumStatus;
+
+  @override
+  void initState() {
+    super.initState();
+    _premiumStatus = PremiumSubscriptionService.status();
+  }
 
   String get initial {
     final value = widget.name.trim();
@@ -35,6 +42,16 @@ class _ProfileHeroState extends State<ProfileHero> {
   int _profileLevel(int xp) {
     final safeXp = math.max(0, xp);
     return math.min(30, 1 + math.sqrt(safeXp / 50).floor());
+  }
+
+  Future<void> _openPremium() async {
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const PremiumScreen()),
+    );
+    if (!mounted) return;
+    setState(() {
+      _premiumStatus = PremiumSubscriptionService.status();
+    });
   }
 
   Widget _xpBadge() {
@@ -81,15 +98,23 @@ class _ProfileHeroState extends State<ProfileHero> {
       future: _premiumStatus,
       builder: (context, snapshot) {
         final premium = snapshot.data?.premium == true;
-        return IgnorePointer(
-          child: Image.asset(
-            premium
-                ? 'assets/images/premium_badge.png'
-                : 'assets/images/Premiumpasif.png',
-            width: 92,
-            height: 76,
-            fit: BoxFit.contain,
-            filterQuality: FilterQuality.high,
+        return Semantics(
+          button: true,
+          label: premium
+              ? 'Meet6 Premium üyeliğini görüntüle.'
+              : 'Meet6 Premium satın alma ekranını aç.',
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _openPremium,
+            child: Image.asset(
+              premium
+                  ? 'assets/images/premium_badge.png'
+                  : 'assets/images/Premiumpasif.png',
+              width: 92,
+              height: 76,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
+            ),
           ),
         );
       },
