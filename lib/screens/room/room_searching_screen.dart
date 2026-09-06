@@ -11,6 +11,7 @@ import '../../widgets/brand.dart';
 import '../../widgets/phone_frame.dart';
 import '../chat/room_chat_screen.dart';
 import '../chat/voice_room_screen.dart';
+import 'mini_game_room_screen.dart';
 
 class RoomSearchingScreen extends StatefulWidget {
   const RoomSearchingScreen({
@@ -220,10 +221,15 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                   roomId: roomId,
                   profileName: widget.profileName,
                 )
-              : RoomChatScreen(
-                  roomId: roomId,
-                  profileName: widget.profileName,
-                ),
+              : widget.gameMode
+                  ? MiniGameRoomScreen(
+                      roomId: roomId,
+                      profileName: widget.profileName,
+                    )
+                  : RoomChatScreen(
+                      roomId: roomId,
+                      profileName: widget.profileName,
+                    ),
         ),
       );
       return;
