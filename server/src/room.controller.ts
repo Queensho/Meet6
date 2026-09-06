@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Headers, Param, Post, Put, Query } from '@nestjs/common';
 
 import { AuthService } from './auth.service';
+import { GameRoomTestService } from './game-room-test.service';
 import { ExtensionVoteDto, JoinQueueDto, RoomSelectionDto, SendRoomMessageDto } from './room.dto';
 import { RoomService } from './room.service';
 import { RoomsGateway } from './rooms.gateway';
@@ -11,6 +12,7 @@ export class RoomController {
     private readonly auth: AuthService,
     private readonly rooms: RoomService,
     private readonly realtime: RoomsGateway,
+    private readonly gameRoomTest: GameRoomTestService,
   ) {}
 
   private async userId(authorization?: string) {
@@ -30,6 +32,15 @@ export class RoomController {
       const roomId = (result.room as Record<string, any>).id?.toString();
       if (roomId) await this.realtime.broadcastRoomUpdate(roomId);
     }
+    await this.realtime.broadcastQueueStatus();
+    return result;
+  }
+
+  @Post('game-test')
+  async createGameTestRoom(@Headers('authorization') authorization?: string) {
+    const result = await this.gameRoomTest.create(await this.userId(authorization));
+    const roomId = (result.room as Record<string, any>)?.id?.toString();
+    if (roomId) await this.realtime.broadcastRoomUpdate(roomId);
     await this.realtime.broadcastQueueStatus();
     return result;
   }
