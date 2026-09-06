@@ -165,55 +165,29 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
         ),
       );
 
-  Widget _hero() {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        AspectRatio(
-          aspectRatio: 1.18,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(34),
-            child: photos.isEmpty
-                ? Container(color: AppColors.lime, alignment: Alignment.center, child: Text(name.isEmpty ? '?' : name[0].toUpperCase(), style: const TextStyle(fontSize: 76, fontWeight: FontWeight.w900, color: AppColors.navy)))
-                : PageView.builder(
-                    itemCount: photos.length,
-                    onPageChanged: (i) => setState(() => photoIndex = i),
-                    itemBuilder: (_, i) => _networkPhoto(photos[i]),
-                  ),
+  Widget _hero() => Stack(
+        clipBehavior: Clip.none,
+        children: [
+          AspectRatio(
+            aspectRatio: 1.18,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(34),
+              child: photos.isEmpty
+                  ? Container(color: AppColors.lime, alignment: Alignment.center, child: Text(name.isEmpty ? '?' : name[0].toUpperCase(), style: const TextStyle(fontSize: 76, fontWeight: FontWeight.w900, color: AppColors.navy)))
+                  : PageView.builder(
+                      itemCount: photos.length,
+                      onPageChanged: (i) => setState(() => photoIndex = i),
+                      itemBuilder: (_, i) => _networkPhoto(photos[i]),
+                    ),
+            ),
           ),
-        ),
-        if (photos.length > 1)
-          Positioned(
-            left: 16,
-            bottom: 16,
-            child: _DarkPill(text: '${photoIndex + 1}/${photos.length}'),
-          ),
-        if (isPremium)
-          Positioned(
-            left: 8,
-            bottom: -18,
-            child: Image.asset('assets/images/premium_badge.png', width: 88, height: 68, fit: BoxFit.contain),
-          ),
-        Positioned(
-          right: -8,
-          bottom: -26,
-          child: XpLevelRing(level: profileLevel, totalXp: profileXp, size: 72),
-        ),
-      ],
-    );
-  }
-
-  Widget _actions() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceAround,
-      children: [
-        _Action(icon: Icons.favorite_border_rounded, label: 'Beğen', onTap: () {}),
-        _Action(icon: Icons.chat_bubble_rounded, label: 'Mesaj gönder', active: true, onTap: _message),
-        _Action(icon: Icons.star_border_rounded, label: 'Favoriye ekle', onTap: () {}),
-        _Action(icon: Icons.block_rounded, label: 'Şikâyet et', onTap: _report),
-      ],
-    );
-  }
+          if (photos.length > 1)
+            Positioned(left: 16, bottom: 16, child: _DarkPill(text: '${photoIndex + 1}/${photos.length}')),
+          if (isPremium)
+            Positioned(left: 8, bottom: -18, child: Image.asset('assets/images/premium_badge.png', width: 88, height: 68, fit: BoxFit.contain)),
+          Positioned(right: -8, bottom: -26, child: XpLevelRing(level: profileLevel, totalXp: profileXp, size: 72)),
+        ],
+      );
 
   Widget _gallery() {
     if (photos.isEmpty) return const SizedBox.shrink();
@@ -279,9 +253,7 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
                           const SizedBox(height: 9),
                           Text(answer.isNotEmpty ? '“$answer”' : '“$prompt”', style: const TextStyle(color: Color(0xFF7A8196), fontSize: 14.5, fontWeight: FontWeight.w600)),
                         ],
-                        const SizedBox(height: 22),
-                        _actions(),
-                        const SizedBox(height: 30),
+                        const SizedBox(height: 26),
                         _gallery(),
                         const SizedBox(height: 20),
                         _Section(
@@ -326,26 +298,6 @@ class _CircleButton extends StatelessWidget {
         shape: const CircleBorder(),
         elevation: 2,
         child: InkWell(customBorder: const CircleBorder(), onTap: onTap, child: SizedBox(width: 56, height: 56, child: Icon(icon, color: AppColors.navy, size: 25))),
-      );
-}
-
-class _Action extends StatelessWidget {
-  const _Action({required this.icon, required this.label, required this.onTap, this.active = false});
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  final bool active;
-  @override
-  Widget build(BuildContext context) => Expanded(
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(20),
-          child: Column(children: [
-            Container(width: 58, height: 58, decoration: BoxDecoration(color: active ? AppColors.lime : Colors.white, shape: BoxShape.circle, border: active ? null : Border.all(color: const Color(0xFFE5E8F0)), boxShadow: const [BoxShadow(color: Color(0x100B1745), blurRadius: 14, offset: Offset(0, 5))]), child: Icon(icon, color: AppColors.navy, size: 28)),
-            const SizedBox(height: 7),
-            Text(label, textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Color(0xFF626A80), fontSize: 10.5, fontWeight: FontWeight.w700)),
-          ]),
-        ),
       );
 }
 
