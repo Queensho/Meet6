@@ -56,10 +56,18 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1800),
     )..repeat(reverse: true);
-    _startRealtime();
+    if (widget.gameMode) {
+      unawaited(_joinQueue());
+    } else {
+      _startRealtime();
+    }
   }
 
   Future<void> _startRealtime() async {
+    if (widget.gameMode) {
+      await _joinQueue();
+      return;
+    }
     await realtimeSub?.cancel();
     realtimeSub = RealtimeService.events.listen(_onRealtimeEvent);
     try {
@@ -80,17 +88,15 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
         loading = false;
         error = widget.voiceMode
             ? 'Premium birebir sesli eşleşme servisine bağlanılamadı. Tekrar dene.'
-            : widget.gameMode
-                ? 'Mini oyun test odasına bağlanılamadı. Tekrar dene.'
-                : 'Oda servisine bağlanılamadı. Tekrar dene.';
+            : 'Oda servisine bağlanılamadı. Tekrar dene.';
       });
     }
   }
 
   void _onRealtimeEvent(RealtimeEvent event) {
-    if (!mounted || leavingForRoom) return;
+    if (!mounted || leavingForRoom || widget.gameMode) return;
     if (event.type == 'connection:connected') {
-      if (firstConnectionSeen && !widget.gameMode) {
+      if (firstConnectionSeen) {
         unawaited(_joinQueue());
       } else {
         firstConnectionSeen = true;
@@ -101,7 +107,7 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
       setState(() => error = 'Bağlantı yenileniyor...');
       return;
     }
-    if (!widget.voiceMode && !widget.gameMode &&
+    if (!widget.voiceMode &&
         (event.type == 'queue:status' || event.type == 'queue:matched')) {
       unawaited(_handleStatus(event.data));
     }
@@ -536,7 +542,11 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                           error = null;
                           searchCycle = 1;
                         });
-                        _startRealtime();
+                        if (widget.gameMode) {
+                          _joinQueue();
+                        } else {
+                          _startRealtime();
+                        }
                       },
                       style: FilledButton.styleFrom(
                         backgroundColor: AppColors.navy,
