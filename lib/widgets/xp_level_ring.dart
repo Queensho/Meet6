@@ -65,9 +65,6 @@ class XpLevelRing extends StatefulWidget {
 
 class _XpLevelRingState extends State<XpLevelRing>
     with SingleTickerProviderStateMixin {
-  static const _spritePath = 'assets/images/xp_level_rewards_sprite.png';
-  static const _spriteCount = 6;
-
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 1800),
@@ -83,29 +80,26 @@ class _XpLevelRingState extends State<XpLevelRing>
 
   XpRewardTier get _tier => xpRewardTierForLevel(_safeLevel);
 
-  int? get _spriteIndex {
+  String? get _levelAssetPath {
     switch (_tier) {
       case XpRewardTier.limeFrame:
-        return 0;
+        return 'assets/images/Lvl3.png';
       case XpRewardTier.risingBadge:
-        return 1;
+        return 'assets/images/Lvl5.png';
       case XpRewardTier.neonFrame:
-        return 2;
+        return 'assets/images/Lvl10.png';
       case XpRewardTier.animatedStar:
-        return 3;
+        return 'assets/images/Lvl18.png';
       case XpRewardTier.eliteFrame:
-        return 4;
+        return 'assets/images/Lvl20.png';
       case XpRewardTier.eliteBadge:
-        return 5;
+        return 'assets/images/Lvl30.png';
       case XpRewardTier.none:
         return null;
     }
   }
 
   double get _frameScale {
-    // The source PNGs include generous transparent padding. Keep each cosmetic
-    // tight to the small Lv badge so it reads as one control, not a separate
-    // floating ring.
     switch (_tier) {
       case XpRewardTier.limeFrame:
         return 1.30;
@@ -210,34 +204,22 @@ class _XpLevelRingState extends State<XpLevelRing>
     );
   }
 
-  Widget _spriteFrame(double frameSize, int index) {
+  Widget _assetFrame(double frameSize, String assetPath) {
     return SizedBox(
       width: frameSize,
       height: frameSize,
-      child: ClipRect(
-        child: OverflowBox(
-          alignment: Alignment.topCenter,
-          minWidth: frameSize,
-          maxWidth: frameSize,
-          minHeight: frameSize * _spriteCount,
-          maxHeight: frameSize * _spriteCount,
-          child: Transform.translate(
-            offset: Offset(0, -index * frameSize),
-            child: Image.asset(
-              _spritePath,
-              width: frameSize,
-              height: frameSize * _spriteCount,
-              fit: BoxFit.fill,
-              filterQuality: FilterQuality.high,
-              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-            ),
-          ),
-        ),
+      child: Image.asset(
+        assetPath,
+        width: frameSize,
+        height: frameSize,
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.high,
+        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
       ),
     );
   }
 
-  Widget _animatedFrame(double frameSize, int index) {
+  Widget _animatedFrame(double frameSize, String assetPath) {
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
@@ -265,7 +247,7 @@ class _XpLevelRingState extends State<XpLevelRing>
           ),
         );
       },
-      child: _spriteFrame(frameSize, index),
+      child: _assetFrame(frameSize, assetPath),
     );
   }
 
@@ -305,7 +287,7 @@ class _XpLevelRingState extends State<XpLevelRing>
 
   @override
   Widget build(BuildContext context) {
-    final index = _spriteIndex;
+    final assetPath = _levelAssetPath;
     final outerSize = widget.size * _frameScale;
     final content = SizedBox(
       width: outerSize,
@@ -316,7 +298,7 @@ class _XpLevelRingState extends State<XpLevelRing>
         children: [
           _glow(outerSize),
           _baseBadge(),
-          if (index != null) _animatedFrame(outerSize, index),
+          if (assetPath != null) _animatedFrame(outerSize, assetPath),
         ],
       ),
     );
