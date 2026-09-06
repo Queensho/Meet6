@@ -44,4 +44,34 @@ class RoomQueueApiService {
     }
     return body;
   }
+
+  static Future<Map<String, dynamic>> createGameTestRoom() async {
+    final token = await SessionService.loadAuthSessionId();
+    if (token == null || token.isEmpty) {
+      throw const ApiException('Oturum bulunamadı.');
+    }
+
+    final response = await http
+        .post(
+          AppConfig.apiUri('/api/rooms/game-test'),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+          },
+        )
+        .timeout(const Duration(seconds: 15));
+
+    final decoded = response.body.trim().isEmpty
+        ? <String, dynamic>{}
+        : jsonDecode(response.body);
+    final body = decoded is Map
+        ? Map<String, dynamic>.from(decoded)
+        : <String, dynamic>{};
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException(
+        body['message']?.toString() ?? 'Mini oyun test odası oluşturulamadı.',
+      );
+    }
+    return body;
+  }
 }
