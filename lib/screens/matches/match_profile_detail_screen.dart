@@ -31,11 +31,18 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
   bool loading = true;
   String? error;
   int photoIndex = 0;
+  final PageController _photoController = PageController();
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _photoController.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -91,6 +98,11 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
       .where((v) => v != null && v.toString().trim().isNotEmpty)
       .map((v) => v.toString().trim())
       .join(', ');
+
+  String get cityText {
+    final city = profile?['city']?.toString().trim() ?? '';
+    return city.isNotEmpty ? city : locationText;
+  }
 
   void _message() {
     Navigator.of(context).push(MaterialPageRoute(
@@ -165,6 +177,16 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
         ),
       );
 
+  void _selectPhoto(int index) {
+    if (index < 0 || index >= photos.length) return;
+    setState(() => photoIndex = index);
+    _photoController.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
   Widget _hero() => Stack(
         clipBehavior: Clip.none,
         children: [
@@ -173,8 +195,16 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(34),
               child: photos.isEmpty
-                  ? Container(color: AppColors.lime, alignment: Alignment.center, child: Text(name.isEmpty ? '?' : name[0].toUpperCase(), style: const TextStyle(fontSize: 76, fontWeight: FontWeight.w900, color: AppColors.navy)))
+                  ? Container(
+                      color: AppColors.lime,
+                      alignment: Alignment.center,
+                      child: Text(
+                        name.isEmpty ? '?' : name[0].toUpperCase(),
+                        style: const TextStyle(fontSize: 76, fontWeight: FontWeight.w900, color: AppColors.navy),
+                      ),
+                    )
                   : PageView.builder(
+                      controller: _photoController,
                       itemCount: photos.length,
                       onPageChanged: (i) => setState(() => photoIndex = i),
                       itemBuilder: (_, i) => _networkPhoto(photos[i]),
@@ -206,15 +236,67 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
           scrollDirection: Axis.horizontal,
           itemCount: photos.length,
           separatorBuilder: (_, __) => const SizedBox(width: 9),
-          itemBuilder: (_, i) => Container(
-            width: 72,
-            padding: EdgeInsets.all(i == photoIndex ? 3 : 0),
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: i == photoIndex ? Border.all(color: AppColors.lime, width: 3) : null),
-            child: ClipRRect(borderRadius: BorderRadius.circular(14), child: _networkPhoto(photos[i])),
+          itemBuilder: (_, i) => GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => _selectPhoto(i),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: 72,
+              padding: EdgeInsets.all(i == photoIndex ? 3 : 0),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                border: i == photoIndex ? Border.all(color: AppColors.lime, width: 3) : null,
+              ),
+              child: ClipRRect(borderRadius: BorderRadius.circular(14), child: _networkPhoto(photos[i])),
+            ),
           ),
         ),
       ),
     ]);
+  }
+
+  Widget _aboutAndInterests(int? age, String bio) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: const Color(0xFFE5E8F0)),
+        boxShadow: const [BoxShadow(color: Color(0x0B0B1745), blurRadius: 18, offset: Offset(0, 7))],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          _SectionIcon(icon: Icons.article_outlined),
+          const SizedBox(width: 14),
+          const Text('Hakkında', style: TextStyle(color: AppColors.navy, fontSize: 18, fontWeight: FontWeight.w900)),
+        ]),
+        const SizedBox(height: 14),
+        Text(
+          bio.isEmpty ? 'Henüz hakkında bilgisi eklenmemiş.' : bio,
+          style: const TextStyle(color: Color(0xFF6E768C), fontSize: 14, height: 1.45, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 15),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          if (age != null) _InfoChip(icon: Icons.cake_outlined, text: '$age yaş'),
+          if (cityText.isNotEmpty) _InfoChip(icon: Icons.location_on_rounded, text: cityText),
+          if (profile?['occupation'] != null && profile!['occupation'].toString().trim().isNotEmpty)
+            _InfoChip(icon: Icons.work_outline_rounded, text: profile!['occupation'].toString()),
+        ]),
+        if (interests.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          const Divider(height: 1, color: Color(0xFFE9EBF2)),
+          const SizedBox(height: 18),
+          Row(children: [
+            const _SectionIcon(icon: Icons.interests_rounded),
+            const SizedBox(width: 14),
+            const Text('İlgi alanları', style: TextStyle(color: AppColors.navy, fontSize: 18, fontWeight: FontWeight.w900)),
+          ]),
+          const SizedBox(height: 13),
+          Wrap(spacing: 8, runSpacing: 8, children: interests.map((e) => _TextChip(text: e)).toList()),
+        ],
+      ]),
+    );
   }
 
   @override
@@ -240,7 +322,12 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
                         Padding(padding: const EdgeInsets.symmetric(horizontal: 18), child: _hero()),
                         const SizedBox(height: 42),
                         Row(children: [
-                          Flexible(child: Text(age == null ? name : '$name, $age', style: const TextStyle(color: AppColors.navy, fontSize: 29, height: 1.05, fontWeight: FontWeight.w900, letterSpacing: -1))),
+                          Flexible(
+                            child: Text(
+                              age == null ? name : '$name, $age',
+                              style: const TextStyle(color: AppColors.navy, fontSize: 29, height: 1.05, fontWeight: FontWeight.w900, letterSpacing: -1),
+                            ),
+                          ),
                           const SizedBox(width: 8),
                           const Icon(Icons.verified_rounded, color: Color(0xFF2F6BFF), size: 24),
                         ]),
@@ -256,27 +343,7 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
                         const SizedBox(height: 26),
                         _gallery(),
                         const SizedBox(height: 20),
-                        _Section(
-                          icon: Icons.article_outlined,
-                          title: 'Hakkında',
-                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Text(bio.isEmpty ? 'Henüz hakkında bilgisi eklenmemiş.' : bio, style: const TextStyle(color: Color(0xFF6E768C), fontSize: 14, height: 1.45, fontWeight: FontWeight.w600)),
-                            const SizedBox(height: 15),
-                            Wrap(spacing: 8, runSpacing: 8, children: [
-                              if (age != null) _InfoChip(icon: Icons.cake_outlined, text: '$age yaş'),
-                              if (locationText.isNotEmpty) _InfoChip(icon: Icons.location_on_rounded, text: profile?['city']?.toString() ?? locationText),
-                              if (profile?['occupation'] != null) _InfoChip(icon: Icons.work_outline_rounded, text: profile!['occupation'].toString()),
-                            ]),
-                          ]),
-                        ),
-                        if (interests.isNotEmpty) ...[
-                          const SizedBox(height: 14),
-                          _Section(
-                            icon: Icons.interests_rounded,
-                            title: 'İlgi alanları',
-                            child: Wrap(spacing: 8, runSpacing: 8, children: interests.map((e) => _TextChip(text: e)).toList()),
-                          ),
-                        ],
+                        _aboutAndInterests(age, bio),
                       ]),
                     ),
                     Positioned(top: 12, left: 12, child: SafeArea(child: _CircleButton(icon: Icons.arrow_back_ios_new_rounded, onTap: () => Navigator.pop(context)))),
@@ -297,25 +364,23 @@ class _CircleButton extends StatelessWidget {
         color: Colors.white,
         shape: const CircleBorder(),
         elevation: 2,
-        child: InkWell(customBorder: const CircleBorder(), onTap: onTap, child: SizedBox(width: 56, height: 56, child: Icon(icon, color: AppColors.navy, size: 25))),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: SizedBox(width: 56, height: 56, child: Icon(icon, color: AppColors.navy, size: 25)),
+        ),
       );
 }
 
-class _Section extends StatelessWidget {
-  const _Section({required this.icon, required this.title, required this.child});
+class _SectionIcon extends StatelessWidget {
+  const _SectionIcon({required this.icon});
   final IconData icon;
-  final String title;
-  final Widget child;
   @override
   Widget build(BuildContext context) => Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(17),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(26), border: Border.all(color: const Color(0xFFE5E8F0)), boxShadow: const [BoxShadow(color: Color(0x0B0B1745), blurRadius: 18, offset: Offset(0, 7))]),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(width: 48, height: 48, decoration: const BoxDecoration(color: AppColors.lime, shape: BoxShape.circle), child: Icon(icon, color: AppColors.navy, size: 23)),
-          const SizedBox(width: 14),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(color: AppColors.navy, fontSize: 17, fontWeight: FontWeight.w900)), const SizedBox(height: 8), child])),
-        ]),
+        width: 48,
+        height: 48,
+        decoration: const BoxDecoration(color: AppColors.lime, shape: BoxShape.circle),
+        child: Icon(icon, color: AppColors.navy, size: 23),
       );
 }
 
@@ -324,14 +389,26 @@ class _InfoChip extends StatelessWidget {
   final IconData icon;
   final String text;
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9), decoration: BoxDecoration(color: const Color(0xFFF4F5F9), borderRadius: BorderRadius.circular(999)), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 17, color: AppColors.navy), const SizedBox(width: 7), Text(text, style: const TextStyle(color: AppColors.navy, fontSize: 12, fontWeight: FontWeight.w700))]));
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        decoration: BoxDecoration(color: const Color(0xFFF4F5F9), borderRadius: BorderRadius.circular(999)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 17, color: AppColors.navy),
+          const SizedBox(width: 7),
+          Text(text, style: const TextStyle(color: AppColors.navy, fontSize: 12, fontWeight: FontWeight.w700)),
+        ]),
+      );
 }
 
 class _TextChip extends StatelessWidget {
   const _TextChip({required this.text});
   final String text;
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9), decoration: BoxDecoration(color: const Color(0xFFF2F3F7), borderRadius: BorderRadius.circular(999)), child: Text(text, style: const TextStyle(color: AppColors.navy, fontSize: 12, fontWeight: FontWeight.w700)));
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+        decoration: BoxDecoration(color: const Color(0xFFF2F3F7), borderRadius: BorderRadius.circular(999)),
+        child: Text(text, style: const TextStyle(color: AppColors.navy, fontSize: 12, fontWeight: FontWeight.w700)),
+      );
 }
 
 class _InlineInfo extends StatelessWidget {
@@ -341,14 +418,22 @@ class _InlineInfo extends StatelessWidget {
   final Color color;
   final double iconSize;
   @override
-  Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, color: color, size: iconSize), const SizedBox(width: 5), Text(text, style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w700))]);
+  Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, color: color, size: iconSize),
+        const SizedBox(width: 5),
+        Text(text, style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w700)),
+      ]);
 }
 
 class _DarkPill extends StatelessWidget {
   const _DarkPill({required this.text});
   final String text;
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7), decoration: BoxDecoration(color: AppColors.navy.withValues(alpha: .88), borderRadius: BorderRadius.circular(999)), child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w900)));
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(color: AppColors.navy.withValues(alpha: .88), borderRadius: BorderRadius.circular(999)),
+        child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w900)),
+      );
 }
 
 class _MessageButton extends StatelessWidget {
@@ -362,8 +447,16 @@ class _MessageButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(30),
           child: Ink(
             height: 62,
-            decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFFD8FF2F), Color(0xFFBFFF24)]), borderRadius: BorderRadius.circular(30), boxShadow: const [BoxShadow(color: Color(0x35BFFF24), blurRadius: 24, offset: Offset(0, 9))]),
-            child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.send_rounded, color: AppColors.navy, size: 25), SizedBox(width: 12), Text('Mesaj gönder', style: TextStyle(color: AppColors.navy, fontSize: 17, fontWeight: FontWeight.w900))]),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(colors: [Color(0xFFD8FF2F), Color(0xFFBFFF24)]),
+              borderRadius: BorderRadius.circular(30),
+              boxShadow: const [BoxShadow(color: Color(0x35BFFF24), blurRadius: 24, offset: Offset(0, 9))],
+            ),
+            child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(Icons.send_rounded, color: AppColors.navy, size: 25),
+              SizedBox(width: 12),
+              Text('Mesaj gönder', style: TextStyle(color: AppColors.navy, fontSize: 17, fontWeight: FontWeight.w900)),
+            ]),
           ),
         ),
       );
@@ -374,5 +467,7 @@ class _Blob extends StatelessWidget {
   final double size;
   final Color color;
   @override
-  Widget build(BuildContext context) => IgnorePointer(child: Container(width: size, height: size, decoration: BoxDecoration(color: color, shape: BoxShape.circle)));
+  Widget build(BuildContext context) => IgnorePointer(
+        child: Container(width: size, height: size, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+      );
 }
