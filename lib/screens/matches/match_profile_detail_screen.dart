@@ -31,11 +31,18 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
   bool loading = true;
   String? error;
   int photoIndex = 0;
+  final PageController _photoController = PageController();
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _photoController.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -92,6 +99,18 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
       .map((v) => v.toString().trim())
       .join(', ');
 
+  String get cityText {
+    final city = profile?['city']?.toString().trim() ?? '';
+    return city.isNotEmpty ? city : locationText;
+  }
+
+  String get genderText {
+    final value = profile?['gender']?.toString().trim().toLowerCase() ?? '';
+    if (value == 'male' || value == 'erkek' || value == 'man') return 'Erkek';
+    if (value == 'female' || value == 'kadın' || value == 'kadin' || value == 'woman') return 'Kadın';
+    return profile?['gender']?.toString().trim() ?? '';
+  }
+
   void _message() {
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => PrivateChatScreen(
@@ -131,7 +150,11 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
   Future<void> _report() async {
     if (userId.isEmpty) return;
     await LiveService.reportUser(userId, reason: 'Rahatsız edici davranış', detail: 'Profil detayından bildirildi');
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Şikâyetin inceleme kuyruğuna alındı.')));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Şikâyetin inceleme kuyruğuna alındı.')),
+      );
+    }
   }
 
   Future<void> _more() async {
@@ -145,7 +168,11 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             ListTile(leading: const Icon(Icons.flag_outlined), title: const Text('Şikâyet et'), onTap: () => Navigator.pop(c, 'report')),
             ListTile(leading: const Icon(Icons.heart_broken_outlined), title: const Text('Eşleşmeyi kaldır'), onTap: () => Navigator.pop(c, 'unmatch')),
-            ListTile(leading: const Icon(Icons.block_rounded, color: Color(0xFFE24A4A)), title: const Text('Kullanıcıyı engelle', style: TextStyle(color: Color(0xFFE24A4A))), onTap: () => Navigator.pop(c, 'block')),
+            ListTile(
+              leading: const Icon(Icons.block_rounded, color: Color(0xFFE24A4A)),
+              title: const Text('Kullanıcıyı engelle', style: TextStyle(color: Color(0xFFE24A4A))),
+              onTap: () => Navigator.pop(c, 'block'),
+            ),
           ]),
         ),
       ),
@@ -165,6 +192,12 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
         ),
       );
 
+  void _selectPhoto(int index) {
+    if (index < 0 || index >= photos.length) return;
+    setState(() => photoIndex = index);
+    _photoController.animateToPage(index, duration: const Duration(milliseconds: 280), curve: Curves.easeOutCubic);
+  }
+
   Widget _hero() => Stack(
         clipBehavior: Clip.none,
         children: [
@@ -173,18 +206,21 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(34),
               child: photos.isEmpty
-                  ? Container(color: AppColors.lime, alignment: Alignment.center, child: Text(name.isEmpty ? '?' : name[0].toUpperCase(), style: const TextStyle(fontSize: 76, fontWeight: FontWeight.w900, color: AppColors.navy)))
+                  ? Container(
+                      color: AppColors.lime,
+                      alignment: Alignment.center,
+                      child: Text(name.isEmpty ? '?' : name[0].toUpperCase(), style: const TextStyle(fontSize: 76, fontWeight: FontWeight.w900, color: AppColors.navy)),
+                    )
                   : PageView.builder(
+                      controller: _photoController,
                       itemCount: photos.length,
                       onPageChanged: (i) => setState(() => photoIndex = i),
                       itemBuilder: (_, i) => _networkPhoto(photos[i]),
                     ),
             ),
           ),
-          if (photos.length > 1)
-            Positioned(left: 16, bottom: 16, child: _DarkPill(text: '${photoIndex + 1}/${photos.length}')),
-          if (isPremium)
-            Positioned(left: 8, bottom: -18, child: Image.asset('assets/images/premium_badge.png', width: 88, height: 68, fit: BoxFit.contain)),
+          if (photos.length > 1) Positioned(left: 16, bottom: 16, child: _DarkPill(text: '${photoIndex + 1}/${photos.length}')),
+          if (isPremium) Positioned(left: 8, bottom: -18, child: Image.asset('assets/images/premium_badge.png', width: 88, height: 68, fit: BoxFit.contain)),
           Positioned(right: -8, bottom: -26, child: XpLevelRing(level: profileLevel, totalXp: profileXp, size: 72)),
         ],
       );
@@ -206,15 +242,85 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
           scrollDirection: Axis.horizontal,
           itemCount: photos.length,
           separatorBuilder: (_, __) => const SizedBox(width: 9),
-          itemBuilder: (_, i) => Container(
-            width: 72,
-            padding: EdgeInsets.all(i == photoIndex ? 3 : 0),
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(18), border: i == photoIndex ? Border.all(color: AppColors.lime, width: 3) : null),
-            child: ClipRRect(borderRadius: BorderRadius.circular(14), child: _networkPhoto(photos[i])),
+          itemBuilder: (_, i) => GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => _selectPhoto(i),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: 72,
+              padding: EdgeInsets.all(i == photoIndex ? 3 : 0),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                border: i == photoIndex ? Border.all(color: AppColors.lime, width: 3) : null,
+              ),
+              child: ClipRRect(borderRadius: BorderRadius.circular(14), child: _networkPhoto(photos[i])),
+            ),
           ),
         ),
       ),
     ]);
+  }
+
+  Widget _aboutAndInterests(int? age, String bio) {
+    return _CardShell(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const _SectionIcon(icon: Icons.article_outlined),
+          const SizedBox(width: 14),
+          const Text('Hakkında', style: TextStyle(color: AppColors.navy, fontSize: 18, fontWeight: FontWeight.w900)),
+        ]),
+        const SizedBox(height: 14),
+        Text(
+          bio.isEmpty ? 'Henüz hakkında bilgisi eklenmemiş.' : bio,
+          style: const TextStyle(color: Color(0xFF6E768C), fontSize: 14, height: 1.45, fontWeight: FontWeight.w600),
+        ),
+        if (interests.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          const Divider(height: 1, color: Color(0xFFE9EBF2)),
+          const SizedBox(height: 18),
+          Row(children: [
+            const _SectionIcon(icon: Icons.interests_rounded),
+            const SizedBox(width: 14),
+            const Text('İlgi alanları', style: TextStyle(color: AppColors.navy, fontSize: 18, fontWeight: FontWeight.w900)),
+          ]),
+          const SizedBox(height: 13),
+          Wrap(spacing: 8, runSpacing: 8, children: interests.map((e) => _TextChip(text: e)).toList()),
+        ],
+        const SizedBox(height: 20),
+        const Divider(height: 1, color: Color(0xFFE9EBF2)),
+        const SizedBox(height: 18),
+        Row(children: [
+          const _SectionIcon(icon: Icons.person_outline_rounded),
+          const SizedBox(width: 14),
+          const Text('Profil bilgileri', style: TextStyle(color: AppColors.navy, fontSize: 18, fontWeight: FontWeight.w900)),
+        ]),
+        const SizedBox(height: 13),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          if (age != null) _InfoChip(icon: Icons.cake_outlined, text: '$age yaş'),
+          if (genderText.isNotEmpty) _InfoChip(icon: Icons.person_outline_rounded, text: genderText),
+          if (cityText.isNotEmpty) _InfoChip(icon: Icons.location_on_rounded, text: cityText),
+          if ((profile?['country']?.toString().trim() ?? '').isNotEmpty) _InfoChip(icon: Icons.public_rounded, text: profile!['country'].toString()),
+        ]),
+      ]),
+    );
+  }
+
+  Widget _profileQuestion(String prompt, String answer) {
+    return _CardShell(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const _SectionIcon(icon: Icons.chat_bubble_outline_rounded),
+          const SizedBox(width: 14),
+          const Text('Profil sorum', style: TextStyle(color: AppColors.navy, fontSize: 18, fontWeight: FontWeight.w900)),
+        ]),
+        const SizedBox(height: 14),
+        if (prompt.isNotEmpty)
+          Text(prompt, style: const TextStyle(color: Color(0xFF2F6BFF), fontSize: 14, fontWeight: FontWeight.w800)),
+        if (prompt.isNotEmpty && answer.isNotEmpty) const SizedBox(height: 9),
+        if (answer.isNotEmpty)
+          Text(answer, style: const TextStyle(color: AppColors.navy, fontSize: 15, height: 1.4, fontWeight: FontWeight.w700)),
+      ]),
+    );
   }
 
   @override
@@ -249,33 +355,13 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
                           if (isOnline) const _InlineInfo(icon: Icons.circle, text: 'Şu anda aktif', color: Color(0xFF18BF55), iconSize: 11),
                           if (locationText.isNotEmpty) _InlineInfo(icon: Icons.location_on_rounded, text: locationText, color: const Color(0xFF626A80)),
                         ]),
-                        if (prompt.isNotEmpty || answer.isNotEmpty) ...[
-                          const SizedBox(height: 9),
-                          Text(answer.isNotEmpty ? '“$answer”' : '“$prompt”', style: const TextStyle(color: Color(0xFF7A8196), fontSize: 14.5, fontWeight: FontWeight.w600)),
-                        ],
                         const SizedBox(height: 26),
                         _gallery(),
                         const SizedBox(height: 20),
-                        _Section(
-                          icon: Icons.article_outlined,
-                          title: 'Hakkında',
-                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Text(bio.isEmpty ? 'Henüz hakkında bilgisi eklenmemiş.' : bio, style: const TextStyle(color: Color(0xFF6E768C), fontSize: 14, height: 1.45, fontWeight: FontWeight.w600)),
-                            const SizedBox(height: 15),
-                            Wrap(spacing: 8, runSpacing: 8, children: [
-                              if (age != null) _InfoChip(icon: Icons.cake_outlined, text: '$age yaş'),
-                              if (locationText.isNotEmpty) _InfoChip(icon: Icons.location_on_rounded, text: profile?['city']?.toString() ?? locationText),
-                              if (profile?['occupation'] != null) _InfoChip(icon: Icons.work_outline_rounded, text: profile!['occupation'].toString()),
-                            ]),
-                          ]),
-                        ),
-                        if (interests.isNotEmpty) ...[
+                        _aboutAndInterests(age, bio),
+                        if (prompt.isNotEmpty || answer.isNotEmpty) ...[
                           const SizedBox(height: 14),
-                          _Section(
-                            icon: Icons.interests_rounded,
-                            title: 'İlgi alanları',
-                            child: Wrap(spacing: 8, runSpacing: 8, children: interests.map((e) => _TextChip(text: e)).toList()),
-                          ),
+                          _profileQuestion(prompt, answer),
                         ],
                       ]),
                     ),
@@ -292,30 +378,48 @@ class _CircleButton extends StatelessWidget {
   const _CircleButton({required this.icon, required this.onTap});
   final IconData icon;
   final VoidCallback onTap;
+
   @override
   Widget build(BuildContext context) => Material(
         color: Colors.white,
         shape: const CircleBorder(),
         elevation: 2,
-        child: InkWell(customBorder: const CircleBorder(), onTap: onTap, child: SizedBox(width: 56, height: 56, child: Icon(icon, color: AppColors.navy, size: 25))),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: SizedBox(width: 56, height: 56, child: Icon(icon, color: AppColors.navy, size: 25)),
+        ),
       );
 }
 
-class _Section extends StatelessWidget {
-  const _Section({required this.icon, required this.title, required this.child});
-  final IconData icon;
-  final String title;
+class _CardShell extends StatelessWidget {
+  const _CardShell({required this.child});
   final Widget child;
+
   @override
   Widget build(BuildContext context) => Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(17),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(26), border: Border.all(color: const Color(0xFFE5E8F0)), boxShadow: const [BoxShadow(color: Color(0x0B0B1745), blurRadius: 18, offset: Offset(0, 7))]),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(width: 48, height: 48, decoration: const BoxDecoration(color: AppColors.lime, shape: BoxShape.circle), child: Icon(icon, color: AppColors.navy, size: 23)),
-          const SizedBox(width: 14),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(color: AppColors.navy, fontSize: 17, fontWeight: FontWeight.w900)), const SizedBox(height: 8), child])),
-        ]),
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: const Color(0xFFE5E8F0)),
+          boxShadow: const [BoxShadow(color: Color(0x0B0B1745), blurRadius: 18, offset: Offset(0, 7))],
+        ),
+        child: child,
+      );
+}
+
+class _SectionIcon extends StatelessWidget {
+  const _SectionIcon({required this.icon});
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: 48,
+        height: 48,
+        decoration: const BoxDecoration(color: AppColors.lime, shape: BoxShape.circle),
+        child: Icon(icon, color: AppColors.navy, size: 23),
       );
 }
 
@@ -323,15 +427,29 @@ class _InfoChip extends StatelessWidget {
   const _InfoChip({required this.icon, required this.text});
   final IconData icon;
   final String text;
+
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9), decoration: BoxDecoration(color: const Color(0xFFF4F5F9), borderRadius: BorderRadius.circular(999)), child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, size: 17, color: AppColors.navy), const SizedBox(width: 7), Text(text, style: const TextStyle(color: AppColors.navy, fontSize: 12, fontWeight: FontWeight.w700))]));
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        decoration: BoxDecoration(color: const Color(0xFFF4F5F9), borderRadius: BorderRadius.circular(999)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 17, color: AppColors.navy),
+          const SizedBox(width: 7),
+          Text(text, style: const TextStyle(color: AppColors.navy, fontSize: 12, fontWeight: FontWeight.w700)),
+        ]),
+      );
 }
 
 class _TextChip extends StatelessWidget {
   const _TextChip({required this.text});
   final String text;
+
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9), decoration: BoxDecoration(color: const Color(0xFFF2F3F7), borderRadius: BorderRadius.circular(999)), child: Text(text, style: const TextStyle(color: AppColors.navy, fontSize: 12, fontWeight: FontWeight.w700)));
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+        decoration: BoxDecoration(color: const Color(0xFFF2F3F7), borderRadius: BorderRadius.circular(999)),
+        child: Text(text, style: const TextStyle(color: AppColors.navy, fontSize: 12, fontWeight: FontWeight.w700)),
+      );
 }
 
 class _InlineInfo extends StatelessWidget {
@@ -340,20 +458,31 @@ class _InlineInfo extends StatelessWidget {
   final String text;
   final Color color;
   final double iconSize;
+
   @override
-  Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [Icon(icon, color: color, size: iconSize), const SizedBox(width: 5), Text(text, style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w700))]);
+  Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(icon, color: color, size: iconSize),
+        const SizedBox(width: 5),
+        Text(text, style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w700)),
+      ]);
 }
 
 class _DarkPill extends StatelessWidget {
   const _DarkPill({required this.text});
   final String text;
+
   @override
-  Widget build(BuildContext context) => Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7), decoration: BoxDecoration(color: AppColors.navy.withValues(alpha: .88), borderRadius: BorderRadius.circular(999)), child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w900)));
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(color: AppColors.navy.withValues(alpha: .88), borderRadius: BorderRadius.circular(999)),
+        child: Text(text, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w900)),
+      );
 }
 
 class _MessageButton extends StatelessWidget {
   const _MessageButton({required this.onTap});
   final VoidCallback onTap;
+
   @override
   Widget build(BuildContext context) => Material(
         color: Colors.transparent,
@@ -362,8 +491,16 @@ class _MessageButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(30),
           child: Ink(
             height: 62,
-            decoration: BoxDecoration(gradient: const LinearGradient(colors: [Color(0xFFD8FF2F), Color(0xFFBFFF24)]), borderRadius: BorderRadius.circular(30), boxShadow: const [BoxShadow(color: Color(0x35BFFF24), blurRadius: 24, offset: Offset(0, 9))]),
-            child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.send_rounded, color: AppColors.navy, size: 25), SizedBox(width: 12), Text('Mesaj gönder', style: TextStyle(color: AppColors.navy, fontSize: 17, fontWeight: FontWeight.w900))]),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(colors: [Color(0xFFD8FF2F), Color(0xFFBFFF24)]),
+              borderRadius: BorderRadius.circular(30),
+              boxShadow: const [BoxShadow(color: Color(0x35BFFF24), blurRadius: 24, offset: Offset(0, 9))],
+            ),
+            child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(Icons.send_rounded, color: AppColors.navy, size: 25),
+              SizedBox(width: 12),
+              Text('Mesaj gönder', style: TextStyle(color: AppColors.navy, fontSize: 17, fontWeight: FontWeight.w900)),
+            ]),
           ),
         ),
       );
@@ -373,6 +510,9 @@ class _Blob extends StatelessWidget {
   const _Blob({required this.size, required this.color});
   final double size;
   final Color color;
+
   @override
-  Widget build(BuildContext context) => IgnorePointer(child: Container(width: size, height: size, decoration: BoxDecoration(color: color, shape: BoxShape.circle)));
+  Widget build(BuildContext context) => IgnorePointer(
+        child: Container(width: size, height: size, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+      );
 }
