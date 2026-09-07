@@ -162,7 +162,12 @@ export class GameRoomTestService {
        where user_a_id=any($1::bigint[]) and user_b_id=any($1::bigint[])`,
       [ids],
     );
-    for (const row of existingMatches.rows) blocked.add(key(row.a, row.b));
+    for (const row of existingMatches.rows) {
+      const a = state.players.find((p) => p.id === row.a);
+      const b = state.players.find((p) => p.id === row.b);
+      if (a?.test || b?.test) continue;
+      blocked.add(key(row.a, row.b));
+    }
 
     const pairs: PairScore[] = [];
     for (let i = 0; i < state.players.length; i++) {
