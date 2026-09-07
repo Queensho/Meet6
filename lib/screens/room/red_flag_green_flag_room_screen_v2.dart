@@ -9,6 +9,7 @@ import '../../services/red_flag_game_api_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/phone_frame.dart';
 import '../messages/private_chat_screen.dart';
+import '../session_gate.dart';
 
 class RedFlagGreenFlagRoomScreenV2 extends StatefulWidget {
   const RedFlagGreenFlagRoomScreenV2({super.key, required this.roomId, this.profileName = ''});
@@ -19,9 +20,10 @@ class RedFlagGreenFlagRoomScreenV2 extends StatefulWidget {
   State<RedFlagGreenFlagRoomScreenV2> createState() => _RedFlagGreenFlagRoomScreenV2State();
 }
 
-class _RedFlagGreenFlagRoomScreenV2State extends State<RedFlagGreenFlagRoomScreenV2> {
+class _RedFlagGreenFlagRoomScreenV2State extends State<RedFlagGreenFlagRoomScreenV2> with WidgetsBindingObserver {
   final messageController = TextEditingController();
   final scrollController = ScrollController();
+  final messageFocusNode = FocusNode();
   final messages = <Map<String, dynamic>>[];
   Map<String, dynamic>? state;
   Timer? timer;
@@ -34,6 +36,8 @@ class _RedFlagGreenFlagRoomScreenV2State extends State<RedFlagGreenFlagRoomScree
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    messageFocusNode.addListener(_handleComposerFocus);
     _refresh();
     timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) _refresh(silent: true);
@@ -42,10 +46,41 @@ class _RedFlagGreenFlagRoomScreenV2State extends State<RedFlagGreenFlagRoomScree
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     timer?.cancel();
+    messageFocusNode.removeListener(_handleComposerFocus);
+    messageFocusNode.dispose();
     messageController.dispose();
     scrollController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeMetrics() {
+    if (messageFocusNode.hasFocus) {
+      _scrollToBottom(delay: const Duration(milliseconds: 80));
+    }
+  }
+
+  void _handleComposerFocus() {
+    if (messageFocusNode.hasFocus) {
+      _scrollToBottom(delay: const Duration(milliseconds: 260));
+    }
+  }
+
+  void _scrollToBottom({Duration delay = Duration.zero}) {
+    Future<void>.delayed(delay, () {
+      if (!mounted) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !scrollController.hasClients) return;
+        final target = scrollController.position.maxScrollExtent;
+        scrollController.animateTo(
+          target,
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+        );
+      });
+    });
   }
 
   String get phase => state?['phase']?.toString() ?? 'choice';
@@ -78,13 +113,17 @@ class _RedFlagGreenFlagRoomScreenV2State extends State<RedFlagGreenFlagRoomScree
     if (leaving) return;
     leaving = true;
     timer?.cancel();
+    FocusManager.instance.primaryFocus?.unfocus();
     try {
       await ActiveRoomService.leave(widget.roomId);
     } catch (_) {
-      // Navigation should still succeed; home will refresh active-room state.
+      // Navigation should still succeed; SessionGate will refresh the session.
     }
     if (!mounted) return;
-    Navigator.of(context).popUntil((route) => route.isFirst);
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const SessionGate()),
+      (route) => false,
+    );
   }
 
   Future<void> _refresh({bool silent = false}) async {
@@ -130,11 +169,7 @@ class _RedFlagGreenFlagRoomScreenV2State extends State<RedFlagGreenFlagRoomScree
           if (!messages.any((old) => old['id']?.toString() == m['id']?.toString())) messages.add(m);
         }
       });
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (scrollController.hasClients) {
-          scrollController.animateTo(scrollController.position.maxScrollExtent, duration: const Duration(milliseconds: 180), curve: Curves.easeOut);
-        }
-      });
+      _scrollToBottom();
     } catch (_) {}
   }
 
@@ -157,6 +192,7 @@ class _RedFlagGreenFlagRoomScreenV2State extends State<RedFlagGreenFlagRoomScree
       );
       messageController.clear();
       await _loadMessages();
+      _scrollToBottom(delay: const Duration(milliseconds: 80));
     } on ApiException catch (e) {
       if (mounted) setState(() => error = e.message);
     } finally {
@@ -224,6 +260,7 @@ class _RedFlagGreenFlagRoomScreenV2State extends State<RedFlagGreenFlagRoomScree
       canPop: false,
       onPopInvokedWithResult: (_, __) => _goHome(),
       child: Scaffold(
+        resizeToAvoidBottomInset: true,
         backgroundColor: dark ? const Color(0xFF071022) : const Color(0xFFF7F9FF),
         body: PhoneFrame(child: SafeArea(child: loading && state == null
             ? const Center(child: CircularProgressIndicator(color: AppColors.navy))
@@ -307,7 +344,7 @@ class _RedFlagGreenFlagRoomScreenV2State extends State<RedFlagGreenFlagRoomScree
     final green = (result['green'] as num?)?.toInt() ?? 0;
     final redPct = ((red / 6) * 100).round();
     return Column(children: [
-      Expanded(child: ListView(controller: scrollController, padding: const EdgeInsets.fromLTRB(16, 5, 16, 12), children: [
+      Expanded(child: ListView(controller: scrollController, keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag, padding: const EdgeInsets.fromLTRB(16, 5, 16, 18), children: [
         Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: dark ? const Color(0xFF111A2D) : Colors.white, borderRadius: BorderRadius.circular(24)), child: Column(children: [
           Text(question['prompt']?.toString() ?? '', textAlign: TextAlign.center, style: TextStyle(color: dark ? Colors.white : AppColors.navy, fontSize: 18.5, fontWeight: FontWeight.w900)),
           const SizedBox(height: 10),
@@ -367,7 +404,7 @@ class _RedFlagGreenFlagRoomScreenV2State extends State<RedFlagGreenFlagRoomScree
   }
 
   Widget _composer(bool dark) => Container(padding: const EdgeInsets.fromLTRB(12, 8, 12, 12), decoration: BoxDecoration(color: dark ? const Color(0xFF071022) : const Color(0xFFF7F9FF), border: const Border(top: BorderSide(color: Color(0xFFE7EAF2)))), child: Row(children: [
-    Expanded(child: TextField(controller: messageController, textInputAction: TextInputAction.send, onSubmitted: (_) => _sendMessage(), decoration: InputDecoration(hintText: 'Düşünceni yaz...', filled: true, fillColor: dark ? Colors.white10 : Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: BorderSide.none)))),
+    Expanded(child: TextField(focusNode: messageFocusNode, controller: messageController, textInputAction: TextInputAction.send, onTap: () => _scrollToBottom(delay: const Duration(milliseconds: 260)), onSubmitted: (_) => _sendMessage(), decoration: InputDecoration(hintText: 'Düşünceni yaz...', filled: true, fillColor: dark ? Colors.white10 : Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: BorderSide.none)))),
     const SizedBox(width: 8),
     SizedBox(width: 50, height: 50, child: IconButton.filled(onPressed: sending ? null : _sendMessage, style: IconButton.styleFrom(backgroundColor: AppColors.navy), icon: const Icon(Icons.send_rounded, color: AppColors.lime))),
   ]));
