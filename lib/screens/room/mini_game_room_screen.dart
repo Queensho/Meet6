@@ -28,6 +28,8 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen> {
   bool loading = true;
   int lieIndex = 2;
   int? selectedVote;
+  String? selectedMatchUserId;
+  String? matchMessage;
   Timer? refreshTimer;
 
   @override
@@ -35,7 +37,7 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen> {
     super.initState();
     _load();
     refreshTimer = Timer.periodic(const Duration(seconds: 3), (_) {
-      if (mounted && !loading) _load(silent: true);
+      if (mounted && !loading && phase != 'final') _load(silent: true);
     });
   }
 
@@ -123,8 +125,41 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen> {
     await _act(() => MiniGameApiService.next(widget.roomId));
   }
 
+  Future<void> _sendMatchSelection() async {
+    final id = selectedMatchUserId;
+    if (id == null) {
+      setState(() => error = 'Eşleşmek istediğin kişiyi seç.');
+      return;
+    }
+    setState(() {
+      loading = true;
+      error = null;
+      matchMessage = null;
+    });
+    try {
+      final result = await MiniGameApiService.selectMatch(widget.roomId, id);
+      if (!mounted) return;
+      setState(() {
+        matchMessage = result['matched'] == true
+            ? '🎉 Karşılıklı seçim! Eşleştiniz.'
+            : 'Seçimin gizli olarak kaydedildi.';
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => error = e.message);
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
   List<Map<String, dynamic>> get players {
     final raw = state?['players'];
+    if (raw is! List) return const [];
+    return raw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+  }
+
+  List<Map<String, dynamic>> get leaderboard {
+    final raw = state?['leaderboard'];
     if (raw is! List) return const [];
     return raw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
   }
@@ -139,12 +174,11 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen> {
   String get ownerName => state?['ownerName']?.toString() ?? 'Oyuncu';
   String get ownerUserId => state?['ownerUserId']?.toString() ?? '';
   bool get isMyTurn => state?['isMyTurn'] == true;
+  int get roundIndex => (state?['roundIndex'] as num?)?.toInt() ?? 0;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final dark = theme.brightness == Brightness.dark;
-
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       backgroundColor: dark ? const Color(0xFF071022) : const Color(0xFFF8FAFF),
       body: PhoneFrame(
@@ -195,46 +229,29 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Mini Oyun Odası',
-                  style: TextStyle(
-                    color: dark ? Colors.white : AppColors.navy,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
-                    height: 1.05,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'İki Doğru Bir Yalan',
-                  style: TextStyle(
-                    color: dark ? Colors.white60 : const Color(0xFF6F7893),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
+                Text('Mini Oyun Odası',
+                    style: TextStyle(
+                        color: dark ? Colors.white : AppColors.navy,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900)),
+                Text('İki Doğru Bir Yalan',
+                    style: TextStyle(
+                        color: dark ? Colors.white60 : const Color(0xFF6F7893),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700)),
               ],
             ),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
             decoration: BoxDecoration(
               color: AppColors.lime,
               borderRadius: BorderRadius.circular(24),
             ),
-            child: const Row(
-              children: [
-                Icon(Icons.schedule_rounded, color: AppColors.navy, size: 21),
-                SizedBox(width: 7),
-                Text(
-                  '09:42',
-                  style: TextStyle(
-                    color: AppColors.navy,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
+            child: Text(
+              phase == 'final' ? 'FİNAL' : '${roundIndex + 1}/6 TUR',
+              style: const TextStyle(
+                  color: AppColors.navy, fontWeight: FontWeight.w900),
             ),
           ),
         ],
@@ -254,7 +271,7 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen> {
           final p = players[index];
           final name = p['name']?.toString() ?? 'Oyuncu';
           final id = p['id']?.toString() ?? '';
-          final active = id == ownerUserId;
+          final active = phase != 'final' && id == ownerUserId;
           return SizedBox(
             width: 60,
             child: Column(
@@ -277,24 +294,20 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen> {
                     child: Text(
                       name.isEmpty ? '?' : name.substring(0, 1).toUpperCase(),
                       style: const TextStyle(
-                        color: AppColors.navy,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                      ),
+                          color: AppColors.navy,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900),
                     ),
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: dark ? Colors.white70 : const Color(0xFF69738D),
-                    fontSize: 10.5,
-                    fontWeight: active ? FontWeight.w900 : FontWeight.w700,
-                  ),
-                ),
+                Text(name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        color: dark ? Colors.white70 : const Color(0xFF69738D),
+                        fontSize: 10.5,
+                        fontWeight: active ? FontWeight.w900 : FontWeight.w700)),
               ],
             ),
           );
@@ -306,17 +319,15 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen> {
   Widget _turnChip() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.lime,
-        borderRadius: BorderRadius.circular(22),
-      ),
+      decoration: BoxDecoration(color: AppColors.lime, borderRadius: BorderRadius.circular(22)),
       child: Text(
-        isMyTurn ? 'Sıra Sende' : 'Sıra $ownerName’de',
+        phase == 'final'
+            ? '6 Tur Tamamlandı'
+            : isMyTurn
+                ? 'Sıra Sende'
+                : 'Sıra $ownerName’de',
         style: const TextStyle(
-          color: AppColors.navy,
-          fontWeight: FontWeight.w900,
-          fontSize: 13,
-        ),
+            color: AppColors.navy, fontWeight: FontWeight.w900, fontSize: 13),
       ),
     );
   }
@@ -328,13 +339,7 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen> {
       decoration: BoxDecoration(
         color: dark ? const Color(0xFF111A2D) : Colors.white,
         borderRadius: BorderRadius.circular(30),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(.06),
-            blurRadius: 30,
-            offset: const Offset(0, 12),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(.06), blurRadius: 30, offset: const Offset(0, 12))],
       ),
       child: Column(
         children: [
@@ -343,12 +348,12 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen> {
               Container(
                 width: 58,
                 height: 58,
-                decoration: const BoxDecoration(
-                  color: AppColors.navy,
-                  shape: BoxShape.circle,
+                decoration: const BoxDecoration(color: AppColors.navy, shape: BoxShape.circle),
+                child: Icon(
+                  phase == 'final' ? Icons.emoji_events_rounded : Icons.sports_esports_rounded,
+                  color: AppColors.lime,
+                  size: 33,
                 ),
-                child: const Icon(Icons.sports_esports_rounded,
-                    color: AppColors.lime, size: 33),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -356,27 +361,29 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      phase == 'write' && isMyTurn
-                          ? '3 ifade yaz'
-                          : phase == 'result'
-                              ? 'Sonuç açıklandı'
-                              : 'Yalanı tahmin et',
+                      phase == 'final'
+                          ? 'Oyun Sonucu'
+                          : phase == 'write' && isMyTurn
+                              ? '3 ifade yaz'
+                              : phase == 'result'
+                                  ? 'Sonuç açıklandı'
+                                  : 'Yalanı tahmin et',
                       style: TextStyle(
-                        color: dark ? Colors.white : AppColors.navy,
-                        fontSize: 23,
-                        fontWeight: FontWeight.w900,
-                      ),
+                          color: dark ? Colors.white : AppColors.navy,
+                          fontSize: 23,
+                          fontWeight: FontWeight.w900),
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      phase == 'write' && isMyTurn
-                          ? 'İki doğru ve bir yalan yaz.'
-                          : '$ownerName 3 ifade yazdı. Sence hangisi yalan?',
+                      phase == 'final'
+                          ? 'Sıralamayı gör ve gizli eşleşme seçimini yap.'
+                          : phase == 'write' && isMyTurn
+                              ? 'İki doğru ve bir yalan yaz.'
+                              : '$ownerName 3 ifade yazdı. Sence hangisi yalan?',
                       style: TextStyle(
-                        color: dark ? Colors.white60 : const Color(0xFF7C859E),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                      ),
+                          color: dark ? Colors.white60 : const Color(0xFF7C859E),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700),
                     ),
                   ],
                 ),
@@ -387,12 +394,11 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen> {
           if (phase == 'write') _writeArea(dark),
           if (phase == 'vote') _voteArea(dark),
           if (phase == 'result') _resultArea(dark),
+          if (phase == 'final') _finalArea(dark),
           if (error != null) ...[
             const SizedBox(height: 10),
-            Text(error!,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    color: Colors.redAccent, fontWeight: FontWeight.w800)),
+            Text(error!, textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w800)),
           ],
         ],
       ),
@@ -400,9 +406,7 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen> {
   }
 
   Widget _writeArea(bool dark) {
-    if (!isMyTurn) {
-      return _waitingPanel('$ownerName ifadelerini hazırlıyor…', dark);
-    }
+    if (!isMyTurn) return _waitingPanel('$ownerName ifadelerini hazırlıyor…', dark);
     return Column(
       children: [
         for (var i = 0; i < 3; i++) ...[
@@ -414,10 +418,7 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen> {
               hintText: '${i + 1}. ifade',
               filled: true,
               fillColor: dark ? Colors.white10 : const Color(0xFFF8FAFD),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(18),
-                borderSide: const BorderSide(color: Color(0xFFE3E8F1)),
-              ),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(18)),
             ),
           ),
           RadioListTile<int>(
@@ -427,34 +428,16 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen> {
             activeColor: AppColors.lime,
             onChanged: loading ? null : (v) => setState(() => lieIndex = v ?? 2),
             title: Text('Bu ifade yalan',
-                style: TextStyle(
-                    color: dark ? Colors.white : AppColors.navy,
-                    fontWeight: FontWeight.w800)),
+                style: TextStyle(color: dark ? Colors.white : AppColors.navy, fontWeight: FontWeight.w800)),
           ),
         ],
-        const SizedBox(height: 6),
         _primaryButton('İfadeleri gönder', Icons.send_rounded, _submitStatements),
       ],
     );
   }
 
   Widget _voteArea(bool dark) {
-    if (isMyTurn) {
-      return Column(
-        children: [
-          _waitingPanel('Diğer 5 oyuncu oy kullanıyor…', dark),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: loading ? null : _load,
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text('Durumu yenile'),
-          ),
-        ],
-      );
-    }
-
-    final votes = state?['votes'];
-    final voteCount = votes is Map ? votes.length : 0;
+    if (isMyTurn) return _waitingPanel('Diğer 5 oyuncu oy kullanıyor…', dark);
     return Column(
       children: [
         for (var i = 0; i < statements.length; i++)
@@ -465,99 +448,27 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen> {
               onTap: loading ? null : () => setState(() => selectedVote = i),
               child: Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: selectedVote == i
-                      ? AppColors.lime.withOpacity(.15)
-                      : (dark ? Colors.white10 : const Color(0xFFFDFEFF)),
+                  color: selectedVote == i ? AppColors.lime.withOpacity(.16) : (dark ? Colors.white10 : const Color(0xFFF8FAFD)),
                   borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                    color: selectedVote == i ? AppColors.lime : const Color(0xFFE2E7F0),
-                    width: selectedVote == i ? 2 : 1,
-                  ),
+                  border: Border.all(color: selectedVote == i ? AppColors.lime : const Color(0xFFE2E7F0), width: selectedVote == i ? 2 : 1),
                 ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        statements[i],
-                        style: TextStyle(
-                          color: dark ? Colors.white : AppColors.navy,
-                          fontSize: 15.5,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                    Container(
-                      width: 25,
-                      height: 25,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: selectedVote == i ? AppColors.lime : const Color(0xFF9FA8BE),
-                          width: 2,
-                        ),
-                        color: selectedVote == i ? AppColors.navy : Colors.transparent,
-                      ),
-                    ),
-                  ],
-                ),
+                child: Text(statements[i],
+                    style: TextStyle(color: dark ? Colors.white : AppColors.navy, fontWeight: FontWeight.w800)),
               ),
             ),
           ),
-        const Divider(height: 26),
-        Row(
-          children: [
-            const Icon(Icons.groups_rounded, color: AppColors.navy),
-            const SizedBox(width: 8),
-            Text('$voteCount/5 oy kullanıldı',
-                style: TextStyle(
-                    color: dark ? Colors.white70 : AppColors.navy,
-                    fontWeight: FontWeight.w900)),
-            const Spacer(),
-            const Icon(Icons.timer_outlined, color: AppColors.navy),
-            const SizedBox(width: 6),
-            Text('Sonuç birazdan',
-                style: TextStyle(
-                    color: dark ? Colors.white60 : const Color(0xFF667089),
-                    fontWeight: FontWeight.w700)),
-          ],
-        ),
-        const SizedBox(height: 14),
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: AppColors.lime.withOpacity(.18),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: const Row(
-            children: [
-              CircleAvatar(
-                backgroundColor: AppColors.lime,
-                child: Icon(Icons.star_rounded, color: AppColors.navy),
-              ),
-              SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Doğru tahmin +20 XP',
-                        style: TextStyle(
-                            color: AppColors.navy, fontWeight: FontWeight.w900)),
-                    Text('İyi düşün, sen yaparsın!',
-                        style: TextStyle(
-                            color: Color(0xFF667089), fontWeight: FontWeight.w700)),
-                  ],
-                ),
-              ),
-              Icon(Icons.emoji_events_outlined, color: AppColors.navy),
-            ],
-          ),
+          decoration: BoxDecoration(color: AppColors.lime.withOpacity(.18), borderRadius: BorderRadius.circular(16)),
+          child: const Text('⭐ Doğru tahmin +20 XP',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.navy, fontWeight: FontWeight.w900)),
         ),
         const SizedBox(height: 14),
         _primaryButton('Seçimini gönder', Icons.send_rounded, _submitVote),
-        TextButton(onPressed: loading ? null : _load, child: const Text('Oyunu geç')),
       ],
     );
   }
@@ -567,10 +478,7 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen> {
     final result = raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
     final lie = (result['lieIndex'] as num?)?.toInt() ?? -1;
     final countsRaw = result['voteCounts'];
-    final counts = countsRaw is List
-        ? countsRaw.map((e) => (e as num?)?.toInt() ?? 0).toList()
-        : <int>[];
-
+    final counts = countsRaw is List ? countsRaw.map((e) => (e as num?)?.toInt() ?? 0).toList() : <int>[];
     return Column(
       children: [
         for (var i = 0; i < statements.length; i++)
@@ -579,40 +487,76 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen> {
             margin: const EdgeInsets.only(bottom: 10),
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: i == lie
-                  ? AppColors.lime.withOpacity(.22)
-                  : (dark ? Colors.white10 : const Color(0xFFF8FAFD)),
+              color: i == lie ? AppColors.lime.withOpacity(.22) : (dark ? Colors.white10 : const Color(0xFFF8FAFD)),
               borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: i == lie ? AppColors.lime : const Color(0xFFE2E7F0),
-                width: i == lie ? 2 : 1,
-              ),
+              border: Border.all(color: i == lie ? AppColors.lime : const Color(0xFFE2E7F0), width: i == lie ? 2 : 1),
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(statements[i],
-                      style: TextStyle(
-                          color: dark ? Colors.white : AppColors.navy,
-                          fontWeight: FontWeight.w800)),
-                ),
-                Text('${i < counts.length ? counts[i] : 0} oy',
-                    style: const TextStyle(
-                        color: AppColors.navy, fontWeight: FontWeight.w900)),
-              ],
+            child: Row(children: [
+              Expanded(child: Text(statements[i], style: TextStyle(color: dark ? Colors.white : AppColors.navy, fontWeight: FontWeight.w800))),
+              Text('${i < counts.length ? counts[i] : 0} oy', style: const TextStyle(color: AppColors.navy, fontWeight: FontWeight.w900)),
+            ]),
+          ),
+        Text(lie >= 0 ? 'Yalan ${lie + 1}. ifadeydi' : 'Tur tamamlandı',
+            style: TextStyle(color: dark ? Colors.white : AppColors.navy, fontSize: 18, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 14),
+        _primaryButton(
+          roundIndex >= 5 ? 'Finale geç' : 'Sonraki oyuncu',
+          roundIndex >= 5 ? Icons.emoji_events_rounded : Icons.arrow_forward_rounded,
+          _next,
+        ),
+      ],
+    );
+  }
+
+  Widget _finalArea(bool dark) {
+    return Column(
+      children: [
+        for (var i = 0; i < leaderboard.length; i++)
+          Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: i == 0 ? AppColors.lime.withOpacity(.22) : (dark ? Colors.white10 : const Color(0xFFF8FAFD)),
+              borderRadius: BorderRadius.circular(16),
             ),
+            child: Row(children: [
+              Text(i == 0 ? '🏆' : '${i + 1}.', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+              const SizedBox(width: 10),
+              Expanded(child: Text(leaderboard[i]['name']?.toString() ?? 'Oyuncu', style: TextStyle(color: dark ? Colors.white : AppColors.navy, fontWeight: FontWeight.w900))),
+              Text('${leaderboard[i]['score'] ?? 0} XP', style: const TextStyle(color: AppColors.navy, fontWeight: FontWeight.w900)),
+            ]),
           ),
-        const SizedBox(height: 4),
-        Text(
-          lie >= 0 ? 'Yalan ${lie + 1}. ifadeydi' : 'Tur tamamlandı',
-          style: TextStyle(
-            color: dark ? Colors.white : AppColors.navy,
-            fontSize: 18,
-            fontWeight: FontWeight.w900,
-          ),
+        const SizedBox(height: 16),
+        Text('Gizli eşleşme seçimi',
+            style: TextStyle(color: dark ? Colors.white : AppColors.navy, fontSize: 19, fontWeight: FontWeight.w900)),
+        const SizedBox(height: 5),
+        const Text('Seçimin karşı tarafa gösterilmez. Sadece karşılıklıysa eşleşirsiniz.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Color(0xFF737D96), fontWeight: FontWeight.w700)),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          alignment: WrapAlignment.center,
+          children: players.where((p) => p['test'] == true).map((p) {
+            final id = p['id']?.toString() ?? '';
+            final name = p['name']?.toString() ?? 'Oyuncu';
+            final selected = selectedMatchUserId == id;
+            return ChoiceChip(
+              selected: selected,
+              onSelected: loading ? null : (_) => setState(() => selectedMatchUserId = id),
+              selectedColor: AppColors.lime,
+              label: Text(name, style: const TextStyle(fontWeight: FontWeight.w900)),
+            );
+          }).toList(),
         ),
         const SizedBox(height: 14),
-        _primaryButton('Sonraki oyuncu', Icons.arrow_forward_rounded, _next),
+        _primaryButton('Gizli seçimini gönder', Icons.favorite_rounded, _sendMatchSelection),
+        if (matchMessage != null) ...[
+          const SizedBox(height: 12),
+          Text(matchMessage!, textAlign: TextAlign.center,
+              style: const TextStyle(color: AppColors.navy, fontSize: 16, fontWeight: FontWeight.w900)),
+        ],
       ],
     );
   }
@@ -621,21 +565,13 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: dark ? Colors.white10 : const Color(0xFFF8FAFD),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Column(
-        children: [
-          const CircularProgressIndicator(color: AppColors.lime),
-          const SizedBox(height: 12),
-          Text(text,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  color: dark ? Colors.white70 : AppColors.navy,
-                  fontWeight: FontWeight.w800)),
-        ],
-      ),
+      decoration: BoxDecoration(color: dark ? Colors.white10 : const Color(0xFFF8FAFD), borderRadius: BorderRadius.circular(18)),
+      child: Column(children: [
+        const CircularProgressIndicator(color: AppColors.lime),
+        const SizedBox(height: 12),
+        Text(text, textAlign: TextAlign.center,
+            style: TextStyle(color: dark ? Colors.white70 : AppColors.navy, fontWeight: FontWeight.w800)),
+      ]),
     );
   }
 
@@ -651,8 +587,7 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         ),
         icon: Icon(icon),
-        label: Text(label,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
+        label: Text(label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)),
       ),
     );
   }
@@ -660,19 +595,13 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen> {
   Widget _errorCard() {
     return Padding(
       padding: const EdgeInsets.only(top: 70),
-      child: Column(
-        children: [
-          const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 48),
-          const SizedBox(height: 10),
-          Text(error ?? 'Mini oyun yüklenemedi.', textAlign: TextAlign.center),
-          const SizedBox(height: 12),
-          FilledButton.icon(
-            onPressed: _load,
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text('Tekrar dene'),
-          ),
-        ],
-      ),
+      child: Column(children: [
+        const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 48),
+        const SizedBox(height: 10),
+        Text(error ?? 'Mini oyun yüklenemedi.', textAlign: TextAlign.center),
+        const SizedBox(height: 12),
+        FilledButton.icon(onPressed: _load, icon: const Icon(Icons.refresh_rounded), label: const Text('Tekrar dene')),
+      ]),
     );
   }
 }
