@@ -50,6 +50,17 @@ class MiniGameApiService {
     return _request('POST', '/api/rooms/game/$roomId/next');
   }
 
+  static Future<Map<String, dynamic>> forceFinish(
+    String roomId, {
+    required String gameKey,
+  }) {
+    return _request(
+      'POST',
+      '/api/rooms/game/$roomId/force-finish',
+      body: {'gameKey': gameKey},
+    );
+  }
+
   static Future<Map<String, dynamic>> _request(
     String method,
     String path, {
