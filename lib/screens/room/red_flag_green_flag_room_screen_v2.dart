@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../config/app_config.dart';
+import '../../services/active_room_service.dart';
 import '../../services/api_service.dart';
 import '../../services/red_flag_game_api_service.dart';
 import '../../theme/app_colors.dart';
@@ -26,6 +27,7 @@ class _RedFlagGreenFlagRoomScreenV2State extends State<RedFlagGreenFlagRoomScree
   Timer? timer;
   bool loading = true;
   bool sending = false;
+  bool leaving = false;
   String? error;
   int lastMessageId = 0;
 
@@ -72,7 +74,18 @@ class _RedFlagGreenFlagRoomScreenV2State extends State<RedFlagGreenFlagRoomScree
     return '${AppConfig.apiBaseUrl}${raw.startsWith('/') ? raw : '/$raw'}';
   }
 
-  void _goHome() => Navigator.of(context).popUntil((route) => route.isFirst);
+  Future<void> _goHome() async {
+    if (leaving) return;
+    leaving = true;
+    timer?.cancel();
+    try {
+      await ActiveRoomService.leave(widget.roomId);
+    } catch (_) {
+      // Navigation should still succeed; home will refresh active-room state.
+    }
+    if (!mounted) return;
+    Navigator.of(context).popUntil((route) => route.isFirst);
+  }
 
   Future<void> _refresh({bool silent = false}) async {
     try {
@@ -147,7 +160,7 @@ class _RedFlagGreenFlagRoomScreenV2State extends State<RedFlagGreenFlagRoomScree
       if (!mounted) return;
       setState(() { state = data; loading = false; });
       final status = data['finalDecision'] is Map ? (data['finalDecision'] as Map)['status']?.toString() : '';
-      if (!match || status == 'continue') _goHome();
+      if (!match || status == 'continue') await _goHome();
       if (status == 'matched') _openChat();
     } on ApiException catch (e) {
       if (mounted) setState(() { loading = false; error = e.message; });
