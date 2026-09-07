@@ -12,7 +12,14 @@ type Round = {
   resolved: boolean;
   result?: { lieIndex: number; correctUserIds: string[]; voteCounts: number[] };
 };
-type State = { roomId: string; players: Player[]; roundIndex: number; round: Round };
+type State = {
+  roomId: string;
+  players: Player[];
+  roundIndex: number;
+  round: Round;
+  scores: Record<string, number>;
+  finished: boolean;
+};
 
 @Injectable()
 export class GameRoomTestService {
@@ -61,10 +68,14 @@ export class GameRoomTestService {
     if (!eligible.every((p) => state.round.votes[p.id] !== undefined)) return;
     const counts = [0, 0, 0];
     for (const vote of Object.values(state.round.votes)) counts[vote]++;
+    const correct = eligible
+      .filter((p) => state.round.votes[p.id] === state.round.lieIndex)
+      .map((p) => p.id);
+    for (const userId of correct) state.scores[userId] = (state.scores[userId] ?? 0) + 20;
     state.round.resolved = true;
     state.round.result = {
       lieIndex: state.round.lieIndex,
-      correctUserIds: eligible.filter((p) => state.round.votes[p.id] === state.round.lieIndex).map((p) => p.id),
+      correctUserIds: correct,
       voteCounts: counts,
     };
   }
@@ -79,18 +90,31 @@ export class GameRoomTestService {
 
   private view(state: State, userId: string) {
     const owner = state.players.find((p) => p.id === state.round.ownerUserId);
+    const leaderboard = state.players
+      .map((p) => ({ ...p, score: state.scores[p.id] ?? 0 }))
+      .sort((a, b) => b.score - a.score || Number(a.id) - Number(b.id));
     return {
       roomId: state.roomId,
       game: 'two_truths_one_lie',
       roundIndex: state.roundIndex,
+      totalRounds: state.players.length,
       players: state.players,
       ownerUserId: state.round.ownerUserId,
       ownerName: owner?.name ?? 'Oyuncu',
       isMyTurn: state.round.ownerUserId === userId,
-      phase: state.round.resolved ? 'result' : state.round.statements.length === 3 ? 'vote' : 'write',
+      phase: state.finished
+        ? 'final'
+        : state.round.resolved
+          ? 'result'
+          : state.round.statements.length === 3
+            ? 'vote'
+            : 'write',
       statements: state.round.statements,
       myVote: state.round.votes[userId] ?? null,
       result: state.round.result ?? null,
+      scores: state.scores,
+      leaderboard,
+      selectionSeconds: 10,
     };
   }
 
@@ -150,7 +174,8 @@ export class GameRoomTestService {
 
       const names = new Map(profiles.rows.map((r) => [r.user_id, r.name]));
       const players = memberIds.map((id) => ({ id, name: names.get(id) ?? 'Oyuncu', test: id !== String(userId) }));
-      const state: State = { roomId, players, roundIndex: 0, round: this.round(players, 0) };
+      const scores = Object.fromEntries(players.map((p) => [p.id, 0]));
+      const state: State = { roomId, players, roundIndex: 0, round: this.round(players, 0), scores, finished: false };
       this.games.set(roomId, state);
       return { ok: true, state: 'room', testMode: true, participantCount: 6, room: await this.rooms.getRoom(userId, roomId), gameState: this.view(state, String(userId)) };
     } catch (error) {
@@ -172,6 +197,7 @@ export class GameRoomTestService {
     await this.assertMember(userId, roomId);
     const state = this.games.get(roomId);
     if (!state) throw new BadRequestException('Mini oyun durumu bulunamadı.');
+    if (state.finished) throw new BadRequestException('Oyun tamamlandı.');
     if (state.round.ownerUserId !== String(userId)) throw new BadRequestException('Şu an sıra sende değil.');
     if (!Array.isArray(statements) || statements.length !== 3) throw new BadRequestException('Tam 3 ifade girmelisin.');
     const clean = statements.map((v) => String(v ?? '').trim());
@@ -188,6 +214,7 @@ export class GameRoomTestService {
     await this.assertMember(userId, roomId);
     const state = this.games.get(roomId);
     if (!state) throw new BadRequestException('Mini oyun durumu bulunamadı.');
+    if (state.finished) throw new BadRequestException('Oyun tamamlandı.');
     if (state.round.statements.length !== 3) throw new BadRequestException('Oylama henüz başlamadı.');
     if (state.round.ownerUserId === String(userId)) throw new BadRequestException('Kendi turunda oy kullanamazsın.');
     const selected = Number(choice);
@@ -201,7 +228,31 @@ export class GameRoomTestService {
     await this.assertMember(userId, roomId);
     const state = this.games.get(roomId);
     if (!state) throw new BadRequestException('Mini oyun durumu bulunamadı.');
+    if (state.finished) return this.view(state, String(userId));
     if (!state.round.resolved) throw new BadRequestException('Önce mevcut turu tamamla.');
+
+    if (state.roundIndex >= state.players.length - 1) {
+      state.finished = true;
+      const human = state.players.find((p) => !p.test);
+      await this.infra.db.query(
+        `update rooms
+         set status='selection', ends_at=now(), selection_started_at=now(), selection_ends_at=now()+interval '10 seconds'
+         where id=$1 and status='active'`,
+        [roomId],
+      );
+      if (human) {
+        for (const bot of state.players.filter((p) => p.test)) {
+          await this.infra.db.query(
+            `insert into room_selections(room_id,user_id,selected_user_id)
+             values($1,$2,$3)
+             on conflict(room_id,user_id) do update set selected_user_id=excluded.selected_user_id, updated_at=now()`,
+            [roomId, bot.id, human.id],
+          );
+        }
+      }
+      return this.view(state, String(userId));
+    }
+
     state.roundIndex += 1;
     state.round = this.round(state.players, state.roundIndex);
     return this.view(state, String(userId));
