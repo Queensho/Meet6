@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../services/mini_game_selection_service.dart';
 import '../../services/red_flag_game_api_service.dart';
+import '../session_gate.dart';
 import 'red_flag_green_flag_room_screen_v2.dart';
 import 'two_truths_one_lie_room_screen.dart' as truths;
 
@@ -21,6 +22,7 @@ class MiniGameRoomScreen extends StatefulWidget {
 
 class _MiniGameRoomScreenState extends State<MiniGameRoomScreen> {
   late final Future<String> _gameKeyFuture;
+  bool _leaving = false;
 
   @override
   void initState() {
@@ -48,6 +50,16 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen> {
     return selected;
   }
 
+  Future<void> _goHome() async {
+    if (_leaving || !mounted) return;
+    _leaving = true;
+    FocusManager.instance.primaryFocus?.unfocus();
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const SessionGate()),
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<String>(
@@ -67,9 +79,13 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen> {
           );
         }
 
-        return truths.MiniGameRoomScreen(
-          roomId: widget.roomId,
-          profileName: widget.profileName,
+        return PopScope(
+          canPop: false,
+          onPopInvokedWithResult: (_, __) => _goHome(),
+          child: truths.MiniGameRoomScreen(
+            roomId: widget.roomId,
+            profileName: widget.profileName,
+          ),
         );
       },
     );
