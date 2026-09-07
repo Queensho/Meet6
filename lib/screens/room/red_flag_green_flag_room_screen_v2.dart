@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../config/app_config.dart';
+import '../../services/active_room_service.dart';
 import '../../services/api_service.dart';
 import '../../services/red_flag_game_api_service.dart';
 import '../../theme/app_colors.dart';
@@ -26,6 +27,7 @@ class _RedFlagGreenFlagRoomScreenV2State extends State<RedFlagGreenFlagRoomScree
   Timer? timer;
   bool loading = true;
   bool sending = false;
+  bool leaving = false;
   String? error;
   int lastMessageId = 0;
 
@@ -72,7 +74,18 @@ class _RedFlagGreenFlagRoomScreenV2State extends State<RedFlagGreenFlagRoomScree
     return '${AppConfig.apiBaseUrl}${raw.startsWith('/') ? raw : '/$raw'}';
   }
 
-  void _goHome() => Navigator.of(context).popUntil((route) => route.isFirst);
+  Future<void> _goHome() async {
+    if (leaving) return;
+    leaving = true;
+    timer?.cancel();
+    try {
+      await ActiveRoomService.leave(widget.roomId);
+    } catch (_) {
+      // Navigation should still succeed; home will refresh active-room state.
+    }
+    if (!mounted) return;
+    Navigator.of(context).popUntil((route) => route.isFirst);
+  }
 
   Future<void> _refresh({bool silent = false}) async {
     try {
@@ -127,10 +140,21 @@ class _RedFlagGreenFlagRoomScreenV2State extends State<RedFlagGreenFlagRoomScree
 
   Future<void> _sendMessage() async {
     final text = messageController.text.trim();
+    final choice = state?['myChoice']?.toString();
     if (text.isEmpty || sending || phase != 'discussion') return;
+    if (choice != 'red' && choice != 'green') {
+      setState(() => error = 'Önce Red Flag veya Green Flag seçimini yap.');
+      return;
+    }
     setState(() => sending = true);
     try {
-      await RedFlagGameApiService.sendMessage(widget.roomId, text);
+      await RedFlagGameApiService.sendMessage(
+        widget.roomId,
+        text,
+        questionNumber: questionIndex + 1,
+        questionPrompt: question['prompt']?.toString() ?? '',
+        choice: choice!,
+      );
       messageController.clear();
       await _loadMessages();
     } on ApiException catch (e) {
@@ -147,7 +171,7 @@ class _RedFlagGreenFlagRoomScreenV2State extends State<RedFlagGreenFlagRoomScree
       if (!mounted) return;
       setState(() { state = data; loading = false; });
       final status = data['finalDecision'] is Map ? (data['finalDecision'] as Map)['status']?.toString() : '';
-      if (!match || status == 'continue') _goHome();
+      if (!match || status == 'continue') await _goHome();
       if (status == 'matched') _openChat();
     } on ApiException catch (e) {
       if (mounted) setState(() { loading = false; error = e.message; });
@@ -183,6 +207,9 @@ class _RedFlagGreenFlagRoomScreenV2State extends State<RedFlagGreenFlagRoomScree
   }
 
   String? _choiceForSender(Map<String, dynamic> m) {
+    final decoded = RedFlagGameApiService.decodeDiscussionMessage(m['body']?.toString() ?? '');
+    final storedChoice = decoded['choice']?.toString();
+    if (storedChoice == 'red' || storedChoice == 'green') return storedChoice;
     final sender = m['sender_user_id']?.toString() ?? m['senderUserId']?.toString();
     for (final p in players) {
       if (p['id']?.toString() == sender) return _choiceForPlayer(p);
@@ -303,16 +330,38 @@ class _RedFlagGreenFlagRoomScreenV2State extends State<RedFlagGreenFlagRoomScree
     final player = players.cast<Map<String, dynamic>?>().firstWhere((p) => p?['id']?.toString() == sender, orElse: () => null);
     final name = m['display_name']?.toString().trim().isNotEmpty == true ? m['display_name'].toString() : player?['name']?.toString() ?? 'Oyuncu';
     final photo = _photo(player?['photoUrl']?.toString());
-    final red = _choiceForSender(m) == 'red';
+    final decoded = RedFlagGameApiService.decodeDiscussionMessage(m['body']?.toString() ?? '');
+    final body = decoded['body']?.toString() ?? '';
+    final storedQuestionNumber = (decoded['questionNumber'] as num?)?.toInt();
+    final storedQuestionPrompt = decoded['questionPrompt']?.toString() ?? '';
+    final choice = decoded['choice']?.toString() ?? _choiceForSender(m);
+    final red = choice == 'red';
     final accent = red ? const Color(0xFFFF5260) : const Color(0xFF44C96B);
     final bg = red ? const Color(0xFFFFE8EB) : const Color(0xFFE8F8E9);
+    final questionLabel = storedQuestionNumber == null
+        ? null
+        : '$storedQuestionNumber. Soru${storedQuestionPrompt.isEmpty ? '' : ' · $storedQuestionPrompt'}';
     return Padding(padding: const EdgeInsets.only(bottom: 10), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       CircleAvatar(radius: 19, backgroundColor: const Color(0xFFE9EDF6), backgroundImage: photo.isEmpty ? null : NetworkImage(photo), child: photo.isEmpty ? Text(name.isEmpty ? '?' : name[0].toUpperCase()) : null),
       const SizedBox(width: 9),
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [Flexible(child: Text(name, style: TextStyle(color: dark ? Colors.white : AppColors.navy, fontSize: 11.5, fontWeight: FontWeight.w900))), const SizedBox(width: 5), Icon(Icons.flag_rounded, size: 14, color: accent)]),
         const SizedBox(height: 3),
-        Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9), decoration: BoxDecoration(color: dark ? accent.withOpacity(.18) : bg, borderRadius: BorderRadius.circular(15)), child: Text(m['body']?.toString() ?? '', style: TextStyle(color: dark ? Colors.white : AppColors.navy, fontSize: 13.5, fontWeight: FontWeight.w600))),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          decoration: BoxDecoration(color: dark ? accent.withOpacity(.18) : bg, borderRadius: BorderRadius.circular(15)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            if (questionLabel != null) ...[
+              Row(children: [
+                Icon(Icons.flag_rounded, size: 13, color: accent),
+                const SizedBox(width: 5),
+                Expanded(child: Text(questionLabel, maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: accent, fontSize: 10.5, fontWeight: FontWeight.w800))),
+              ]),
+              const SizedBox(height: 6),
+            ],
+            Text(body, style: TextStyle(color: dark ? Colors.white : AppColors.navy, fontSize: 13.5, fontWeight: FontWeight.w600)),
+          ]),
+        ),
       ])),
     ]));
   }
