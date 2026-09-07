@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../config/app_config.dart';
-import '../../services/active_room_service.dart';
 import '../../services/api_service.dart';
 import '../../services/red_flag_game_api_service.dart';
 import '../../theme/app_colors.dart';
@@ -114,11 +113,6 @@ class _RedFlagGreenFlagRoomScreenV2State extends State<RedFlagGreenFlagRoomScree
     leaving = true;
     timer?.cancel();
     FocusManager.instance.primaryFocus?.unfocus();
-    try {
-      await ActiveRoomService.leave(widget.roomId);
-    } catch (_) {
-      // Navigation should still succeed; SessionGate will refresh the session.
-    }
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const SessionGate()),
