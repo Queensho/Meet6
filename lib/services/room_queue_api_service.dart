@@ -45,7 +45,9 @@ class RoomQueueApiService {
     return body;
   }
 
-  static Future<Map<String, dynamic>> createGameTestRoom() async {
+  static Future<Map<String, dynamic>> createGameTestRoom({
+    String gameKey = 'two_truths_one_lie',
+  }) async {
     final token = await SessionService.loadAuthSessionId();
     if (token == null || token.isEmpty) {
       throw const ApiException('Oturum bulunamadı.');
@@ -57,7 +59,9 @@ class RoomQueueApiService {
           headers: {
             'Authorization': 'Bearer $token',
             'Accept': 'application/json',
+            'Content-Type': 'application/json',
           },
+          body: jsonEncode({'gameKey': gameKey}),
         )
         .timeout(const Duration(seconds: 15));
 
