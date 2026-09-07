@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../services/api_service.dart';
+import '../../services/mini_game_api_service.dart';
 import '../../services/mini_game_selection_service.dart';
 import '../../services/red_flag_game_api_service.dart';
 import 'red_flag_green_flag_room_screen_v2.dart';
@@ -22,6 +24,7 @@ class MiniGameRoomScreen extends StatefulWidget {
 class _MiniGameRoomScreenState extends State<MiniGameRoomScreen> {
   late final Future<String> _gameKeyFuture;
   bool _leaving = false;
+  bool _finishing = false;
 
   @override
   void initState() {
@@ -66,6 +69,32 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen> {
     _leaving = false;
   }
 
+  Future<void> _forceFinish(String gameKey) async {
+    if (_finishing || !mounted) return;
+    setState(() => _finishing = true);
+    try {
+      await MiniGameApiService.forceFinish(widget.roomId, gameKey: gameKey);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Oyun test için bitirildi. Eşleşme sonucu hazırlanıyor.'),
+        ),
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Oyun bitirilemedi.')),
+      );
+    } finally {
+      if (mounted) setState(() => _finishing = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<String>(
@@ -78,20 +107,55 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen> {
         }
 
         final gameKey = snapshot.data ?? MiniGameSelectionService.selectedGameKey;
+        final Widget game;
         if (gameKey == 'red_flag_green_flag') {
-          return RedFlagGreenFlagRoomScreenV2(
+          game = RedFlagGreenFlagRoomScreenV2(
             roomId: widget.roomId,
             profileName: widget.profileName,
           );
+        } else {
+          game = PopScope(
+            canPop: false,
+            onPopInvokedWithResult: (_, __) => _goHome(),
+            child: truths.MiniGameRoomScreen(
+              roomId: widget.roomId,
+              profileName: widget.profileName,
+            ),
+          );
         }
 
-        return PopScope(
-          canPop: false,
-          onPopInvokedWithResult: (_, __) => _goHome(),
-          child: truths.MiniGameRoomScreen(
-            roomId: widget.roomId,
-            profileName: widget.profileName,
-          ),
+        return Stack(
+          children: [
+            Positioned.fill(child: game),
+            Positioned(
+              right: 14,
+              bottom: 18,
+              child: SafeArea(
+                child: FilledButton.icon(
+                  onPressed: _finishing ? null : () => _forceFinish(gameKey),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF111A2D),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                  ),
+                  icon: _finishing
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.fast_forward_rounded, size: 20),
+                  label: const Text(
+                    'Test: Oyunu bitir',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
+            ),
+          ],
         );
       },
     );
