@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import '../config/app_config.dart';
 import 'api_service.dart';
+import 'mini_game_selection_service.dart';
 import 'session_service.dart';
 
 class RoomQueueApiService {
@@ -46,13 +47,14 @@ class RoomQueueApiService {
   }
 
   static Future<Map<String, dynamic>> createGameTestRoom({
-    String gameKey = 'two_truths_one_lie',
+    String? gameKey,
   }) async {
     final token = await SessionService.loadAuthSessionId();
     if (token == null || token.isEmpty) {
       throw const ApiException('Oturum bulunamadı.');
     }
 
+    final selectedGameKey = gameKey ?? MiniGameSelectionService.selectedGameKey;
     final response = await http
         .post(
           AppConfig.apiUri('/api/rooms/game-test'),
@@ -61,7 +63,7 @@ class RoomQueueApiService {
             'Accept': 'application/json',
             'Content-Type': 'application/json',
           },
-          body: jsonEncode({'gameKey': gameKey}),
+          body: jsonEncode({'gameKey': selectedGameKey}),
         )
         .timeout(const Duration(seconds: 15));
 
