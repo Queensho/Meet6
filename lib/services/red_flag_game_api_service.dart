@@ -50,16 +50,20 @@ class RedFlagGameApiService {
         )
         .timeout(const Duration(seconds: 15));
     final decoded = response.body.trim().isEmpty
-        ? <dynamic>[]
+        ? <String, dynamic>{}
         : jsonDecode(response.body);
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      final message = decoded is Map
-          ? decoded['message']?.toString()
-          : null;
+      final message = decoded is Map ? decoded['message']?.toString() : null;
       throw ApiException(message ?? 'Tartışma mesajları alınamadı.');
     }
-    if (decoded is! List) return const [];
-    return decoded
+
+    // Room messages endpoint returns { ok: true, messages: [...] }.
+    // Keep list fallback for compatibility with older backend responses.
+    final rawMessages = decoded is Map
+        ? decoded['messages']
+        : decoded;
+    if (rawMessages is! List) return const [];
+    return rawMessages
         .whereType<Map>()
         .map((e) => Map<String, dynamic>.from(e))
         .toList();
