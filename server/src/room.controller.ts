@@ -1,7 +1,9 @@
-import { Body, Controller, Delete, Get, Headers, Param, Post, Put, Query } from '@nestjs/common';
+import { createHash } from 'crypto';
+import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Headers, Param, Post, Put, Query } from '@nestjs/common';
 
 import { AuthService } from './auth.service';
 import { GameRoomTestService } from './game-room-test.service';
+import { InfrastructureService } from './infrastructure.service';
 import { RedFlagGameService } from './red-flag-game.service';
 import { ExtensionVoteDto, JoinQueueDto, RoomSelectionDto, SendRoomMessageDto } from './room.dto';
 import { RoomService } from './room.service';
@@ -9,16 +11,32 @@ import { RoomsGateway } from './rooms.gateway';
 
 @Controller('rooms')
 export class RoomController {
+  private static readonly GAME_FINISH_TEST_PHONE_HASH =
+    '80340dec2efb640dbb56d3cd0234a589f4fffc6d79384cd2570377e6384d075d';
+
   constructor(
     private readonly auth: AuthService,
     private readonly rooms: RoomService,
     private readonly realtime: RoomsGateway,
     private readonly gameRoomTest: GameRoomTestService,
     private readonly redFlagGame: RedFlagGameService,
+    private readonly infra: InfrastructureService,
   ) {}
 
   private async userId(authorization?: string) {
     return (await this.auth.userIdFromAuthorization(authorization)).userId;
+  }
+
+  private async assertGameFinishTester(userId: string) {
+    const result = await this.infra.db.query<{ phone_e164: string }>(
+      `select phone_e164 from users where id=$1 and status='active' limit 1`,
+      [userId],
+    );
+    const phone = result.rows[0]?.phone_e164?.trim() ?? '';
+    const hash = createHash('sha256').update(phone).digest('hex');
+    if (hash !== RoomController.GAME_FINISH_TEST_PHONE_HASH) {
+      throw new ForbiddenException('Bu kullanıcı için oyun bitirme test yetkisi yok.');
+    }
   }
 
   @Post('queue')
@@ -46,6 +64,93 @@ export class RoomController {
     if (roomId) await this.realtime.broadcastRoomUpdate(roomId);
     await this.realtime.broadcastQueueStatus();
     return result;
+  }
+
+  @Post('game/:roomId/force-finish')
+  async forceFinishGame(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('roomId') roomId: string,
+    @Body() body: { gameKey?: string },
+  ) {
+    const userId = await this.userId(authorization);
+    await this.assertGameFinishTester(userId);
+    const gameKey = body?.gameKey?.toString() ?? '';
+
+    if (gameKey === 'red_flag_green_flag') {
+      const svc = this.redFlagGame as any;
+      await svc.assertMember(userId, roomId);
+      const state = svc.games.get(roomId);
+      if (!state) throw new BadRequestException('Red Flag / Green Flag oyun durumu bulunamadı.');
+
+      while (state.questionIndex < state.questions.length) {
+        const question = state.questions[state.questionIndex];
+        if (!state.answers.some((round: any) => round.questionId === question.id)) {
+          const choices: Record<string, 'red' | 'green'> = {};
+          for (const player of state.players) {
+            choices[player.id] = state.choices[player.id] ?? svc.botChoice(player.id, question.id);
+          }
+          state.answers.push({ questionId: question.id, choices });
+        }
+        if (state.questionIndex >= state.questions.length - 1) break;
+        state.questionIndex += 1;
+        state.choices = {};
+      }
+
+      state.phase = 'final';
+      state.phaseEndsAt = new Date();
+      await svc.buildSuggestions(state);
+      return svc.view(state, String(userId));
+    }
+
+    if (gameKey != '' && gameKey !== 'two_truths_one_lie') {
+      throw new BadRequestException('Bu oyun için test bitirme desteklenmiyor.');
+    }
+
+    const svc = this.gameRoomTest as any;
+    await svc.assertMember(userId, roomId);
+    const state = svc.games.get(roomId);
+    if (!state) throw new BadRequestException('Mini oyun durumu bulunamadı.');
+
+    while (state.roundIndex < 10) {
+      if (!state.round.resolved) {
+        if (state.round.statements.length !== 3) {
+          state.round.statements = svc.botStatements(state.roundIndex);
+          state.round.lieIndex = 2;
+        }
+        for (const player of state.players) {
+          if (player.id === state.round.ownerUserId) continue;
+          state.round.votes[player.id] ??= (Number(player.id) + state.roundIndex) % 3;
+        }
+
+        const counts = [0, 0, 0];
+        for (const vote of Object.values(state.round.votes) as number[]) counts[vote]++;
+        const correctUserIds = state.players
+          .filter((player: any) =>
+            player.id !== state.round.ownerUserId &&
+            state.round.votes[player.id] === state.round.lieIndex)
+          .map((player: any) => player.id);
+
+        state.round.resolved = true;
+        state.round.result = {
+          lieIndex: state.round.lieIndex,
+          correctUserIds,
+          voteCounts: counts,
+        };
+        state.completedRounds.push({
+          ownerUserId: state.round.ownerUserId,
+          lieIndex: state.round.lieIndex,
+          votes: { ...state.round.votes },
+        });
+      }
+
+      if (state.roundIndex >= 9) break;
+      state.roundIndex += 1;
+      state.round = svc.round(state.players, state.roundIndex);
+    }
+
+    state.finished = true;
+    await svc.buildSuggestions(state);
+    return svc.view(state, String(userId));
   }
 
   @Get('game/:roomId/state')
