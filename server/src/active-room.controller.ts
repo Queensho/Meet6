@@ -39,11 +39,29 @@ export class ActiveRoomController {
     const row = result.rows[0];
     if (!row) return { ok: true, room: null };
     const room = await this.rooms.getRoom(userId, row.room_id) as Record<string, any>;
+
+    let gameKey: string | null = null;
+    if (row.room_mode === 'game') {
+      const marker = await this.infra.db.query<{ body: string }>(
+        `select body
+         from room_messages
+         where room_id=$1 and sender_user_id is null
+         order by id asc
+         limit 1`,
+        [row.room_id],
+      );
+      const body = marker.rows[0]?.body ?? '';
+      gameKey = body.includes('Red Flag / Green Flag')
+        ? 'red_flag_green_flag'
+        : 'two_truths_one_lie';
+    }
+
     return {
       ok: true,
       room: {
         ...room,
         roomMode: row.room_mode,
+        ...(gameKey ? { gameKey } : {}),
       },
     };
   }
