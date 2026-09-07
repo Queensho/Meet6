@@ -9,6 +9,8 @@ import 'session_service.dart';
 class RedFlagGameApiService {
   const RedFlagGameApiService._();
 
+  static const _messagePrefix = '[[MEET6_RF:';
+
   static Future<Map<String, dynamic>> state(String roomId) =>
       _request('GET', '/api/rooms/game/$roomId/red-flag/state');
 
@@ -57,11 +59,7 @@ class RedFlagGameApiService {
       throw ApiException(message ?? 'Tartışma mesajları alınamadı.');
     }
 
-    // Room messages endpoint returns { ok: true, messages: [...] }.
-    // Keep list fallback for compatibility with older backend responses.
-    final rawMessages = decoded is Map
-        ? decoded['messages']
-        : decoded;
+    final rawMessages = decoded is Map ? decoded['messages'] : decoded;
     if (rawMessages is! List) return const [];
     return rawMessages
         .whereType<Map>()
@@ -71,13 +69,41 @@ class RedFlagGameApiService {
 
   static Future<Map<String, dynamic>> sendMessage(
     String roomId,
-    String body,
-  ) =>
-      _request(
-        'POST',
-        '/api/rooms/$roomId/messages',
-        body: {'body': body},
-      );
+    String body, {
+    required int questionNumber,
+    required String questionPrompt,
+    required String choice,
+  }) {
+    final meta = <String, dynamic>{
+      'questionNumber': questionNumber,
+      'questionPrompt': questionPrompt,
+      'choice': choice,
+    };
+    final encoded = base64Url.encode(utf8.encode(jsonEncode(meta)));
+    final storedBody = '$_messagePrefix$encoded]]$body';
+    return _request(
+      'POST',
+      '/api/rooms/$roomId/messages',
+      body: {'body': storedBody},
+    );
+  }
+
+  static Map<String, dynamic> decodeDiscussionMessage(String raw) {
+    if (!raw.startsWith(_messagePrefix)) return {'body': raw};
+    final end = raw.indexOf(']]', _messagePrefix.length);
+    if (end < 0) return {'body': raw};
+    try {
+      final encoded = raw.substring(_messagePrefix.length, end);
+      final decoded = jsonDecode(utf8.decode(base64Url.decode(encoded)));
+      if (decoded is! Map) return {'body': raw};
+      return {
+        ...Map<String, dynamic>.from(decoded),
+        'body': raw.substring(end + 2),
+      };
+    } catch (_) {
+      return {'body': raw};
+    }
+  }
 
   static Future<Map<String, dynamic>> _request(
     String method,
