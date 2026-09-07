@@ -2,7 +2,7 @@
 -- Source fields: id, text, level, enabled. Categories are assigned for balanced live rotation.
 -- Political prompts are retained only as disabled/unsafe audit records and can never be selected.
 
-insert into red_flag_questions(prompt, category, difficulty, active, admin_approved, safe)
+insert into red_flag_questions(prompt, category, difficulty, active, admin_approved)
 values
 ('Mesajlara 8 saat sonra dönmek', 'messaging', 'light', true, true),
 ('İlk buluşmada sürekli telefona bakmak', 'first_date', 'medium', true, true),
@@ -108,10 +108,10 @@ on conflict(prompt) do update set
   category=excluded.category,
   difficulty=excluded.difficulty,
   active=excluded.active,
-  admin_approved=true,
-  safe=excluded.safe,
+  admin_approved=excluded.admin_approved,
+  safe=true,
   updated_at=now();
 
 update red_flag_questions
-set active=false, safe=false, updated_at=now()
+set active=false, admin_approved=false, safe=false, updated_at=now()
 where lower(prompt) like '%siyasi%';
