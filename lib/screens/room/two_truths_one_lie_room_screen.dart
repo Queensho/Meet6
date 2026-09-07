@@ -126,6 +126,14 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen> {
     await _act(() => MiniGameApiService.finalChoice(widget.roomId, match: match));
   }
 
+  void _goHome() {
+    refreshTimer?.cancel();
+    FocusManager.instance.primaryFocus?.unfocus();
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    }
+  }
+
   void _continueRoom() {
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
@@ -271,7 +279,7 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen> {
       elevation: dark ? 0 : 4,
       shadowColor: Colors.black12,
       child: IconButton(
-        onPressed: _continueRoom,
+        onPressed: _goHome,
         icon: Icon(Icons.arrow_back_ios_new_rounded,
             color: dark ? Colors.white : AppColors.navy),
       ),
