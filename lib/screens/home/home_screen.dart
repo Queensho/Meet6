@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../models/matching_preferences.dart';
 import '../../services/active_room_service.dart';
 import '../../services/api_service.dart';
+import '../../services/mini_game_selection_service.dart';
 import '../../services/push_notification_service.dart';
 import '../../services/realtime_service.dart';
 import '../../services/runtime_app_config_service.dart';
@@ -20,6 +21,7 @@ import '../messages/messages_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../preferences/matching_preferences_screen.dart';
 import '../profile/profile_screen.dart';
+import '../room/mini_game_room_screen.dart';
 import '../room/room_rules_screen.dart';
 import 'widgets/room_radar.dart';
 
@@ -158,6 +160,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final currentId = activeRoom?['id']?.toString() ?? '';
       if (currentId.isNotEmpty && roomId != currentId) return;
       latest['roomMode'] ??= activeRoom?['roomMode'] ?? 'text';
+      latest['gameKey'] ??= activeRoom?['gameKey'];
       if (latest['status']?.toString() == 'closed') {
         setState(() => activeRoom = null);
       } else {
@@ -253,10 +256,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (roomId.isEmpty) return;
     final status = room['status']?.toString() ?? 'active';
     final mode = room['roomMode']?.toString() ?? 'text';
+    final gameKey = room['gameKey']?.toString() ?? '';
 
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) {
+          if (mode == 'game') {
+            if (gameKey.isNotEmpty) {
+              MiniGameSelectionService.select(gameKey);
+            }
+            return MiniGameRoomScreen(
+              roomId: roomId,
+              profileName: widget.profileName,
+            );
+          }
           if (status == 'selection') {
             return RoomSelectionScreen(
               roomId: roomId,
@@ -282,7 +295,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _showActiveRoomChoice() async {
     final room = activeRoom;
     if (room == null) return;
-    final mode = room['roomMode']?.toString() == 'voice' ? 'Premium birebir sesli görüşme' : 'Yazılı oda';
+    final roomMode = room['roomMode']?.toString();
+    final mode = roomMode == 'voice'
+        ? 'Premium birebir sesli görüşme'
+        : roomMode == 'game'
+            ? 'Mini oyun odası'
+            : 'Yazılı oda';
     final action = await showModalBottomSheet<_ActiveRoomAction>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -644,16 +662,19 @@ class _ActiveRoomCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final voice = room['roomMode']?.toString() == 'voice';
+    final game = room['roomMode']?.toString() == 'game';
     final selection = room['status']?.toString() == 'selection';
     final members = room['members'] is List ? (room['members'] as List).length : 0;
     final title = selection
         ? 'Seçimini yap'
         : voice
             ? 'Birebir sesli görüşmen devam ediyor'
-            : 'Sohbetin devam ediyor';
+            : game
+                ? 'Mini oyunun devam ediyor'
+                : 'Sohbetin devam ediyor';
     final subtitle = selection
         ? 'Gizli seçim için $_timeText kaldı'
-        : '${voice ? 'Birebir sesli' : 'Yazılı oda'} · $members kişi · $_timeText kaldı';
+        : '${voice ? 'Birebir sesli' : game ? 'Mini oyun' : 'Yazılı oda'} · $members kişi · $_timeText kaldı';
 
     return Semantics(
       container: true,
@@ -686,7 +707,9 @@ class _ActiveRoomCard extends StatelessWidget {
                     ? Icons.favorite_rounded
                     : voice
                         ? Icons.mic_rounded
-                        : Icons.forum_rounded,
+                        : game
+                            ? Icons.sports_esports_rounded
+                            : Icons.forum_rounded,
                 color: AppColors.navy,
                 size: 22,
               ),
