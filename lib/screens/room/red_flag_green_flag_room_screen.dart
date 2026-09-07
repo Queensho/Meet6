@@ -11,22 +11,16 @@ import '../chat/room_chat_screen.dart';
 import '../messages/private_chat_screen.dart';
 
 class RedFlagGreenFlagRoomScreen extends StatefulWidget {
-  const RedFlagGreenFlagRoomScreen({
-    super.key,
-    required this.roomId,
-    this.profileName = '',
-  });
+  const RedFlagGreenFlagRoomScreen({super.key, required this.roomId, this.profileName = ''});
 
   final String roomId;
   final String profileName;
 
   @override
-  State<RedFlagGreenFlagRoomScreen> createState() =>
-      _RedFlagGreenFlagRoomScreenState();
+  State<RedFlagGreenFlagRoomScreen> createState() => _RedFlagGreenFlagRoomScreenState();
 }
 
-class _RedFlagGreenFlagRoomScreenState
-    extends State<RedFlagGreenFlagRoomScreen> {
+class _RedFlagGreenFlagRoomScreenState extends State<RedFlagGreenFlagRoomScreen> {
   final messageController = TextEditingController();
   final scrollController = ScrollController();
   Map<String, dynamic>? state;
@@ -56,6 +50,7 @@ class _RedFlagGreenFlagRoomScreenState
 
   String get phase => state?['phase']?.toString() ?? 'choice';
   int get questionIndex => (state?['questionIndex'] as num?)?.toInt() ?? 0;
+
   Map<String, dynamic> get question {
     final raw = state?['question'];
     return raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
@@ -64,10 +59,7 @@ class _RedFlagGreenFlagRoomScreenState
   List<Map<String, dynamic>> get players {
     final raw = state?['players'];
     if (raw is! List) return const [];
-    return raw
-        .whereType<Map>()
-        .map((e) => Map<String, dynamic>.from(e))
-        .toList();
+    return raw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
   }
 
   Map<String, dynamic>? get recommendation {
@@ -87,6 +79,12 @@ class _RedFlagGreenFlagRoomScreenState
     return diff.isNegative ? Duration.zero : diff;
   }
 
+  String _clock(Duration d) {
+    final minutes = d.inMinutes.toString().padLeft(2, '0');
+    final seconds = (d.inSeconds % 60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+
   Future<void> _refresh({bool silent = false}) async {
     try {
       final data = await RedFlagGameApiService.state(widget.roomId);
@@ -96,9 +94,7 @@ class _RedFlagGreenFlagRoomScreenState
         loading = false;
         if (!silent) error = null;
       });
-      if (data['phase']?.toString() == 'discussion') {
-        await _loadMessages();
-      }
+      if (data['phase']?.toString() == 'discussion') await _loadMessages();
     } on ApiException catch (e) {
       if (!mounted || silent) return;
       setState(() {
@@ -128,7 +124,8 @@ class _RedFlagGreenFlagRoomScreenState
         loading = false;
       });
     } on ApiException catch (e) {
-      if (mounted) setState(() {
+      if (!mounted) return;
+      setState(() {
         loading = false;
         error = e.message;
       });
@@ -137,18 +134,13 @@ class _RedFlagGreenFlagRoomScreenState
 
   Future<void> _loadMessages() async {
     try {
-      final incoming = await RedFlagGameApiService.messages(
-        widget.roomId,
-        after: lastMessageId,
-      );
+      final incoming = await RedFlagGameApiService.messages(widget.roomId, after: lastMessageId);
       if (!mounted || incoming.isEmpty) return;
       setState(() {
         for (final message in incoming) {
           final id = int.tryParse(message['id']?.toString() ?? '') ?? 0;
           if (id > lastMessageId) lastMessageId = id;
-          if (!messages.any((m) => m['id']?.toString() == '$id')) {
-            messages.add(message);
-          }
+          if (!messages.any((m) => m['id']?.toString() == '$id')) messages.add(message);
         }
       });
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -184,22 +176,18 @@ class _RedFlagGreenFlagRoomScreenState
       error = null;
     });
     try {
-      final data = await RedFlagGameApiService.finalChoice(
-        widget.roomId,
-        match: match,
-      );
+      final data = await RedFlagGameApiService.finalChoice(widget.roomId, match: match);
       if (!mounted) return;
       setState(() {
         state = data;
         loading = false;
       });
-      final status = data['finalDecision'] is Map
-          ? (data['finalDecision'] as Map)['status']?.toString()
-          : null;
+      final status = data['finalDecision'] is Map ? (data['finalDecision'] as Map)['status']?.toString() : null;
       if (status == 'matched') _openChat();
       if (status == 'continue') _continueRoom();
     } on ApiException catch (e) {
-      if (mounted) setState(() {
+      if (!mounted) return;
+      setState(() {
         loading = false;
         error = e.message;
       });
@@ -207,37 +195,24 @@ class _RedFlagGreenFlagRoomScreenState
   }
 
   void _continueRoom() {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => RoomChatScreen(
-          roomId: widget.roomId,
-          profileName: widget.profileName,
-        ),
-      ),
-    );
+    Navigator.of(context).pushReplacement(MaterialPageRoute(
+      builder: (_) => RoomChatScreen(roomId: widget.roomId, profileName: widget.profileName),
+    ));
   }
 
   void _openChat() {
     final rec = recommendation;
     final matchId = decision['matchId']?.toString() ?? '';
     if (rec == null || matchId.isEmpty) return;
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => PrivateChatScreen(
-          matchId: matchId,
-          name: rec['partnerName']?.toString() ?? 'Meet6',
-          userId: rec['partnerUserId']?.toString() ?? '',
-          photoUrl: rec['partnerPhotoUrl']?.toString() ?? '',
-          fromNewMatch: true,
-        ),
+    Navigator.of(context).pushReplacement(MaterialPageRoute(
+      builder: (_) => PrivateChatScreen(
+        matchId: matchId,
+        name: rec['partnerName']?.toString() ?? 'Meet6',
+        userId: rec['partnerUserId']?.toString() ?? '',
+        photoUrl: rec['partnerPhotoUrl']?.toString() ?? '',
+        fromNewMatch: true,
       ),
-    );
-  }
-
-  String _clock(Duration d) {
-    final minutes = d.inMinutes.toString().padLeft(2, '0');
-    final seconds = (d.inSeconds % 60).toString().padLeft(2, '0');
-    return '$minutes:$seconds';
+    ));
   }
 
   @override
@@ -248,20 +223,14 @@ class _RedFlagGreenFlagRoomScreenState
       body: PhoneFrame(
         child: SafeArea(
           child: loading && state == null
-              ? const Center(
-                  child: CircularProgressIndicator(color: AppColors.navy),
-                )
+              ? const Center(child: CircularProgressIndicator(color: AppColors.navy))
               : phase == 'final'
                   ? _finalScreen(dark)
                   : Column(
                       children: [
                         _header(dark),
                         _players(dark),
-                        Expanded(
-                          child: phase == 'discussion'
-                              ? _discussion(dark)
-                              : _choice(dark),
-                        ),
+                        Expanded(child: phase == 'discussion' ? _discussion(dark) : _choice(dark)),
                       ],
                     ),
         ),
@@ -271,54 +240,75 @@ class _RedFlagGreenFlagRoomScreenState
 
   Widget _header(bool dark) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
+      padding: const EdgeInsets.fromLTRB(18, 12, 18, 10),
       child: Row(
         children: [
           Material(
-            color: dark ? Colors.white10 : Colors.white,
+            color: dark ? Colors.white10 : const Color(0xFFF0F3FA),
             shape: const CircleBorder(),
-            elevation: dark ? 0 : 3,
             child: IconButton(
               onPressed: _continueRoom,
-              icon: Icon(
-                Icons.arrow_back_ios_new_rounded,
-                color: dark ? Colors.white : AppColors.navy,
-              ),
+              icon: Icon(Icons.arrow_back_rounded, color: dark ? Colors.white : AppColors.navy, size: 30),
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'Red Flag / Green Flag',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: dark ? Colors.white : AppColors.navy,
-                    fontSize: 20,
+                    fontSize: 22,
                     fontWeight: FontWeight.w900,
+                    letterSpacing: -.6,
                   ),
                 ),
+                const SizedBox(height: 2),
                 Text(
-                  '${questionIndex + 1}/6 soru',
+                  '6 kişi mini oyun odası',
                   style: TextStyle(
-                    color: dark ? Colors.white60 : const Color(0xFF717A95),
-                    fontWeight: FontWeight.w700,
+                    color: dark ? Colors.white54 : const Color(0xFF747D97),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
             ),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
             decoration: BoxDecoration(
               color: AppColors.lime,
               borderRadius: BorderRadius.circular(99),
             ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.timer_outlined, color: AppColors.navy, size: 20),
+                const SizedBox(width: 6),
+                Text(
+                  _clock(remaining),
+                  style: const TextStyle(color: AppColors.navy, fontSize: 16, fontWeight: FontWeight.w900),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: dark ? Colors.white10 : const Color(0xFFF0F3FA),
+              borderRadius: BorderRadius.circular(99),
+            ),
             child: Text(
-              _clock(remaining),
-              style: const TextStyle(
-                color: AppColors.navy,
+              '${questionIndex + 1}/6',
+              style: TextStyle(
+                color: dark ? Colors.white : AppColors.navy,
+                fontSize: 16,
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -330,43 +320,63 @@ class _RedFlagGreenFlagRoomScreenState
 
   Widget _players(bool dark) {
     return SizedBox(
-      height: 82,
+      height: 104,
       child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 18),
         scrollDirection: Axis.horizontal,
         itemCount: players.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        separatorBuilder: (_, __) => const SizedBox(width: 13),
         itemBuilder: (_, index) {
           final p = players[index];
           final name = p['name']?.toString() ?? 'Oyuncu';
           final photo = p['photoUrl']?.toString() ?? '';
           return SizedBox(
-            width: 56,
+            width: 62,
             child: Column(
               children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor: const Color(0xFFE9EDF6),
-                  backgroundImage: photo.isEmpty ? null : NetworkImage(photo),
-                  child: photo.isEmpty
-                      ? Text(
-                          name.isEmpty ? '?' : name[0].toUpperCase(),
-                          style: const TextStyle(
-                            color: AppColors.navy,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        )
-                      : null,
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      width: 58,
+                      height: 58,
+                      padding: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: index == 0 ? AppColors.lime : const Color(0xFFE5EAF3), width: 2),
+                      ),
+                      child: CircleAvatar(
+                        backgroundColor: const Color(0xFFE9EDF6),
+                        backgroundImage: photo.isEmpty ? null : NetworkImage(photo),
+                        child: photo.isEmpty
+                            ? Text(name.isEmpty ? '?' : name[0].toUpperCase(), style: const TextStyle(color: AppColors.navy, fontWeight: FontWeight.w900))
+                            : null,
+                      ),
+                    ),
+                    Positioned(
+                      right: -1,
+                      bottom: 2,
+                      child: Container(
+                        width: 16,
+                        height: 16,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF55E321),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: dark ? const Color(0xFF071022) : const Color(0xFFF7F9FF), width: 3),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 7),
                 Text(
                   name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: dark ? Colors.white70 : AppColors.navy,
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w700,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ],
@@ -377,60 +387,89 @@ class _RedFlagGreenFlagRoomScreenState
     );
   }
 
+  ({int voted, int waiting, int red, int green}) _votePreview() {
+    final myChoice = state?['myChoice']?.toString();
+    final qid = int.tryParse(question['id']?.toString() ?? '') ?? 0;
+    var red = 0;
+    var green = 0;
+    var countedBots = 0;
+    for (final p in players) {
+      final id = int.tryParse(p['id']?.toString() ?? '');
+      if (id == null) continue;
+      final looksLikeMe = widget.profileName.isNotEmpty && p['name']?.toString() == widget.profileName;
+      if (looksLikeMe) continue;
+      countedBots++;
+      if ((id + qid) % 3 == 0) {
+        red++;
+      } else {
+        green++;
+      }
+    }
+    if (myChoice == 'red') red++;
+    if (myChoice == 'green') green++;
+    final voted = (countedBots + (myChoice == null ? 0 : 1)).clamp(0, players.length);
+    return (voted: voted, waiting: (players.length - voted).clamp(0, players.length), red: red, green: green);
+  }
+
   Widget _choice(bool dark) {
     final myChoice = state?['myChoice']?.toString();
+    final vote = _votePreview();
+    final total = players.isEmpty ? 6 : players.length;
+    final redFraction = vote.voted == 0 ? 0.0 : vote.red / total;
+    final greenFraction = vote.voted == 0 ? 0.0 : vote.green / total;
+    final emptyFraction = (1 - redFraction - greenFraction).clamp(0.0, 1.0);
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(18, 10, 18, 24),
+      padding: const EdgeInsets.fromLTRB(18, 8, 18, 26),
       child: Column(
         children: [
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(22, 28, 22, 28),
+            padding: const EdgeInsets.fromLTRB(26, 34, 26, 34),
             decoration: BoxDecoration(
               color: dark ? const Color(0xFF111A2D) : Colors.white,
-              borderRadius: BorderRadius.circular(30),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x11000000),
-                  blurRadius: 24,
-                  offset: Offset(0, 10),
-                ),
-              ],
+              borderRadius: BorderRadius.circular(32),
+              boxShadow: const [BoxShadow(color: Color(0x10000000), blurRadius: 26, offset: Offset(0, 10))],
             ),
             child: Column(
               children: [
                 Container(
-                  width: 58,
-                  height: 58,
-                  decoration: const BoxDecoration(
-                    color: AppColors.navy,
-                    shape: BoxShape.circle,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: dark ? Colors.white10 : const Color(0xFFF1F3F8),
+                    borderRadius: BorderRadius.circular(99),
                   ),
-                  child: const Icon(
-                    Icons.flag_rounded,
-                    color: AppColors.lime,
-                    size: 30,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                Text(
-                  question['prompt']?.toString() ?? 'Davranışı değerlendir',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: dark ? Colors.white : AppColors.navy,
-                    fontSize: 28,
-                    height: 1.08,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -.8,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.chat_bubble_outline_rounded, color: Color(0xFF68738E), size: 20),
+                      const SizedBox(width: 7),
+                      Text('Davranış', style: TextStyle(color: dark ? Colors.white70 : const Color(0xFF68738E), fontSize: 16, fontWeight: FontWeight.w800)),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  '15 saniye içinde seçimini yap.',
-                  style: TextStyle(
-                    color: dark ? Colors.white60 : const Color(0xFF7A839C),
-                    fontWeight: FontWeight.w700,
-                  ),
+                const SizedBox(height: 34),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const _LimeBurst(left: true),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        question['prompt']?.toString() ?? 'Davranışı değerlendir',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: dark ? Colors.white : AppColors.navy,
+                          fontSize: 31,
+                          height: 1.08,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -1.1,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    const _LimeBurst(left: false),
+                  ],
                 ),
               ],
             ),
@@ -440,8 +479,7 @@ class _RedFlagGreenFlagRoomScreenState
             children: [
               Expanded(
                 child: _flagButton(
-                  label: 'RED FLAG',
-                  icon: Icons.flag_rounded,
+                  label: 'Red Flag',
                   selected: myChoice == 'red',
                   red: true,
                   onTap: () => _choose('red'),
@@ -450,8 +488,7 @@ class _RedFlagGreenFlagRoomScreenState
               const SizedBox(width: 12),
               Expanded(
                 child: _flagButton(
-                  label: 'GREEN FLAG',
-                  icon: Icons.flag_rounded,
+                  label: 'Green Flag',
                   selected: myChoice == 'green',
                   red: false,
                   onTap: () => _choose('green'),
@@ -459,63 +496,121 @@ class _RedFlagGreenFlagRoomScreenState
               ),
             ],
           ),
-          if (myChoice != null) ...[
-            const SizedBox(height: 14),
-            const Text(
-              'Seçimin kaydedildi. Diğer oyuncular bekleniyor…',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Color(0xFF6F7893),
-                fontWeight: FontWeight.w700,
+          const SizedBox(height: 15),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.info_outline_rounded, color: Color(0xFF7A839C), size: 20),
+              const SizedBox(width: 7),
+              Flexible(
+                child: Text(
+                  'Sonuçlar herkes oy verdikten sonra açılır.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: dark ? Colors.white54 : const Color(0xFF7A839C), fontSize: 12.5, fontWeight: FontWeight.w600),
+                ),
               ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(18, 17, 18, 16),
+            decoration: BoxDecoration(
+              color: dark ? const Color(0xFF111A2D) : Colors.white,
+              borderRadius: BorderRadius.circular(26),
+              boxShadow: const [BoxShadow(color: Color(0x0D000000), blurRadius: 18, offset: Offset(0, 8))],
             ),
-          ],
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.groups_rounded, color: dark ? Colors.white : AppColors.navy, size: 28),
+                    const SizedBox(width: 10),
+                    Text(
+                      '${vote.voted} kişi oy verdi',
+                      style: TextStyle(color: dark ? Colors.white : AppColors.navy, fontSize: 17, fontWeight: FontWeight.w900),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: dark ? Colors.white10 : const Color(0xFFF2F4F8),
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                      child: Text(
+                        vote.waiting == 0 ? 'Tamamlandı' : '${vote.waiting} kişi bekleniyor...',
+                        style: TextStyle(color: dark ? Colors.white60 : const Color(0xFF7A839C), fontSize: 11.5, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    if (vote.waiting > 0) ...[
+                      const SizedBox(width: 8),
+                      const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.5, color: Color(0xFF7A839C))),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 14),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(99),
+                  child: SizedBox(
+                    height: 14,
+                    child: Row(
+                      children: [
+                        if (redFraction > 0) Expanded(flex: (redFraction * 1000).round(), child: Container(color: const Color(0xFFFF5A60))),
+                        if (greenFraction > 0) Expanded(flex: (greenFraction * 1000).round(), child: Container(color: const Color(0xFF79E02D))),
+                        if (emptyFraction > 0) Expanded(flex: (emptyFraction * 1000).round(), child: Container(color: const Color(0xFFE4E8F0))),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Icon(Icons.flag_rounded, color: Color(0xFFFF5A60), size: 22),
+                    const SizedBox(width: 6),
+                    Text('${vote.red}', style: const TextStyle(color: AppColors.navy, fontSize: 17, fontWeight: FontWeight.w900)),
+                    const Spacer(),
+                    const Icon(Icons.flag_rounded, color: Color(0xFF79E02D), size: 22),
+                    const SizedBox(width: 6),
+                    Text('${vote.green}', style: const TextStyle(color: AppColors.navy, fontSize: 17, fontWeight: FontWeight.w900)),
+                  ],
+                ),
+              ],
+            ),
+          ),
           if (error != null) ...[
             const SizedBox(height: 12),
-            Text(
-              error!,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.redAccent,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
+            Text(error!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.w800)),
           ],
         ],
       ),
     );
   }
 
-  Widget _flagButton({
-    required String label,
-    required IconData icon,
-    required bool selected,
-    required bool red,
-    required VoidCallback onTap,
-  }) {
-    final color = red ? const Color(0xFFFF4F64) : const Color(0xFF50D890);
+  Widget _flagButton({required String label, required bool selected, required bool red, required VoidCallback onTap}) {
+    final base = red ? const Color(0xFFFF5B61) : AppColors.lime;
+    final foreground = red ? Colors.white : AppColors.navy;
     return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(24),
+      onTap: loading ? null : onTap,
+      borderRadius: BorderRadius.circular(28),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 160),
-        height: 116,
+        height: 112,
         decoration: BoxDecoration(
-          color: selected ? color : color.withOpacity(.12),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: color, width: selected ? 3 : 1.5),
+          color: base,
+          borderRadius: BorderRadius.circular(28),
+          border: selected ? Border.all(color: AppColors.navy, width: 3) : null,
+          boxShadow: [BoxShadow(color: base.withOpacity(.22), blurRadius: 18, offset: const Offset(0, 8))],
         ),
-        child: Column(
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: selected ? Colors.white : color, size: 34),
-            const SizedBox(height: 7),
-            Text(
-              label,
-              style: TextStyle(
-                color: selected ? Colors.white : color,
-                fontSize: 14,
-                fontWeight: FontWeight.w900,
+            Icon(Icons.flag_rounded, color: foreground, size: 34),
+            const SizedBox(width: 12),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                style: TextStyle(color: foreground, fontSize: 21, fontWeight: FontWeight.w900, letterSpacing: -.5),
               ),
             ),
           ],
@@ -525,9 +620,7 @@ class _RedFlagGreenFlagRoomScreenState
   }
 
   Widget _discussion(bool dark) {
-    final result = state?['result'] is Map
-        ? Map<String, dynamic>.from(state!['result'] as Map)
-        : <String, dynamic>{};
+    final result = state?['result'] is Map ? Map<String, dynamic>.from(state!['result'] as Map) : <String, dynamic>{};
     final red = (result['red'] as num?)?.toInt() ?? 0;
     final green = (result['green'] as num?)?.toInt() ?? 0;
     return Column(
@@ -537,21 +630,10 @@ class _RedFlagGreenFlagRoomScreenState
           child: Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: dark ? const Color(0xFF111A2D) : Colors.white,
-              borderRadius: BorderRadius.circular(24),
-            ),
+            decoration: BoxDecoration(color: dark ? const Color(0xFF111A2D) : Colors.white, borderRadius: BorderRadius.circular(24)),
             child: Column(
               children: [
-                Text(
-                  question['prompt']?.toString() ?? '',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: dark ? Colors.white : AppColors.navy,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
+                Text(question['prompt']?.toString() ?? '', textAlign: TextAlign.center, style: TextStyle(color: dark ? Colors.white : AppColors.navy, fontSize: 18, fontWeight: FontWeight.w900)),
                 const SizedBox(height: 12),
                 Row(
                   children: [
@@ -561,13 +643,7 @@ class _RedFlagGreenFlagRoomScreenState
                   ],
                 ),
                 const SizedBox(height: 10),
-                Text(
-                  '${_clock(remaining)} tartışma süresi',
-                  style: const TextStyle(
-                    color: Color(0xFF717A95),
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
+                Text('${_clock(remaining)} tartışma süresi', style: const TextStyle(color: Color(0xFF717A95), fontWeight: FontWeight.w800)),
               ],
             ),
           ),
@@ -586,17 +662,12 @@ class _RedFlagGreenFlagRoomScreenState
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
                 decoration: BoxDecoration(
-                  color: system
-                      ? AppColors.lime.withOpacity(.18)
-                      : (dark ? Colors.white10 : Colors.white),
+                  color: system ? AppColors.lime.withOpacity(.18) : (dark ? Colors.white10 : Colors.white),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Text(
                   system ? body : '${name ?? 'Oyuncu'}: $body',
-                  style: TextStyle(
-                    color: dark ? Colors.white : AppColors.navy,
-                    fontWeight: system ? FontWeight.w800 : FontWeight.w600,
-                  ),
+                  style: TextStyle(color: dark ? Colors.white : AppColors.navy, fontWeight: system ? FontWeight.w800 : FontWeight.w600),
                 ),
               );
             },
@@ -615,10 +686,7 @@ class _RedFlagGreenFlagRoomScreenState
                     hintText: 'Nedenini yaz…',
                     filled: true,
                     fillColor: dark ? Colors.white10 : Colors.white,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(22),
-                      borderSide: BorderSide.none,
-                    ),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: BorderSide.none),
                   ),
                 ),
               ),
@@ -638,16 +706,9 @@ class _RedFlagGreenFlagRoomScreenState
   Widget _resultPill(String text, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        color: color.withOpacity(.14),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(.55)),
-      ),
+      decoration: BoxDecoration(color: color.withOpacity(.14), borderRadius: BorderRadius.circular(16), border: Border.all(color: color.withOpacity(.55))),
       alignment: Alignment.center,
-      child: Text(
-        text,
-        style: TextStyle(color: color, fontWeight: FontWeight.w900),
-      ),
+      child: Text(text, style: TextStyle(color: color, fontWeight: FontWeight.w900)),
     );
   }
 
@@ -662,15 +723,7 @@ class _RedFlagGreenFlagRoomScreenState
             children: [
               const Icon(Icons.favorite_border_rounded, size: 62, color: AppColors.navy),
               const SizedBox(height: 16),
-              const Text(
-                'Bu turda uygun bir oyun eşleşmesi bulunamadı.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: AppColors.navy,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
+              const Text('Bu turda uygun bir oyun eşleşmesi bulunamadı.', textAlign: TextAlign.center, style: TextStyle(color: AppColors.navy, fontSize: 22, fontWeight: FontWeight.w900)),
               const SizedBox(height: 20),
               FilledButton(onPressed: _continueRoom, child: const Text('Odaya devam et')),
             ],
@@ -678,6 +731,7 @@ class _RedFlagGreenFlagRoomScreenState
         ),
       );
     }
+
     final partnerName = rec['partnerName']?.toString() ?? 'Oyuncu';
     final partnerPhoto = rec['partnerPhotoUrl']?.toString() ?? '';
     final compatibility = (rec['compatibility'] as num?)?.toInt() ?? 0;
@@ -685,10 +739,7 @@ class _RedFlagGreenFlagRoomScreenState
     final different = (rec['differentAnswers'] as num?)?.toInt() ?? 0;
     final me = players.firstWhere(
       (p) => p['name']?.toString() == widget.profileName,
-      orElse: () => players.firstWhere(
-        (p) => p['id']?.toString() != rec['partnerUserId']?.toString(),
-        orElse: () => const <String, dynamic>{},
-      ),
+      orElse: () => players.firstWhere((p) => p['id']?.toString() != rec['partnerUserId']?.toString(), orElse: () => const <String, dynamic>{}),
     );
     final status = decision['status']?.toString() ?? 'pending';
 
@@ -699,48 +750,19 @@ class _RedFlagGreenFlagRoomScreenState
         children: [
           Row(
             children: [
-              Material(
-                color: Colors.white,
-                shape: const CircleBorder(),
-                child: IconButton(
-                  onPressed: _continueRoom,
-                  icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.navy),
-                ),
-              ),
+              Material(color: Colors.white, shape: const CircleBorder(), child: IconButton(onPressed: _continueRoom, icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.navy))),
               const Spacer(),
               const Meet6MiniBrand(height: 28, forceLogo2: true),
             ],
           ),
           const SizedBox(height: 22),
-          const Text(
-            'Oyun sonucu',
-            style: TextStyle(
-              color: AppColors.navy,
-              fontSize: 42,
-              height: .95,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -1.8,
-            ),
-          ),
+          const Text('Oyun sonucu', style: TextStyle(color: AppColors.navy, fontSize: 42, height: .95, fontWeight: FontWeight.w900, letterSpacing: -1.8)),
           const SizedBox(height: 8),
-          const Text(
-            '6 soru tamamlandı · En yakın görüş uyumun bulundu',
-            style: TextStyle(
-              color: Color(0xFF7C839D),
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+          const Text('6 soru tamamlandı · En yakın görüş uyumun bulundu', style: TextStyle(color: Color(0xFF7C839D), fontSize: 18, fontWeight: FontWeight.w700)),
           const SizedBox(height: 22),
           Container(
             padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(28),
-              boxShadow: const [
-                BoxShadow(color: Color(0x11000000), blurRadius: 24, offset: Offset(0, 10)),
-              ],
-            ),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(28), boxShadow: const [BoxShadow(color: Color(0x11000000), blurRadius: 24, offset: Offset(0, 10))]),
             child: Row(
               children: [
                 Expanded(child: _finalPerson(me, widget.profileName.isEmpty ? 'Sen' : widget.profileName)),
@@ -751,24 +773,11 @@ class _RedFlagGreenFlagRoomScreenState
                       const Icon(Icons.favorite_rounded, color: Color(0xFF99DD00), size: 42),
                       const SizedBox(height: 4),
                       const Text('Uyum', style: TextStyle(color: AppColors.navy, fontWeight: FontWeight.w900)),
-                      Text(
-                        '%$compatibility',
-                        style: const TextStyle(
-                          color: Color(0xFF2454FF),
-                          fontSize: 38,
-                          fontWeight: FontWeight.w900,
-                          height: 1,
-                        ),
-                      ),
+                      Text('%$compatibility', style: const TextStyle(color: Color(0xFF2454FF), fontSize: 38, fontWeight: FontWeight.w900, height: 1)),
                     ],
                   ),
                 ),
-                Expanded(
-                  child: _finalPerson(
-                    {'name': partnerName, 'photoUrl': partnerPhoto},
-                    partnerName,
-                  ),
-                ),
+                Expanded(child: _finalPerson({'name': partnerName, 'photoUrl': partnerPhoto}, partnerName)),
               ],
             ),
           ),
@@ -784,10 +793,7 @@ class _RedFlagGreenFlagRoomScreenState
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              color: AppColors.lime.withOpacity(.2),
-              borderRadius: BorderRadius.circular(26),
-            ),
+            decoration: BoxDecoration(color: AppColors.lime.withOpacity(.2), borderRadius: BorderRadius.circular(26)),
             child: Row(
               children: [
                 CircleAvatar(
@@ -799,17 +805,10 @@ class _RedFlagGreenFlagRoomScreenState
                 Expanded(
                   child: RichText(
                     text: TextSpan(
-                      style: const TextStyle(
-                        color: AppColors.navy,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                      ),
+                      style: const TextStyle(color: AppColors.navy, fontSize: 20, fontWeight: FontWeight.w900),
                       children: [
                         const TextSpan(text: 'Sistem sana\n'),
-                        TextSpan(
-                          text: '$partnerName’i öneriyor',
-                          style: const TextStyle(color: Color(0xFF2454FF)),
-                        ),
+                        TextSpan(text: '$partnerName’i öneriyor', style: const TextStyle(color: Color(0xFF2454FF))),
                       ],
                     ),
                   ),
@@ -824,51 +823,18 @@ class _RedFlagGreenFlagRoomScreenState
               height: 58,
               child: FilledButton(
                 onPressed: loading ? null : () => _finalChoice(true),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.lime,
-                  foregroundColor: AppColors.navy,
-                ),
+                style: FilledButton.styleFrom(backgroundColor: AppColors.lime, foregroundColor: AppColors.navy),
                 child: Text('$partnerName ile eşleş →', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
               ),
             ),
             const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              height: 58,
-              child: OutlinedButton(
-                onPressed: loading ? null : () => _finalChoice(false),
-                child: const Text('Odaya devam et', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-              ),
-            ),
+            SizedBox(width: double.infinity, height: 58, child: OutlinedButton(onPressed: loading ? null : () => _finalChoice(false), child: const Text('Odaya devam et', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)))),
           ] else if (status == 'waiting')
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(18),
-                child: Text(
-                  'Seçimin gizli olarak kaydedildi. Karşılıklı olursa eşleşme gerçekleşir.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Color(0xFF747C96), fontWeight: FontWeight.w700),
-                ),
-              ),
-            )
+            const Center(child: Padding(padding: EdgeInsets.all(18), child: Text('Seçimin gizli olarak kaydedildi. Karşılıklı olursa eşleşme gerçekleşir.', textAlign: TextAlign.center, style: TextStyle(color: Color(0xFF747C96), fontWeight: FontWeight.w700))))
           else if (status == 'matched')
-            SizedBox(
-              width: double.infinity,
-              height: 58,
-              child: FilledButton(
-                onPressed: _openChat,
-                style: FilledButton.styleFrom(backgroundColor: AppColors.navy),
-                child: const Text('Eşleştiniz 💚  Özel mesaja geç'),
-              ),
-            ),
+            SizedBox(width: double.infinity, height: 58, child: FilledButton(onPressed: _openChat, style: FilledButton.styleFrom(backgroundColor: AppColors.navy), child: const Text('Eşleştiniz 💚  Özel mesaja geç'))),
           const SizedBox(height: 16),
-          const Center(
-            child: Text(
-              '🔒 Seçimin gizlidir. Karşılıklı olursa eşleşme gerçekleşir.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Color(0xFF8A91A7), fontSize: 12, fontWeight: FontWeight.w600),
-            ),
-          ),
+          const Center(child: Text('🔒 Seçimin gizlidir. Karşılıklı olursa eşleşme gerçekleşir.', textAlign: TextAlign.center, style: TextStyle(color: Color(0xFF8A91A7), fontSize: 12, fontWeight: FontWeight.w600))),
           if (error != null) ...[
             const SizedBox(height: 10),
             Center(child: Text(error!, style: const TextStyle(color: Colors.redAccent))),
@@ -889,11 +855,7 @@ class _RedFlagGreenFlagRoomScreenState
             height: 112,
             width: 112,
             child: photo.isEmpty
-                ? Container(
-                    color: const Color(0xFFEAF0FF),
-                    alignment: Alignment.center,
-                    child: Text(name.isEmpty ? '?' : name[0].toUpperCase(), style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w900)),
-                  )
+                ? Container(color: const Color(0xFFEAF0FF), alignment: Alignment.center, child: Text(name.isEmpty ? '?' : name[0].toUpperCase(), style: const TextStyle(fontSize: 34, fontWeight: FontWeight.w900)))
                 : Image.network(photo, fit: BoxFit.cover),
           ),
         ),
@@ -912,6 +874,47 @@ class _RedFlagGreenFlagRoomScreenState
           Text('$emoji  $title', textAlign: TextAlign.center, style: const TextStyle(color: AppColors.navy, fontWeight: FontWeight.w900, fontSize: 12)),
           const SizedBox(height: 3),
           Text(subtitle, textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFF8A91A7), fontSize: 10, fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+}
+
+class _LimeBurst extends StatelessWidget {
+  const _LimeBurst({required this.left});
+  final bool left;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 34,
+      height: 76,
+      child: Stack(
+        children: [
+          Positioned(
+            left: left ? 12 : 2,
+            top: 2,
+            child: Transform.rotate(
+              angle: left ? -0.8 : 0.8,
+              child: Container(width: 8, height: 28, decoration: BoxDecoration(color: AppColors.lime, borderRadius: BorderRadius.circular(99))),
+            ),
+          ),
+          Positioned(
+            left: left ? 2 : 12,
+            top: 28,
+            child: Transform.rotate(
+              angle: left ? 1.25 : -1.25,
+              child: Container(width: 8, height: 28, decoration: BoxDecoration(color: AppColors.lime, borderRadius: BorderRadius.circular(99))),
+            ),
+          ),
+          Positioned(
+            left: left ? 15 : 0,
+            bottom: 0,
+            child: Transform.rotate(
+              angle: left ? .7 : -.7,
+              child: Container(width: 8, height: 28, decoration: BoxDecoration(color: AppColors.lime, borderRadius: BorderRadius.circular(99))),
+            ),
+          ),
         ],
       ),
     );
