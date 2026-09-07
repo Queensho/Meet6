@@ -70,17 +70,22 @@ class RedFlagGameApiService {
   static Future<Map<String, dynamic>> sendMessage(
     String roomId,
     String body, {
-    required int questionNumber,
-    required String questionPrompt,
-    required String choice,
+    int? questionNumber,
+    String? questionPrompt,
+    String? choice,
   }) {
-    final meta = <String, dynamic>{
-      'questionNumber': questionNumber,
-      'questionPrompt': questionPrompt,
-      'choice': choice,
-    };
-    final encoded = base64Url.encode(utf8.encode(jsonEncode(meta)));
-    final storedBody = '$_messagePrefix$encoded]]$body';
+    var storedBody = body;
+    if (questionNumber != null &&
+        questionPrompt != null &&
+        (choice == 'red' || choice == 'green')) {
+      final meta = <String, dynamic>{
+        'questionNumber': questionNumber,
+        'questionPrompt': questionPrompt,
+        'choice': choice,
+      };
+      final encoded = base64Url.encode(utf8.encode(jsonEncode(meta)));
+      storedBody = '$_messagePrefix$encoded]]$body';
+    }
     return _request(
       'POST',
       '/api/rooms/$roomId/messages',
