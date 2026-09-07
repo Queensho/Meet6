@@ -20,6 +20,7 @@ import { CoinPurchaseController } from './coin-purchase.controller';
 import { CoinPurchaseService } from './coin-purchase.service';
 import { ContentSafetyService } from './content-safety.service';
 import { GameRoomTestService } from './game-room-test.service';
+import { RedFlagGameService } from './red-flag-game.service';
 import { GiftController } from './gift.controller';
 import { GiftService } from './gift.service';
 import { HealthController } from './health.controller';
@@ -46,58 +47,19 @@ import { VoiceRoomController } from './voice-room.controller';
 import { VoiceRoomService } from './voice-room.service';
 
 @Module({
-  imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-      envFilePath: ['../.env', '.env'],
-    }),
-  ],
+  imports: [ConfigModule.forRoot({ isGlobal: true, envFilePath: ['../.env', '.env'] })],
   controllers: [
-    HealthController,
-    AppConfigController,
-    AuthController,
-    ProfileController,
-    BillingController,
-    CoinPurchaseController,
-    GiftController,
-    RoomController,
-    VoiceRoomController,
-    ActiveRoomController,
-    RoomControlController,
-    SocialController,
-    SupportController,
-    PushController,
-    AdminController,
+    HealthController, AppConfigController, AuthController, ProfileController, BillingController,
+    CoinPurchaseController, GiftController, RoomController, VoiceRoomController, ActiveRoomController,
+    RoomControlController, SocialController, SupportController, PushController, AdminController,
   ],
   providers: [
-    InfrastructureService,
-    RuntimeSettingsService,
-    ContentSafetyService,
-    AuthService,
-    ProfileService,
-    BillingService,
-    CoinPurchaseService,
-    GiftService,
-    RoomService,
-    GameRoomTestService,
-    RoomRefillService,
-    VoiceRoomService,
-    RoomMessageService,
-    SocialService,
-    ReportService,
-    SupportService,
-    PushService,
-    RoomsGateway,
-    PrivateMessageGateway,
-    MatchmakingSchedulerService,
-    AdminService,
-    AdminRoomService,
-    AdminMatchService,
-    AdminReportService,
-    AdminSupportService,
-    AdminGovernanceService,
-    AdminSettingsService,
-    AdminSafetyService,
+    InfrastructureService, RuntimeSettingsService, ContentSafetyService, AuthService, ProfileService,
+    BillingService, CoinPurchaseService, GiftService, RoomService, GameRoomTestService, RedFlagGameService,
+    RoomRefillService, VoiceRoomService, RoomMessageService, SocialService, ReportService, SupportService,
+    PushService, RoomsGateway, PrivateMessageGateway, MatchmakingSchedulerService, AdminService,
+    AdminRoomService, AdminMatchService, AdminReportService, AdminSupportService, AdminGovernanceService,
+    AdminSettingsService, AdminSafetyService,
   ],
 })
 export class AppModule {}
