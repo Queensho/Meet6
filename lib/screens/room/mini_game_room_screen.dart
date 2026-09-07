@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../../config/app_config.dart';
 import '../../services/api_service.dart';
 import '../../services/mini_game_api_service.dart';
 import '../../services/mini_game_selection_service.dart';
@@ -26,37 +29,48 @@ class MiniGameRoomScreen extends StatefulWidget {
 class _MiniGameRoomScreenState extends State<MiniGameRoomScreen>
     with WidgetsBindingObserver {
   late Future<String> _gameKeyFuture;
+  Timer? _finalWatchTimer;
   bool _leaving = false;
   bool _finishing = false;
   bool _finalChoosing = false;
+  bool _checkingFinal = false;
   int _resumeEpoch = 0;
   Map<String, dynamic>? _forcedResult;
   String? _forcedGameKey;
+  String? _resolvedGameKey;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _gameKeyFuture = _resolveGameKey();
+    _gameKeyFuture = _resolveAndRememberGameKey();
+    _finalWatchTimer = Timer.periodic(
+      const Duration(seconds: 2),
+      (_) => _checkForNaturalFinal(),
+    );
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _finalWatchTimer?.cancel();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed || !mounted || _forcedResult != null) return;
-
-    // Browser/Android can throttle or completely pause Dart timers while the app
-    // is in the background. Mini-game time belongs to the server, so when the
-    // user returns we recreate the active game screen and fetch fresh state.
     setState(() {
       _resumeEpoch += 1;
-      _gameKeyFuture = _resolveGameKey();
+      _gameKeyFuture = _resolveAndRememberGameKey();
     });
+    _checkForNaturalFinal();
+  }
+
+  Future<String> _resolveAndRememberGameKey() async {
+    final key = await _resolveGameKey();
+    _resolvedGameKey = key;
+    return key;
   }
 
   Future<String> _resolveGameKey() async {
@@ -72,6 +86,35 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen>
     } catch (_) {}
 
     return selected;
+  }
+
+  Future<void> _checkForNaturalFinal() async {
+    if (!mounted ||
+        _forcedResult != null ||
+        _finishing ||
+        _checkingFinal ||
+        _resolvedGameKey == null) {
+      return;
+    }
+    _checkingFinal = true;
+    try {
+      final key = _resolvedGameKey!;
+      final result = key == 'red_flag_green_flag'
+          ? await RedFlagGameApiService.state(widget.roomId)
+          : await MiniGameApiService.state(widget.roomId);
+      if (!mounted) return;
+      if (result['phase']?.toString() == 'final') {
+        setState(() {
+          _forcedResult = result;
+          _forcedGameKey = key;
+        });
+      }
+    } catch (_) {
+      // Child game screen owns transient room errors. The watcher only promotes
+      // a confirmed server final state to the shared result UI.
+    } finally {
+      _checkingFinal = false;
+    }
   }
 
   Future<void> _goHome() async {
@@ -94,11 +137,6 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen>
         gameKey: gameKey,
       );
       if (!mounted) return;
-
-      // force-finish already returns the complete final game state. Keep and
-      // render that response directly. The room is closed by the backend, so a
-      // second state request can legitimately fail and must not replace the
-      // final result with an empty 00:00 game screen.
       setState(() {
         _forcedResult = result;
         _forcedGameKey = gameKey;
@@ -132,6 +170,10 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen>
       if (!mounted) return;
       setState(() => _forcedResult = data);
       if (!match) await _goHome();
+      if (data['finalDecision'] is Map &&
+          (data['finalDecision'] as Map)['status']?.toString() == 'matched') {
+        _openForcedChat();
+      }
     } on ApiException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -140,6 +182,14 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen>
     } finally {
       if (mounted) setState(() => _finalChoosing = false);
     }
+  }
+
+  String _photo(String? value) {
+    final raw = value?.trim() ?? '';
+    if (raw.isEmpty) return '';
+    final uri = Uri.tryParse(raw);
+    if (uri != null && uri.hasScheme) return raw;
+    return '${AppConfig.apiBaseUrl}${raw.startsWith('/') ? raw : '/$raw'}';
   }
 
   void _openForcedChat() {
@@ -158,8 +208,134 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen>
           matchId: matchId,
           name: rec['partnerName']?.toString() ?? 'Meet6',
           userId: rec['partnerUserId']?.toString() ?? '',
-          photoUrl: rec['partnerPhotoUrl']?.toString() ?? '',
+          photoUrl: _photo(rec['partnerPhotoUrl']?.toString()),
           fromNewMatch: true,
+        ),
+      ),
+    );
+  }
+
+  Map<String, dynamic>? _meFromResult(Map<String, dynamic> result, String partnerId) {
+    final raw = result['players'];
+    if (raw is! List) return null;
+    final list = raw.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+    if (widget.profileName.trim().isNotEmpty) {
+      for (final p in list) {
+        if (p['name']?.toString().trim() == widget.profileName.trim()) return p;
+      }
+    }
+    for (final p in list) {
+      if (p['id']?.toString() != partnerId) return p;
+    }
+    return list.isEmpty ? null : list.first;
+  }
+
+  Widget _avatarCard({
+    required String name,
+    required String photo,
+    required Color accent,
+  }) {
+    return Column(
+      children: [
+        Container(
+          width: 112,
+          height: 112,
+          padding: const EdgeInsets.all(5),
+          decoration: BoxDecoration(
+            color: accent.withOpacity(.12),
+            borderRadius: BorderRadius.circular(30),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(25),
+            child: photo.isEmpty
+                ? Container(
+                    color: accent.withOpacity(.18),
+                    alignment: Alignment.center,
+                    child: Text(
+                      name.isEmpty ? '?' : name[0].toUpperCase(),
+                      style: const TextStyle(
+                        color: AppColors.navy,
+                        fontSize: 38,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  )
+                : Image.network(
+                    photo,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      color: accent.withOpacity(.18),
+                      alignment: Alignment.center,
+                      child: Text(
+                        name.isEmpty ? '?' : name[0].toUpperCase(),
+                        style: const TextStyle(
+                          color: AppColors.navy,
+                          fontSize: 38,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: AppColors.navy,
+            fontSize: 18,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _metricCard(IconData icon, Color iconColor, String title, String subtitle) {
+    return Expanded(
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 82),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(22),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF22305A).withOpacity(.06),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: iconColor, size: 24),
+            const SizedBox(height: 5),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.navy,
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Color(0xFF8B92A9),
+                fontSize: 9.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -172,127 +348,442 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen>
     final rec = recRaw is Map ? Map<String, dynamic>.from(recRaw) : <String, dynamic>{};
     final decision = decisionRaw is Map ? Map<String, dynamic>.from(decisionRaw) : <String, dynamic>{};
     final partnerName = rec['partnerName']?.toString() ?? '';
-    final compatibility = (rec['compatibility'] as num?)?.toInt();
+    final partnerId = rec['partnerUserId']?.toString() ?? '';
+    final partnerPhoto = _photo(rec['partnerPhotoUrl']?.toString());
+    final compatibility = (rec['compatibility'] as num?)?.toInt() ?? 0;
     final status = decision['status']?.toString() ?? 'pending';
-    final same = rec['sameAnswers'];
-    final different = rec['differentAnswers'];
+    final same = (rec['sameAnswers'] as num?)?.toInt();
+    final different = (rec['differentAnswers'] as num?)?.toInt();
+    final isRedFlag = (_forcedGameKey ?? result['game']?.toString()) == 'red_flag_green_flag';
+    final me = _meFromResult(result, partnerId);
+    final myName = me?['name']?.toString() ?? widget.profileName.trim();
+    final myPhoto = _photo(me?['photoUrl']?.toString());
+    final total = isRedFlag ? 6 : ((result['totalRounds'] as num?)?.toInt() ?? 10);
+    final subtitle = isRedFlag
+        ? '$total soru tamamlandı · En yakın görüş uyumun bulundu'
+        : '$total tur tamamlandı · En yakın oyun uyumun bulundu';
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F9FF),
+      backgroundColor: const Color(0xFFF8F9FF),
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.emoji_events_rounded, color: AppColors.lime, size: 76),
-                const SizedBox(height: 14),
-                const Text(
-                  'Oyun tamamlandı',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: AppColors.navy,
-                    fontSize: 34,
-                    fontWeight: FontWeight.w900,
-                  ),
+        child: Stack(
+          children: [
+            Positioned(
+              right: -70,
+              top: 12,
+              child: Container(
+                width: 190,
+                height: 190,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.lime.withOpacity(.12),
                 ),
-                const SizedBox(height: 20),
-                if (partnerName.isNotEmpty && compatibility != null) ...[
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(28),
-                    ),
-                    child: Column(
-                      children: [
-                        Text(
-                          partnerName,
-                          style: const TextStyle(
+              ),
+            ),
+            Positioned(
+              left: -70,
+              bottom: 80,
+              child: Container(
+                width: 180,
+                height: 180,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF2856FF).withOpacity(.08),
+                ),
+              ),
+            ),
+            SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(22, 16, 22, 28),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Material(
+                        color: Colors.white,
+                        shape: const CircleBorder(),
+                        elevation: 0,
+                        child: IconButton(
+                          onPressed: _goHome,
+                          icon: const Icon(
+                            Icons.arrow_back_ios_new_rounded,
                             color: AppColors.navy,
-                            fontSize: 24,
-                            fontWeight: FontWeight.w900,
+                            size: 24,
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '%$compatibility uyum',
-                          style: const TextStyle(
-                            color: Color(0xFF2454FF),
-                            fontSize: 38,
+                      ),
+                      const Spacer(),
+                      RichText(
+                        text: const TextSpan(
+                          style: TextStyle(
+                            fontSize: 27,
                             fontWeight: FontWeight.w900,
+                            letterSpacing: -1.2,
                           ),
+                          children: [
+                            TextSpan(text: 'meet', style: TextStyle(color: AppColors.navy)),
+                            TextSpan(text: '6', style: TextStyle(color: Color(0xFF2454FF))),
+                          ],
                         ),
-                        if (same != null && different != null) ...[
-                          const SizedBox(height: 6),
-                          Text(
-                            '$same aynı seçim · $different farklı seçim',
-                            style: const TextStyle(
-                              color: Color(0xFF7C839D),
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  ShaderMask(
+                    shaderCallback: (rect) => const LinearGradient(
+                      colors: [AppColors.navy, Color(0xFF2454FF)],
+                    ).createShader(rect),
+                    child: const Text(
+                      'Oyun sonucu',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 43,
+                        height: 1,
+                        letterSpacing: -1.8,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 18),
-                  if (status == 'matched')
-                    SizedBox(
-                      width: double.infinity,
-                      height: 56,
-                      child: FilledButton.icon(
-                        onPressed: _openForcedChat,
-                        style: FilledButton.styleFrom(backgroundColor: AppColors.navy),
-                        icon: const Icon(Icons.chat_bubble_rounded),
-                        label: const Text('Eşleştiniz · Özel mesaja geç'),
-                      ),
-                    )
-                  else if (status == 'waiting')
-                    const Text(
-                      'Seçimin kaydedildi. Karşı tarafın seçimi bekleniyor.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: AppColors.navy, fontWeight: FontWeight.w800),
-                    )
-                  else ...[
-                    SizedBox(
-                      width: double.infinity,
-                      height: 56,
-                      child: FilledButton.icon(
-                        onPressed: _finalChoosing ? null : () => _forcedFinalChoice(true),
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.lime,
-                          foregroundColor: AppColors.navy,
-                        ),
-                        icon: const Icon(Icons.favorite_rounded),
-                        label: Text(
-                          '$partnerName ile eşleş',
-                          style: const TextStyle(fontWeight: FontWeight.w900),
-                        ),
-                      ),
-                    ),
-                  ],
-                ] else ...[
-                  const Text(
-                    'Eşleşme önerisi oluşturulamadı.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Color(0xFF737A96),
-                      fontSize: 16,
+                  const SizedBox(height: 10),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      color: Color(0xFF8A90AB),
+                      fontSize: 18,
+                      height: 1.25,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
+                  const SizedBox(height: 22),
+                  if (partnerName.isNotEmpty) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.fromLTRB(16, 22, 16, 18),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(30),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF20305B).withOpacity(.06),
+                            blurRadius: 24,
+                            offset: const Offset(0, 12),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Expanded(
+                            child: _avatarCard(
+                              name: myName.isEmpty ? 'Sen' : myName,
+                              photo: myPhoto,
+                              accent: const Color(0xFF2856FF),
+                            ),
+                          ),
+                          SizedBox(
+                            width: 100,
+                            child: Column(
+                              children: [
+                                Container(
+                                  width: 58,
+                                  height: 58,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: AppColors.lime.withOpacity(.14),
+                                  ),
+                                  child: const Icon(
+                                    Icons.favorite_rounded,
+                                    color: Color(0xFF8DD414),
+                                    size: 31,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                const Text(
+                                  'Uyum',
+                                  style: TextStyle(
+                                    color: AppColors.navy,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                Text(
+                                  '%$compatibility',
+                                  style: const TextStyle(
+                                    color: Color(0xFF2454FF),
+                                    fontSize: 38,
+                                    height: 1,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.lime.withOpacity(.18),
+                                    borderRadius: BorderRadius.circular(99),
+                                  ),
+                                  child: Text(
+                                    compatibility >= 80
+                                        ? 'Harika!'
+                                        : compatibility >= 60
+                                            ? 'İyi uyum'
+                                            : 'Yakın uyum',
+                                    style: const TextStyle(
+                                      color: Color(0xFF416913),
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Expanded(
+                            child: _avatarCard(
+                              name: partnerName,
+                              photo: partnerPhoto,
+                              accent: AppColors.lime,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        _metricCard(
+                          Icons.flag_rounded,
+                          const Color(0xFF6BD33A),
+                          same == null ? '$compatibility% uyum' : '$same aynı seçim',
+                          same == null ? 'Benzer oyun tarzı' : 'Aynı fikirdesiniz',
+                        ),
+                        const SizedBox(width: 8),
+                        _metricCard(
+                          Icons.flag_rounded,
+                          const Color(0xFFFF5A60),
+                          different == null ? '${100 - compatibility}% fark' : '$different farklı seçim',
+                          different == null ? 'Farklı yaklaşım' : 'Farklı bakış açıları',
+                        ),
+                        const SizedBox(width: 8),
+                        _metricCard(
+                          Icons.access_time_rounded,
+                          const Color(0xFF2454FF),
+                          isRedFlag ? '12 dk tartışma' : '$total tur oyun',
+                          isRedFlag ? 'Güzel sohbet!' : 'Oyun tamamlandı',
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            AppColors.lime.withOpacity(.28),
+                            AppColors.lime.withOpacity(.10),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(26),
+                      ),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 35,
+                            backgroundColor: Colors.white,
+                            backgroundImage: partnerPhoto.isEmpty ? null : NetworkImage(partnerPhoto),
+                            child: partnerPhoto.isEmpty
+                                ? Text(
+                                    partnerName.isEmpty ? '?' : partnerName[0].toUpperCase(),
+                                    style: const TextStyle(
+                                      color: AppColors.navy,
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  )
+                                : null,
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text.rich(
+                                  TextSpan(
+                                    style: const TextStyle(
+                                      color: AppColors.navy,
+                                      fontSize: 20,
+                                      height: 1.05,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                    children: [
+                                      const TextSpan(text: 'Sistem sana\n'),
+                                      TextSpan(
+                                        text: "$partnerName'yu öneriyor",
+                                        style: const TextStyle(color: Color(0xFF2454FF)),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 7),
+                                Text(
+                                  '$partnerName da seni seçerse özel sohbete geçersiniz.',
+                                  style: const TextStyle(
+                                    color: Color(0xFF7C839D),
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(
+                            Icons.favorite_border_rounded,
+                            color: Color(0xFF91D71B),
+                            size: 34,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    if (status == 'matched')
+                      SizedBox(
+                        height: 62,
+                        child: FilledButton.icon(
+                          onPressed: _openForcedChat,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.navy,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(22),
+                            ),
+                          ),
+                          icon: const Icon(Icons.chat_bubble_rounded),
+                          label: const Text(
+                            'Eşleştiniz · Özel mesaja geç',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                          ),
+                        ),
+                      )
+                    else if (status == 'waiting')
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text(
+                          'Seçimin kaydedildi. Karşı tarafın seçimi bekleniyor.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: AppColors.navy,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      )
+                    else ...[
+                      SizedBox(
+                        height: 62,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFFDFFF29), Color(0xFFB9FF22)],
+                            ),
+                            borderRadius: BorderRadius.circular(22),
+                          ),
+                          child: FilledButton(
+                            onPressed: _finalChoosing ? null : () => _forcedFinalChoice(true),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: Colors.transparent,
+                              shadowColor: Colors.transparent,
+                              foregroundColor: AppColors.navy,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(22),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  '$partnerName ile eşleş',
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+                                const Icon(Icons.arrow_forward_rounded, size: 26),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        height: 58,
+                        child: OutlinedButton(
+                          onPressed: _finalChoosing ? null : () => _forcedFinalChoice(false),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.navy,
+                            side: const BorderSide(color: Color(0xFFBEC5D8)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(22),
+                            ),
+                          ),
+                          child: const Text(
+                            'Odaya devam et',
+                            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 18),
+                    const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.lock_outline_rounded, color: Color(0xFF6674E8), size: 18),
+                        SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            'Seçimin gizlidir. Karşılıklı olursa eşleşme gerçekleşir.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Color(0xFF8A90AB),
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ] else ...[
+                    Container(
+                      padding: const EdgeInsets.all(22),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(28),
+                      ),
+                      child: const Column(
+                        children: [
+                          Icon(Icons.favorite_border_rounded, color: Color(0xFF8A90AB), size: 42),
+                          SizedBox(height: 10),
+                          Text(
+                            'Eşleşme önerisi oluşturulamadı.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: AppColors.navy,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    FilledButton(onPressed: _goHome, child: const Text('Ana sayfaya dön')),
+                  ],
                 ],
-                const SizedBox(height: 14),
-                TextButton(
-                  onPressed: _goHome,
-                  child: const Text('Ana sayfaya dön'),
-                ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -312,6 +803,7 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen>
         }
 
         final gameKey = snapshot.data ?? MiniGameSelectionService.selectedGameKey;
+        _resolvedGameKey ??= gameKey;
         final Widget game;
         final childKey = ValueKey('${widget.roomId}:$_resumeEpoch:$gameKey');
         if (gameKey == 'red_flag_green_flag') {
