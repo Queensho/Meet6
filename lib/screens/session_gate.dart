@@ -9,8 +9,6 @@ import '../services/realtime_service.dart';
 import '../services/session_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/brand.dart';
-import 'chat/room_chat_screen.dart';
-import 'chat/room_selection_screen.dart';
 import 'home/home_screen.dart';
 import 'login_screen.dart';
 
@@ -44,36 +42,12 @@ class _SessionGateState extends State<SessionGate> {
   }
 
   Future<Widget> _resolveAuthenticatedLanding(SavedSession session) async {
-    unawaited(
-      PushNotificationService.initializeForAuthenticatedUser()
-          .catchError((_) {}),
-    );
-
-    try {
-      await RealtimeService.connect();
-      final state = await RealtimeService.queueStatus();
-      final rawRoom = state['room'];
-      if (state['state'] == 'room' && rawRoom is Map) {
-        final room = Map<String, dynamic>.from(rawRoom);
-        final roomId = room['id']?.toString() ?? '';
-        final status = room['status']?.toString();
-        if (roomId.isNotEmpty && status == 'selection') {
-          return RoomSelectionScreen(
-            roomId: roomId,
-            profileName: session.profileName,
-          );
-        }
-        if (roomId.isNotEmpty && status == 'active') {
-          return RoomChatScreen(
-            roomId: roomId,
-            profileName: session.profileName,
-          );
-        }
-      }
-    } catch (_) {
-      unawaited(RealtimeService.connect().catchError((_) {}));
-    }
-
+    // Always land on Home first. Home already knows how to recover an active room
+    // and shows the "Odaya dön" action. Auto-opening a raw room here caused game
+    // rooms (for example Red Flag / Green Flag) to be rendered as RoomChatScreen.
+    // Keeping recovery on Home also makes Android back from a mini-game predictable:
+    // mini-game -> Home -> "Odaya dön" -> correct mini-game screen.
+    _startAuthenticatedServices();
     return _home(session);
   }
 
