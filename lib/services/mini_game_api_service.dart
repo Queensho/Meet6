@@ -37,6 +37,17 @@ class MiniGameApiService {
     return _request('POST', '/api/rooms/game/$roomId/next');
   }
 
+  static Future<Map<String, dynamic>> selectMatch(
+    String roomId,
+    String selectedUserId,
+  ) {
+    return _request(
+      'PUT',
+      '/api/rooms/$roomId/selection',
+      body: {'selectedUserId': int.tryParse(selectedUserId)},
+    );
+  }
+
   static Future<Map<String, dynamic>> _request(
     String method,
     String path, {
@@ -56,6 +67,14 @@ class MiniGameApiService {
     if (method == 'GET') {
       response = await http
           .get(AppConfig.apiUri(path), headers: headers)
+          .timeout(const Duration(seconds: 15));
+    } else if (method == 'PUT') {
+      response = await http
+          .put(
+            AppConfig.apiUri(path),
+            headers: headers,
+            body: body == null ? null : jsonEncode(body),
+          )
           .timeout(const Duration(seconds: 15));
     } else {
       response = await http
