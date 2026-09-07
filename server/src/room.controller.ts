@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Headers, Param, Post, Put, Query } from 
 
 import { AuthService } from './auth.service';
 import { GameRoomTestService } from './game-room-test.service';
+import { RedFlagGameService } from './red-flag-game.service';
 import { ExtensionVoteDto, JoinQueueDto, RoomSelectionDto, SendRoomMessageDto } from './room.dto';
 import { RoomService } from './room.service';
 import { RoomsGateway } from './rooms.gateway';
@@ -13,6 +14,7 @@ export class RoomController {
     private readonly rooms: RoomService,
     private readonly realtime: RoomsGateway,
     private readonly gameRoomTest: GameRoomTestService,
+    private readonly redFlagGame: RedFlagGameService,
   ) {}
 
   private async userId(authorization?: string) {
@@ -20,14 +22,8 @@ export class RoomController {
   }
 
   @Post('queue')
-  async joinQueue(
-    @Headers('authorization') authorization: string | undefined,
-    @Body() body: JoinQueueDto,
-  ) {
-    const result = await this.rooms.joinQueue(
-      await this.userId(authorization),
-      body.roomDurationMinutes ?? 15,
-    ) as Record<string, any>;
+  async joinQueue(@Headers('authorization') authorization: string | undefined, @Body() body: JoinQueueDto) {
+    const result = await this.rooms.joinQueue(await this.userId(authorization), body.roomDurationMinutes ?? 15) as Record<string, any>;
     if (result.state === 'room' && result.room) {
       const roomId = (result.room as Record<string, any>).id?.toString();
       if (roomId) await this.realtime.broadcastRoomUpdate(roomId);
@@ -37,8 +33,15 @@ export class RoomController {
   }
 
   @Post('game-test')
-  async createGameTestRoom(@Headers('authorization') authorization?: string) {
-    const result = await this.gameRoomTest.create(await this.userId(authorization));
+  async createGameTestRoom(
+    @Headers('authorization') authorization: string | undefined,
+    @Body() body: { gameKey?: string },
+  ) {
+    const userId = await this.userId(authorization);
+    const gameKey = body?.gameKey?.toString() ?? 'two_truths_one_lie';
+    const result = gameKey === 'red_flag_green_flag'
+      ? await this.redFlagGame.create(userId)
+      : await this.gameRoomTest.create(userId);
     const roomId = (result.room as Record<string, any>)?.id?.toString();
     if (roomId) await this.realtime.broadcastRoomUpdate(roomId);
     await this.realtime.broadcastQueueStatus();
@@ -46,10 +49,7 @@ export class RoomController {
   }
 
   @Get('game/:roomId/state')
-  async gameState(
-    @Headers('authorization') authorization: string | undefined,
-    @Param('roomId') roomId: string,
-  ) {
+  async gameState(@Headers('authorization') authorization: string | undefined, @Param('roomId') roomId: string) {
     return this.gameRoomTest.state(await this.userId(authorization), roomId);
   }
 
@@ -59,12 +59,7 @@ export class RoomController {
     @Param('roomId') roomId: string,
     @Body() body: { statements?: unknown; lieIndex?: unknown },
   ) {
-    return this.gameRoomTest.submitStatements(
-      await this.userId(authorization),
-      roomId,
-      body.statements,
-      body.lieIndex,
-    );
+    return this.gameRoomTest.submitStatements(await this.userId(authorization), roomId, body.statements, body.lieIndex);
   }
 
   @Post('game/:roomId/vote')
@@ -73,19 +68,35 @@ export class RoomController {
     @Param('roomId') roomId: string,
     @Body() body: { choice?: unknown },
   ) {
-    return this.gameRoomTest.vote(
-      await this.userId(authorization),
-      roomId,
-      body.choice,
-    );
+    return this.gameRoomTest.vote(await this.userId(authorization), roomId, body.choice);
   }
 
   @Post('game/:roomId/next')
-  async gameNext(
+  async gameNext(@Headers('authorization') authorization: string | undefined, @Param('roomId') roomId: string) {
+    return this.gameRoomTest.nextRound(await this.userId(authorization), roomId);
+  }
+
+  @Get('game/:roomId/red-flag/state')
+  async redFlagState(@Headers('authorization') authorization: string | undefined, @Param('roomId') roomId: string) {
+    return this.redFlagGame.state(await this.userId(authorization), roomId);
+  }
+
+  @Post('game/:roomId/red-flag/choice')
+  async redFlagChoice(
     @Headers('authorization') authorization: string | undefined,
     @Param('roomId') roomId: string,
+    @Body() body: { choice?: unknown },
   ) {
-    return this.gameRoomTest.nextRound(await this.userId(authorization), roomId);
+    return this.redFlagGame.choose(await this.userId(authorization), roomId, body.choice);
+  }
+
+  @Post('game/:roomId/red-flag/final-choice')
+  async redFlagFinalChoice(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('roomId') roomId: string,
+    @Body() body: { choice?: unknown },
+  ) {
+    return this.redFlagGame.finalChoice(await this.userId(authorization), roomId, body.choice);
   }
 
   @Get('queue')
@@ -101,10 +112,7 @@ export class RoomController {
   }
 
   @Get(':roomId')
-  async room(
-    @Headers('authorization') authorization: string | undefined,
-    @Param('roomId') roomId: string,
-  ) {
+  async room(@Headers('authorization') authorization: string | undefined, @Param('roomId') roomId: string) {
     return this.rooms.getRoom(await this.userId(authorization), roomId);
   }
 
@@ -114,11 +122,7 @@ export class RoomController {
     @Param('roomId') roomId: string,
     @Query('after') after?: string,
   ) {
-    return this.rooms.messages(
-      await this.userId(authorization),
-      roomId,
-      Number.parseInt(after ?? '0', 10) || 0,
-    );
+    return this.rooms.messages(await this.userId(authorization), roomId, Number.parseInt(after ?? '0', 10) || 0);
   }
 
   @Post(':roomId/messages')
@@ -151,10 +155,7 @@ export class RoomController {
   }
 
   @Get(':roomId/selection-result')
-  async selectionResult(
-    @Headers('authorization') authorization: string | undefined,
-    @Param('roomId') roomId: string,
-  ) {
+  async selectionResult(@Headers('authorization') authorization: string | undefined, @Param('roomId') roomId: string) {
     return this.rooms.selectionResult(await this.userId(authorization), roomId);
   }
 }
