@@ -105,7 +105,13 @@ export class RedFlagGameService {
     const blocks = await this.infra.db.query<{a:string;b:string}>(`select blocker_user_id::text a,blocked_user_id::text b from blocked_users where blocker_user_id=any($1::bigint[]) or blocked_user_id=any($1::bigint[])`, [ids]);
     const reports = await this.infra.db.query<{a:string;b:string}>(`select reporter_user_id::text a,reported_user_id::text b from reports where reporter_user_id=any($1::bigint[]) or reported_user_id=any($1::bigint[])`, [ids]);
     const matches = await this.infra.db.query<{a:string;b:string}>(`select user_a_id::text a,user_b_id::text b from matches where user_a_id=any($1::bigint[]) and user_b_id=any($1::bigint[])`, [ids]);
-    for (const r of [...blocks.rows,...reports.rows,...matches.rows]) blocked.add(key(r.a,r.b));
+    for (const r of [...blocks.rows,...reports.rows]) blocked.add(key(r.a,r.b));
+    for (const r of matches.rows) {
+      const a = s.players.find((p) => p.id === r.a);
+      const b = s.players.find((p) => p.id === r.b);
+      if (a?.test || b?.test) continue;
+      blocked.add(key(r.a, r.b));
+    }
     const pairs: PairScore[] = [];
     for (let i=0;i<s.players.length;i++) for (let j=i+1;j<s.players.length;j++) {
       const a=s.players[i], b=s.players[j]; if (blocked.has(key(a.id,b.id))) continue;
