@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../services/mini_game_selection_service.dart';
 import '../../services/red_flag_game_api_service.dart';
-import '../session_gate.dart';
 import 'red_flag_green_flag_room_screen_v2.dart';
 import 'two_truths_one_lie_room_screen.dart' as truths;
 
@@ -54,10 +53,17 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen> {
     if (_leaving || !mounted) return;
     _leaving = true;
     FocusManager.instance.primaryFocus?.unfocus();
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const SessionGate()),
-      (route) => false,
-    );
+
+    // This screen is reached from Home through the room-search flow. Popping the
+    // game route restores that existing Home instance, which then refreshes the
+    // active room immediately. That keeps the first "Odaya dön" action pointed
+    // at the correct game instead of briefly opening the generic chat room.
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+      return;
+    }
+
+    _leaving = false;
   }
 
   @override
