@@ -33,6 +33,19 @@ class MiniGameApiService {
     );
   }
 
+  static Future<Map<String, dynamic>> finalChoice(
+    String roomId, {
+    required bool match,
+  }) {
+    return _request(
+      'POST',
+      '/api/rooms/game/$roomId/vote',
+      body: {
+        'choice': {'finalChoice': match ? 'match' : 'continue'},
+      },
+    );
+  }
+
   static Future<Map<String, dynamic>> next(String roomId) {
     return _request('POST', '/api/rooms/game/$roomId/next');
   }
