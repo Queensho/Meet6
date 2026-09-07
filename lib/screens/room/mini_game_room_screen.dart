@@ -4,6 +4,8 @@ import '../../services/api_service.dart';
 import '../../services/mini_game_api_service.dart';
 import '../../services/mini_game_selection_service.dart';
 import '../../services/red_flag_game_api_service.dart';
+import '../../theme/app_colors.dart';
+import '../messages/private_chat_screen.dart';
 import 'red_flag_green_flag_room_screen_v2.dart';
 import 'two_truths_one_lie_room_screen.dart' as truths;
 
@@ -26,7 +28,10 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen>
   late Future<String> _gameKeyFuture;
   bool _leaving = false;
   bool _finishing = false;
+  bool _finalChoosing = false;
   int _resumeEpoch = 0;
+  Map<String, dynamic>? _forcedResult;
+  String? _forcedGameKey;
 
   @override
   void initState() {
@@ -43,12 +48,11 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed || !mounted) return;
+    if (state != AppLifecycleState.resumed || !mounted || _forcedResult != null) return;
 
     // Browser/Android can throttle or completely pause Dart timers while the app
     // is in the background. Mini-game time belongs to the server, so when the
     // user returns we recreate the active game screen and fetch fresh state.
-    // This prevents a stale 00:00 screen from remaining on an old question/round.
     setState(() {
       _resumeEpoch += 1;
       _gameKeyFuture = _resolveGameKey();
@@ -59,18 +63,13 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen>
     final selected = MiniGameSelectionService.selectedGameKey;
     if (selected == 'red_flag_green_flag') return selected;
 
-    // Active-room recovery can lose the local selected game key after returning
-    // to the home screen or reloading the web app. Probe the actual room state
-    // so a Red Flag room never falls back to the generic/other game screen.
     try {
       final state = await RedFlagGameApiService.state(widget.roomId);
       if (state['game']?.toString() == 'red_flag_green_flag') {
         MiniGameSelectionService.select('red_flag_green_flag');
         return 'red_flag_green_flag';
       }
-    } catch (_) {
-      // Not a Red Flag room (or its state is unavailable); keep the selected key.
-    }
+    } catch (_) {}
 
     return selected;
   }
@@ -79,16 +78,10 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen>
     if (_leaving || !mounted) return;
     _leaving = true;
     FocusManager.instance.primaryFocus?.unfocus();
-
-    // This screen is reached from Home through the room-search flow. Popping the
-    // game route restores that existing Home instance, which then refreshes the
-    // active room immediately. That keeps the first "Odaya dön" action pointed
-    // at the correct game instead of briefly opening the generic chat room.
     if (Navigator.of(context).canPop()) {
       Navigator.of(context).pop();
       return;
     }
-
     _leaving = false;
   }
 
@@ -96,15 +89,22 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen>
     if (_finishing || !mounted) return;
     setState(() => _finishing = true);
     try {
-      await MiniGameApiService.forceFinish(widget.roomId, gameKey: gameKey);
+      final result = await MiniGameApiService.forceFinish(
+        widget.roomId,
+        gameKey: gameKey,
+      );
       if (!mounted) return;
-      // Recreate the child immediately so the force-finished server state is
-      // visible without waiting for that game's polling timer.
-      setState(() => _resumeEpoch += 1);
+
+      // force-finish already returns the complete final game state. Keep and
+      // render that response directly. The room is closed by the backend, so a
+      // second state request can legitimately fail and must not replace the
+      // final result with an empty 00:00 game screen.
+      setState(() {
+        _forcedResult = result;
+        _forcedGameKey = gameKey;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Oyun test için bitirildi. Eşleşme sonucu hazırlanıyor.'),
-        ),
+        const SnackBar(content: Text('Oyun test için bitirildi.')),
       );
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -121,8 +121,187 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen>
     }
   }
 
+  Future<void> _forcedFinalChoice(bool match) async {
+    final gameKey = _forcedGameKey;
+    if (gameKey == null || _finalChoosing || !mounted) return;
+    setState(() => _finalChoosing = true);
+    try {
+      final data = gameKey == 'red_flag_green_flag'
+          ? await RedFlagGameApiService.finalChoice(widget.roomId, match: match)
+          : await MiniGameApiService.finalChoice(widget.roomId, match: match);
+      if (!mounted) return;
+      setState(() => _forcedResult = data);
+      if (!match) await _goHome();
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message)),
+      );
+    } finally {
+      if (mounted) setState(() => _finalChoosing = false);
+    }
+  }
+
+  void _openForcedChat() {
+    final result = _forcedResult;
+    if (result == null) return;
+    final recRaw = result['recommendation'];
+    final decisionRaw = result['finalDecision'];
+    if (recRaw is! Map || decisionRaw is! Map) return;
+    final rec = Map<String, dynamic>.from(recRaw);
+    final decision = Map<String, dynamic>.from(decisionRaw);
+    final matchId = decision['matchId']?.toString() ?? '';
+    if (matchId.isEmpty) return;
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => PrivateChatScreen(
+          matchId: matchId,
+          name: rec['partnerName']?.toString() ?? 'Meet6',
+          userId: rec['partnerUserId']?.toString() ?? '',
+          photoUrl: rec['partnerPhotoUrl']?.toString() ?? '',
+          fromNewMatch: true,
+        ),
+      ),
+    );
+  }
+
+  Widget _forceFinishedScreen() {
+    final result = _forcedResult ?? const <String, dynamic>{};
+    final recRaw = result['recommendation'];
+    final decisionRaw = result['finalDecision'];
+    final rec = recRaw is Map ? Map<String, dynamic>.from(recRaw) : <String, dynamic>{};
+    final decision = decisionRaw is Map ? Map<String, dynamic>.from(decisionRaw) : <String, dynamic>{};
+    final partnerName = rec['partnerName']?.toString() ?? '';
+    final compatibility = (rec['compatibility'] as num?)?.toInt();
+    final status = decision['status']?.toString() ?? 'pending';
+    final same = rec['sameAnswers'];
+    final different = rec['differentAnswers'];
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF7F9FF),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.emoji_events_rounded, color: AppColors.lime, size: 76),
+                const SizedBox(height: 14),
+                const Text(
+                  'Oyun tamamlandı',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: AppColors.navy,
+                    fontSize: 34,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                if (partnerName.isNotEmpty && compatibility != null) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(28),
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          partnerName,
+                          style: const TextStyle(
+                            color: AppColors.navy,
+                            fontSize: 24,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '%$compatibility uyum',
+                          style: const TextStyle(
+                            color: Color(0xFF2454FF),
+                            fontSize: 38,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        if (same != null && different != null) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            '$same aynı seçim · $different farklı seçim',
+                            style: const TextStyle(
+                              color: Color(0xFF7C839D),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  if (status == 'matched')
+                    SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: FilledButton.icon(
+                        onPressed: _openForcedChat,
+                        style: FilledButton.styleFrom(backgroundColor: AppColors.navy),
+                        icon: const Icon(Icons.chat_bubble_rounded),
+                        label: const Text('Eşleştiniz · Özel mesaja geç'),
+                      ),
+                    )
+                  else if (status == 'waiting')
+                    const Text(
+                      'Seçimin kaydedildi. Karşı tarafın seçimi bekleniyor.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: AppColors.navy, fontWeight: FontWeight.w800),
+                    )
+                  else ...[
+                    SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: FilledButton.icon(
+                        onPressed: _finalChoosing ? null : () => _forcedFinalChoice(true),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.lime,
+                          foregroundColor: AppColors.navy,
+                        ),
+                        icon: const Icon(Icons.favorite_rounded),
+                        label: Text(
+                          '$partnerName ile eşleş',
+                          style: const TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                      ),
+                    ),
+                  ],
+                ] else ...[
+                  const Text(
+                    'Eşleşme önerisi oluşturulamadı.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Color(0xFF737A96),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 14),
+                TextButton(
+                  onPressed: _goHome,
+                  child: const Text('Ana sayfaya dön'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_forcedResult != null) return _forceFinishedScreen();
+
     return FutureBuilder<String>(
       future: _gameKeyFuture,
       builder: (context, snapshot) {
