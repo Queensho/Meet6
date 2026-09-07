@@ -9,7 +9,7 @@ type AnswerRound = { questionId: string; choices: Record<string, Choice> };
 type Suggestion = { partnerUserId: string; partnerName: string; partnerPhotoUrl: string; compatibility: number; sameAnswers: number; differentAnswers: number };
 type State = {
   roomId: string; players: Player[]; questions: Question[]; questionIndex: number;
-  phase: 'choice' | 'discussion' | 'final'; phaseEndsAt: Date;
+  phase: 'choice' | 'discussion' | 'final'; phaseEndsAt: Date; startedAtMs: number;
   choices: Record<string, Choice>; answers: AnswerRound[];
   suggestions: Record<string, Suggestion>; finalChoices: Record<string, 'match' | 'continue'>; matchIds: Record<string, string>;
 };
@@ -18,6 +18,10 @@ type PairScore = { a: string; b: string; score: number; same: number; different:
 @Injectable()
 export class RedFlagGameService {
   private readonly games = new Map<string, State>();
+  private static readonly CHOICE_MS = 15_000;
+  private static readonly DISCUSSION_MS = 120_000;
+  private static readonly QUESTION_MS = RedFlagGameService.CHOICE_MS + RedFlagGameService.DISCUSSION_MS;
+
   constructor(private readonly infra: InfrastructureService, private readonly rooms: RoomService) {}
 
   private testIds(currentUserId: string) {
@@ -36,9 +40,21 @@ export class RedFlagGameService {
     return (Number(userId) + Number(questionId)) % 3 === 0 ? 'red' : 'green';
   }
 
-  private startQuestion(s: State) {
-    s.phase = 'choice'; s.phaseEndsAt = new Date(Date.now() + 15_000); s.choices = {};
-    const q = s.questions[s.questionIndex];
+  private questionChoiceEnd(s: State, index: number) {
+    return s.startedAtMs + index * RedFlagGameService.QUESTION_MS + RedFlagGameService.CHOICE_MS;
+  }
+
+  private questionEnd(s: State, index: number) {
+    return s.startedAtMs + (index + 1) * RedFlagGameService.QUESTION_MS;
+  }
+
+  private prepareQuestion(s: State, index: number) {
+    s.questionIndex = index;
+    s.phase = 'choice';
+    s.phaseEndsAt = new Date(this.questionChoiceEnd(s, index));
+    s.choices = {};
+    const q = s.questions[index];
+    if (!q) return;
     for (const p of s.players.filter((x) => x.test)) s.choices[p.id] = this.botChoice(p.id, q.id);
   }
 
@@ -63,15 +79,19 @@ export class RedFlagGameService {
     return selected;
   }
 
-  private async finishChoice(s: State) {
-    if (s.phase !== 'choice') return;
-    const q = s.questions[s.questionIndex];
-    for (const p of s.players) s.choices[p.id] ??= this.botChoice(p.id, q.id);
-    s.answers.push({ questionId: q.id, choices: { ...s.choices } });
-    const red = Object.values(s.choices).filter((v) => v === 'red').length;
+  private async completeQuestion(s: State, index: number, currentChoices?: Record<string, Choice>) {
+    const q = s.questions[index];
+    if (!q || s.answers.some((r) => r.questionId === q.id)) return;
+    const choices: Record<string, Choice> = {};
+    for (const p of s.players) choices[p.id] = currentChoices?.[p.id] ?? this.botChoice(p.id, q.id);
+    s.answers.push({ questionId: q.id, choices });
+    if (index === s.questionIndex) s.choices = { ...choices };
+    const red = Object.values(choices).filter((v) => v === 'red').length;
     const green = 6 - red;
-    s.phase = 'discussion'; s.phaseEndsAt = new Date(Date.now() + 120_000);
-    await this.infra.db.query(`insert into room_messages(room_id,sender_user_id,body) values($1,null,$2)`, [s.roomId, `Sonuç: ${red} Red / ${green} Green. 2 dakikalık tartışma başladı.`]);
+    await this.infra.db.query(
+      `insert into room_messages(room_id,sender_user_id,body) values($1,null,$2)`,
+      [s.roomId, `Sonuç: ${red} Red / ${green} Green. 2 dakikalık tartışma başladı.`],
+    );
   }
 
   private compatibility(s: State, a: string, b: string) {
@@ -104,16 +124,43 @@ export class RedFlagGameService {
     const human=s.players.find(p=>!p.test); if(human){ const rec=s.suggestions[human.id]; const bot=rec&&s.players.find(p=>p.id===rec.partnerUserId&&p.test); if(bot&&s.suggestions[bot.id]?.partnerUserId===human.id)s.finalChoices[bot.id]='match'; }
   }
 
-  private async advance(s: State) {
-    if (s.phase==='final') return;
-    if (Date.now() < s.phaseEndsAt.getTime()) return;
-    if (s.phase==='choice') { await this.finishChoice(s); return; }
-    if (s.questionIndex>=5) { s.phase='final'; s.phaseEndsAt=new Date(); await this.buildSuggestions(s); }
-    else { s.questionIndex++; this.startQuestion(s); }
+  private async syncTimeline(s: State) {
+    if (s.phase === 'final') return;
+    const now = Date.now();
+    const elapsed = Math.max(0, now - s.startedAtMs);
+    const totalMs = s.questions.length * RedFlagGameService.QUESTION_MS;
+
+    if (elapsed >= totalMs) {
+      for (let i = 0; i < s.questions.length; i++) {
+        await this.completeQuestion(s, i, i === s.questionIndex ? s.choices : undefined);
+      }
+      s.questionIndex = Math.max(0, s.questions.length - 1);
+      s.phase = 'final';
+      s.phaseEndsAt = new Date(s.startedAtMs + totalMs);
+      await this.buildSuggestions(s);
+      return;
+    }
+
+    const targetIndex = Math.floor(elapsed / RedFlagGameService.QUESTION_MS);
+    while (s.questionIndex < targetIndex) {
+      await this.completeQuestion(s, s.questionIndex, s.choices);
+      this.prepareQuestion(s, s.questionIndex + 1);
+    }
+
+    const inQuestion = elapsed % RedFlagGameService.QUESTION_MS;
+    if (inQuestion < RedFlagGameService.CHOICE_MS) {
+      s.phase = 'choice';
+      s.phaseEndsAt = new Date(this.questionChoiceEnd(s, s.questionIndex));
+      return;
+    }
+
+    await this.completeQuestion(s, s.questionIndex, s.choices);
+    s.phase = 'discussion';
+    s.phaseEndsAt = new Date(this.questionEnd(s, s.questionIndex));
   }
 
   private decision(s: State,userId:string){ const rec=s.suggestions[userId]; if(!rec)return{status:'none'}; const id=s.matchIds[userId]; if(id)return{status:'matched',matchId:id}; const c=s.finalChoices[userId]; return{status:c==='continue'?'continue':c==='match'?'waiting':'pending'}; }
-  private view(s:State,userId:string){ const q=s.questions[s.questionIndex]; const red=Object.values(s.choices).filter(v=>v==='red').length; return {roomId:s.roomId,game:'red_flag_green_flag',phase:s.phase,questionIndex:s.questionIndex,totalQuestions:6,phaseEndsAt:s.phaseEndsAt.toISOString(),question:q??null,players:s.players.map(p=>({id:p.id,name:p.name,photoUrl:p.photoUrl})),myChoice:s.choices[userId]??null,result:s.phase==='discussion'?{red,green:6-red}:null,recommendation:s.phase==='final'?s.suggestions[userId]??null:null,finalDecision:s.phase==='final'?this.decision(s,userId):null}; }
+  private view(s:State,userId:string){ const q=s.questions[s.questionIndex]; const red=Object.values(s.choices).filter(v=>v==='red').length; return {roomId:s.roomId,game:'red_flag_green_flag',serverStartedAt:new Date(s.startedAtMs).toISOString(),phase:s.phase,questionIndex:s.questionIndex,totalQuestions:6,phaseEndsAt:s.phaseEndsAt.toISOString(),question:q??null,players:s.players.map(p=>({id:p.id,name:p.name,photoUrl:p.photoUrl})),myChoice:s.choices[userId]??null,result:s.phase==='discussion'?{red,green:6-red}:null,recommendation:s.phase==='final'?s.suggestions[userId]??null:null,finalDecision:s.phase==='final'?this.decision(s,userId):null}; }
   private async assertMember(userId:string,roomId:string){ const r=await this.infra.db.query(`select 1 from room_members rm join rooms r on r.id=rm.room_id where rm.room_id=$1 and rm.user_id=$2 and rm.left_at is null and rm.admin_removed_at is null and r.room_mode='game'`,[roomId,userId]); if(!r.rowCount)throw new ForbiddenException('Bu Red Flag / Green Flag odasına erişimin yok.'); }
 
   async create(userId:string){
@@ -131,14 +178,15 @@ export class RedFlagGameService {
       const human=profiles.rows.find(r=>r.user_id===String(userId)),questions=await this.chooseQuestions(String(userId),human?.age??18);
       for(const q of questions)await this.infra.db.query(`insert into red_flag_question_history(user_id,question_id,seen_at) values($1,$2,now()) on conflict(user_id,question_id) do update set seen_at=excluded.seen_at`,[userId,q.id]);
       const byId=new Map(profiles.rows.map(r=>[r.user_id,r])); const players:Player[]=memberIds.map(id=>{const r=byId.get(id)!;return{id,name:r.name,test:id!==String(userId),gender:r.gender,lookingFor:r.looking_for,photoUrl:r.photo_url};});
-      const s:State={roomId,players,questions,questionIndex:0,phase:'choice',phaseEndsAt:new Date(),choices:{},answers:[],suggestions:{},finalChoices:{},matchIds:{}}; this.startQuestion(s); this.games.set(roomId,s);
+      const startedAtMs=Date.now();
+      const s:State={roomId,players,questions,questionIndex:0,phase:'choice',phaseEndsAt:new Date(startedAtMs+RedFlagGameService.CHOICE_MS),startedAtMs,choices:{},answers:[],suggestions:{},finalChoices:{},matchIds:{}}; this.prepareQuestion(s,0); this.games.set(roomId,s);
       return{ok:true,state:'room',testMode:true,participantCount:6,gameKey:'red_flag_green_flag',room:await this.rooms.getRoom(userId,roomId),gameState:this.view(s,String(userId))};
     }catch(e){await client.query('rollback').catch(()=>undefined);throw e;}finally{client.release();}
   }
 
-  async state(userId:string,roomId:string){await this.assertMember(userId,roomId);const s=this.games.get(roomId);if(!s)throw new BadRequestException('Red Flag / Green Flag oyun durumu bulunamadı. Odayı yeniden oluştur.');await this.advance(s);return this.view(s,String(userId));}
-  async choose(userId:string,roomId:string,raw:unknown){await this.assertMember(userId,roomId);const s=this.games.get(roomId);if(!s)throw new BadRequestException('Oyun durumu bulunamadı.');await this.advance(s);if(s.phase!=='choice')throw new BadRequestException('Seçim süresi kapandı.');const c=String(raw??'') as Choice;if(c!=='red'&&c!=='green')throw new BadRequestException('Red veya Green seçmelisin.');s.choices[String(userId)]=c;if(s.players.every(p=>s.choices[p.id]))await this.finishChoice(s);return this.view(s,String(userId));}
-  async finalChoice(userId:string,roomId:string,raw:unknown){await this.assertMember(userId,roomId);const s=this.games.get(roomId);if(!s)throw new BadRequestException('Oyun durumu bulunamadı.');await this.advance(s);if(s.phase!=='final')throw new BadRequestException('Oyun henüz tamamlanmadı.');const c=String(raw??'');if(c!=='match'&&c!=='continue')throw new BadRequestException('Geçerli final seçimi gönder.');const rec=s.suggestions[String(userId)];if(!rec)throw new BadRequestException('Uygun eşleşme önerisi bulunamadı.');s.finalChoices[String(userId)]=c;
+  async state(userId:string,roomId:string){await this.assertMember(userId,roomId);const s=this.games.get(roomId);if(!s)throw new BadRequestException('Red Flag / Green Flag oyun durumu bulunamadı. Odayı yeniden oluştur.');await this.syncTimeline(s);return this.view(s,String(userId));}
+  async choose(userId:string,roomId:string,raw:unknown){await this.assertMember(userId,roomId);const s=this.games.get(roomId);if(!s)throw new BadRequestException('Oyun durumu bulunamadı.');await this.syncTimeline(s);if(s.phase!=='choice')throw new BadRequestException('Seçim süresi kapandı.');const c=String(raw??'') as Choice;if(c!=='red'&&c!=='green')throw new BadRequestException('Red veya Green seçmelisin.');s.choices[String(userId)]=c;return this.view(s,String(userId));}
+  async finalChoice(userId:string,roomId:string,raw:unknown){await this.assertMember(userId,roomId);const s=this.games.get(roomId);if(!s)throw new BadRequestException('Oyun durumu bulunamadı.');await this.syncTimeline(s);if(s.phase!=='final')throw new BadRequestException('Oyun henüz tamamlanmadı.');const c=String(raw??'');if(c!=='match'&&c!=='continue')throw new BadRequestException('Geçerli final seçimi gönder.');const rec=s.suggestions[String(userId)];if(!rec)throw new BadRequestException('Uygun eşleşme önerisi bulunamadı.');s.finalChoices[String(userId)]=c;
     if(c==='match'){const partnerId=rec.partnerUserId;if(s.finalChoices[partnerId]==='match'&&s.suggestions[partnerId]?.partnerUserId===String(userId)){const ins=await this.infra.db.query<{id:string}>(`insert into matches(user_a_id,user_b_id,source_room_id) values($1,$2,$3) on conflict do nothing returning id::text`,[userId,partnerId,s.roomId]);let matchId=ins.rows[0]?.id;if(!matchId){const ex=await this.infra.db.query<{id:string}>(`select id::text from matches where (user_a_id=$1 and user_b_id=$2) or (user_a_id=$2 and user_b_id=$1) order by id desc limit 1`,[userId,partnerId]);matchId=ex.rows[0]?.id;}if(matchId){s.matchIds[String(userId)]=matchId;s.matchIds[partnerId]=matchId;await this.infra.db.query(`insert into notifications(user_id,type,title,body,data) values($1,'match','Eşleştiniz 💚',$3,jsonb_build_object('matchId',$4::text,'userId',$2::text)),($2,'match','Eşleştiniz 💚',$5,jsonb_build_object('matchId',$4::text,'userId',$1::text))`,[userId,partnerId,`${rec.partnerName} ile oyun uyumunuz karşılıklı eşleşti.`,matchId,`${s.players.find(p=>p.id===String(userId))?.name??'Bir oyuncu'} ile oyun uyumunuz karşılıklı eşleşti.`]);}}}
     return this.view(s,String(userId));
   }
