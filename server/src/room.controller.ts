@@ -39,6 +39,19 @@ export class RoomController {
     }
   }
 
+  private async closeFinishedGameRoom(roomId: string) {
+    await this.infra.db.query(
+      `update rooms
+       set status='closed',
+           closed_at=coalesce(closed_at,now()),
+           closed_reason=coalesce(closed_reason,'game_finished')
+       where id=$1 and room_mode='game' and status in ('active','selection')`,
+      [roomId],
+    );
+    await this.realtime.broadcastRoomUpdate(roomId);
+    await this.realtime.broadcastQueueStatus();
+  }
+
   @Post('queue')
   async joinQueue(@Headers('authorization') authorization: string | undefined, @Body() body: JoinQueueDto) {
     const result = await this.rooms.joinQueue(await this.userId(authorization), body.roomDurationMinutes ?? 15) as Record<string, any>;
@@ -99,6 +112,7 @@ export class RoomController {
       state.phase = 'final';
       state.phaseEndsAt = new Date();
       await svc.buildSuggestions(state);
+      await this.closeFinishedGameRoom(roomId);
       return svc.view(state, String(userId));
     }
 
@@ -150,6 +164,7 @@ export class RoomController {
 
     state.finished = true;
     await svc.buildSuggestions(state);
+    await this.closeFinishedGameRoom(roomId);
     return svc.view(state, String(userId));
   }
 
