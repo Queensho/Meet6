@@ -36,13 +36,30 @@ class RedFlagGameApiService {
     String roomId, {
     int after = 0,
   }) async {
-    final data = await _request(
-      'GET',
-      '/api/rooms/$roomId/messages?after=$after',
-    );
-    final raw = data['messages'];
-    if (raw is! List) return const [];
-    return raw
+    final token = await SessionService.loadAuthSessionId();
+    if (token == null || token.isEmpty) {
+      throw const ApiException('Oturum bulunamadı.');
+    }
+    final response = await http
+        .get(
+          AppConfig.apiUri('/api/rooms/$roomId/messages?after=$after'),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Accept': 'application/json',
+          },
+        )
+        .timeout(const Duration(seconds: 15));
+    final decoded = response.body.trim().isEmpty
+        ? <dynamic>[]
+        : jsonDecode(response.body);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final message = decoded is Map
+          ? decoded['message']?.toString()
+          : null;
+      throw ApiException(message ?? 'Tartışma mesajları alınamadı.');
+    }
+    if (decoded is! List) return const [];
+    return decoded
         .whereType<Map>()
         .map((e) => Map<String, dynamic>.from(e))
         .toList();
