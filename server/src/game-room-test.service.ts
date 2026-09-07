@@ -249,8 +249,6 @@ export class GameRoomTestService {
       };
     }
 
-    // Test odasında gerçek kullanıcının önerilen botu da "eşleş" demiş sayılır;
-    // böylece karşılıklı akış uçtan uca denenebilir.
     const human = state.players.find((p) => !p.test);
     if (human) {
       const suggestion = state.suggestions[human.id];
@@ -267,7 +265,9 @@ export class GameRoomTestService {
     const matchId = state.matchIds[userId];
     if (matchId) return { status: 'matched', matchId };
     const choice = state.finalChoices[userId];
+    const partnerChoice = state.finalChoices[suggestion.partnerUserId];
     if (choice === 'continue') return { status: 'continue' };
+    if (choice === 'match' && partnerChoice === 'continue') return { status: 'no_match' };
     if (choice === 'match') return { status: 'waiting' };
     return { status: 'pending' };
   }
