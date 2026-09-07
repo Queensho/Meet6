@@ -21,15 +21,38 @@ class MiniGameRoomScreen extends StatefulWidget {
   State<MiniGameRoomScreen> createState() => _MiniGameRoomScreenState();
 }
 
-class _MiniGameRoomScreenState extends State<MiniGameRoomScreen> {
-  late final Future<String> _gameKeyFuture;
+class _MiniGameRoomScreenState extends State<MiniGameRoomScreen>
+    with WidgetsBindingObserver {
+  late Future<String> _gameKeyFuture;
   bool _leaving = false;
   bool _finishing = false;
+  int _resumeEpoch = 0;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _gameKeyFuture = _resolveGameKey();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed || !mounted) return;
+
+    // Browser/Android can throttle or completely pause Dart timers while the app
+    // is in the background. Mini-game time belongs to the server, so when the
+    // user returns we recreate the active game screen and fetch fresh state.
+    // This prevents a stale 00:00 screen from remaining on an old question/round.
+    setState(() {
+      _resumeEpoch += 1;
+      _gameKeyFuture = _resolveGameKey();
+    });
   }
 
   Future<String> _resolveGameKey() async {
@@ -75,6 +98,9 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen> {
     try {
       await MiniGameApiService.forceFinish(widget.roomId, gameKey: gameKey);
       if (!mounted) return;
+      // Recreate the child immediately so the force-finished server state is
+      // visible without waiting for that game's polling timer.
+      setState(() => _resumeEpoch += 1);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Oyun test için bitirildi. Eşleşme sonucu hazırlanıyor.'),
@@ -108,8 +134,10 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen> {
 
         final gameKey = snapshot.data ?? MiniGameSelectionService.selectedGameKey;
         final Widget game;
+        final childKey = ValueKey('${widget.roomId}:$_resumeEpoch:$gameKey');
         if (gameKey == 'red_flag_green_flag') {
           game = RedFlagGreenFlagRoomScreenV2(
+            key: childKey,
             roomId: widget.roomId,
             profileName: widget.profileName,
           );
@@ -118,6 +146,7 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen> {
             canPop: false,
             onPopInvokedWithResult: (_, __) => _goHome(),
             child: truths.MiniGameRoomScreen(
+              key: childKey,
               roomId: widget.roomId,
               profileName: widget.profileName,
             ),
