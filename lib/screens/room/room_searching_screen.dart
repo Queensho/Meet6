@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../services/api_service.dart';
 import '../../services/mini_game_selection_service.dart';
+import '../../services/party_matchmaking_service.dart';
 import '../../services/realtime_service.dart';
 import '../../services/room_queue_api_service.dart';
 import '../../services/voice_room_service.dart';
@@ -20,14 +21,17 @@ class RoomSearchingScreen extends StatefulWidget {
     this.profileName = '',
     this.roomDurationMinutes = 15,
     this.roomMode = 'text',
+    this.partyCode,
   });
 
   final String profileName;
   final int roomDurationMinutes;
   final String roomMode;
+  final String? partyCode;
 
   bool get voiceMode => roomMode == 'voice';
   bool get gameMode => roomMode == 'game';
+  bool get partyMode => partyCode != null && partyCode!.trim().isNotEmpty;
 
   @override
   State<RoomSearchingScreen> createState() => _RoomSearchingScreenState();
@@ -44,6 +48,8 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
   bool leavingForRoom = false;
   bool loading = true;
   bool firstConnectionSeen = false;
+  bool waitingFriend = false;
+  String? friendName;
   String? error;
   int queueTotal = 0;
   int queuePosition = 0;
@@ -53,6 +59,7 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
 
   String get _gameKey => MiniGameSelectionService.selectedGameKey;
   bool get _tabu => widget.gameMode && _gameKey == 'tabu';
+  String get _partyCode => widget.partyCode?.trim().toUpperCase() ?? '';
 
   @override
   void initState() {
@@ -62,7 +69,9 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
       duration: const Duration(milliseconds: 1800),
     )..repeat(reverse: true);
     _startVisualCountdown();
-    if (widget.gameMode) {
+    if (widget.partyMode) {
+      unawaited(_joinParty());
+    } else if (widget.gameMode) {
       unawaited(_joinGameQueue());
     } else {
       unawaited(_startRealtime());
@@ -71,7 +80,7 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
 
   void _startVisualCountdown() {
     visualCountdownTimer?.cancel();
-    if (widget.gameMode) return;
+    if (widget.gameMode || widget.partyMode) return;
     cycleDurationSeconds = 15;
     secondsLeft = 15;
     visualCountdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -109,7 +118,7 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
   }
 
   void _onRealtimeEvent(RealtimeEvent event) {
-    if (!mounted || leavingForRoom || widget.gameMode) return;
+    if (!mounted || leavingForRoom || widget.gameMode || widget.partyMode) return;
     if (event.type == 'connection:connected') {
       if (firstConnectionSeen) {
         unawaited(_joinStandardQueue());
@@ -147,6 +156,31 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
     }
   }
 
+  Future<void> _joinParty({bool statusOnly = false}) async {
+    if (joining || leavingForRoom || !mounted) return;
+    joining = true;
+    try {
+      final data = statusOnly
+          ? await PartyMatchmakingService.status(_partyCode)
+          : await PartyMatchmakingService.search(_partyCode);
+      if (!mounted) return;
+      final rawParty = data['party'];
+      final party = rawParty is Map ? Map<String, dynamic>.from(rawParty) : <String, dynamic>{};
+      setState(() {
+        waitingFriend = data['state']?.toString() == 'waiting_friend';
+        friendName = party['guestName']?.toString();
+      });
+      await _handleStatus(data);
+      if (!leavingForRoom && data['state']?.toString() != 'room' && data['state']?.toString() != 'idle') {
+        _schedulePartyPoll((data['nextRetrySeconds'] as num?)?.toInt() ?? 2);
+      }
+    } on ApiException catch (e) {
+      if (mounted) setState(() { loading = false; error = e.message; });
+    } finally {
+      joining = false;
+    }
+  }
+
   Future<void> _joinGameQueue({bool statusOnly = false}) async {
     if (joining || leavingForRoom || !mounted) return;
     joining = true;
@@ -171,6 +205,28 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
     } finally {
       joining = false;
     }
+  }
+
+  void _schedulePartyPoll(int seconds) {
+    pollTimer?.cancel();
+    final wait = seconds.clamp(2, 10).toInt();
+    setState(() {
+      cycleDurationSeconds = wait;
+      secondsLeft = wait;
+    });
+    pollTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted || leavingForRoom) {
+        timer.cancel();
+        return;
+      }
+      if (secondsLeft <= 1) {
+        timer.cancel();
+        setState(() => secondsLeft = 0);
+        unawaited(_joinParty());
+      } else {
+        setState(() => secondsLeft--);
+      }
+    });
   }
 
   void _scheduleGamePoll(int seconds) {
@@ -221,7 +277,7 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
         final enrichedRoom = <String, dynamic>{
           ...room,
           'roomMode': 'game',
-          'gameKey': _gameKey,
+          'gameKey': data['gameKey']?.toString() ?? _gameKey,
         };
         RealtimeService.publishActiveRoom(enrichedRoom);
         try {
@@ -250,8 +306,8 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
     if (!mounted) return;
     setState(() {
       loading = false;
-      error = null;
-      queueTotal = (data['total'] as num?)?.toInt() ?? 0;
+      error = state == 'idle' ? 'Davet sona erdi.' : null;
+      queueTotal = (data['total'] as num?)?.toInt() ?? (widget.partyMode ? (waitingFriend ? 1 : 2) : 0);
       queuePosition = (data['position'] as num?)?.toInt() ?? 0;
     });
   }
@@ -260,7 +316,9 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
     pollTimer?.cancel();
     visualCountdownTimer?.cancel();
     try {
-      if (widget.gameMode) {
+      if (widget.partyMode) {
+        await PartyMatchmakingService.cancel(_partyCode);
+      } else if (widget.gameMode) {
         if (_tabu) {
           await RoomQueueApiService.cancelTabuQueue();
         } else {
@@ -296,7 +354,9 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
     visualCountdownTimer?.cancel();
     pulse.dispose();
     if (!leavingForRoom) {
-      if (widget.gameMode) {
+      if (widget.partyMode) {
+        unawaited(PartyMatchmakingService.cancel(_partyCode).catchError((_) => <String, dynamic>{}));
+      } else if (widget.gameMode) {
         if (_tabu) {
           unawaited(RoomQueueApiService.cancelTabuQueue().catchError((_) => <String, dynamic>{}));
         } else {
@@ -356,7 +416,12 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (widget.voiceMode)
+                    if (widget.partyMode)
+                      Text(
+                        '${queueTotal.clamp(1, 6)}/6',
+                        style: const TextStyle(color: AppColors.navy, fontSize: 54, fontWeight: FontWeight.w900, height: .95, letterSpacing: -2),
+                      )
+                    else if (widget.voiceMode)
                       const Icon(Icons.mic_rounded, color: AppColors.navy, size: 46)
                     else if (widget.gameMode)
                       const Icon(Icons.sports_esports_rounded, color: AppColors.navy, size: 48)
@@ -365,13 +430,19 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                         leavingForRoom ? '6' : '${secondsLeft.clamp(0, 999)}',
                         style: const TextStyle(color: AppColors.navy, fontSize: 70, fontWeight: FontWeight.w900, height: .9, letterSpacing: -3),
                       ),
-                    if (widget.voiceMode || widget.gameMode) ...[
+                    if (!widget.partyMode && (widget.voiceMode || widget.gameMode)) ...[
                       const SizedBox(height: 5),
                       Text(leavingForRoom ? 'Hazır' : '${secondsLeft.clamp(0, 999)} sn', style: const TextStyle(color: AppColors.navy, fontSize: 19, fontWeight: FontWeight.w900)),
                     ],
                     const SizedBox(height: 9),
                     Text(
-                      widget.voiceMode ? '1’e 1 eşleşme' : widget.gameMode ? '6 kişilik oyun' : '6 kişilik oda',
+                      widget.partyMode
+                          ? (waitingFriend ? 'arkadaş bekleniyor' : '2 arkadaş + sistem')
+                          : widget.voiceMode
+                              ? '1’e 1 eşleşme'
+                              : widget.gameMode
+                                  ? '6 kişilik oyun'
+                                  : '6 kişilik oda',
                       style: const TextStyle(color: AppColors.navy, fontSize: 12, fontWeight: FontWeight.w900),
                     ),
                   ],
@@ -397,7 +468,19 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
       title = 'Bağlantı sorunu'; subtitle = error!;
     } else if (leavingForRoom) {
       title = widget.gameMode ? '$_gameName odası hazır!' : 'Eşleşme bulundu!';
-      subtitle = widget.gameMode ? '6 oyuncu hazır. Oyun başlıyor.' : widget.voiceMode ? '2 kişi hazır. Sesli görüşmeye bağlanıyorsun.' : '6 kişi hazır. Odaya bağlanıyorsun.';
+      subtitle = widget.partyMode
+          ? 'Sen, arkadaşın ve 4 Meet6 kullanıcısı hazır.'
+          : widget.gameMode
+              ? '6 oyuncu hazır. Oyun başlıyor.'
+              : widget.voiceMode
+                  ? '2 kişi hazır. Sesli görüşmeye bağlanıyorsun.'
+                  : '6 kişi hazır. Odaya bağlanıyorsun.';
+    } else if (widget.partyMode && waitingFriend) {
+      title = 'Arkadaşın bekleniyor...';
+      subtitle = 'Davet kodu: $_partyCode\nArkadaşın kodu kabul edince kalan 4 kişiyi Meet6 bulacak.';
+    } else if (widget.partyMode) {
+      title = friendName?.trim().isNotEmpty == true ? '${friendName!} katıldı · 4 kişi aranıyor...' : 'Arkadaşın katıldı · 4 kişi aranıyor...';
+      subtitle = '${queueTotal.clamp(2, 6)}/6 hazır. Siz aynı odada kalırsınız; kalan kişileri sistem eşleştirir.';
     } else if (widget.gameMode) {
       title = '$_gameName için 6 oyuncu aranıyor...';
       subtitle = queueTotal > 0 ? 'Havuzda $queueTotal kişi var. Sıra konumun: $queuePosition' : '6 gerçek oyuncu hazır olduğunda oyun otomatik başlayacak.';
@@ -426,15 +509,19 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
               const SizedBox(height: 26),
               Text(title, textAlign: TextAlign.center, style: TextStyle(color: text, fontSize: 26, fontWeight: FontWeight.w900, letterSpacing: -.7)),
               const SizedBox(height: 10),
-              Text(subtitle, textAlign: TextAlign.center, style: TextStyle(color: text.withOpacity(.62), fontSize: 15, height: 1.35, fontWeight: FontWeight.w700)),
+              Text(subtitle, textAlign: TextAlign.center, style: TextStyle(color: text.withOpacity(.68), fontSize: 15, height: 1.35, fontWeight: FontWeight.w700)),
               if (!leavingForRoom && error == null) ...[
                 const SizedBox(height: 16),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
-                  decoration: BoxDecoration(color: text.withOpacity(.055), borderRadius: BorderRadius.circular(999)),
+                  decoration: BoxDecoration(color: text.withOpacity(.075), borderRadius: BorderRadius.circular(999)),
                   child: Text(
-                    widget.gameMode ? 'Yeni kontrol ${secondsLeft.clamp(0, 999)} sn sonra' : 'Arama turu $searchCycle',
-                    style: TextStyle(color: text.withOpacity(.55), fontSize: 12, fontWeight: FontWeight.w800),
+                    widget.partyMode
+                        ? (waitingFriend ? 'Kod: $_partyCode' : 'Yeni kontrol ${secondsLeft.clamp(0, 999)} sn sonra')
+                        : widget.gameMode
+                            ? 'Yeni kontrol ${secondsLeft.clamp(0, 999)} sn sonra'
+                            : 'Arama turu $searchCycle',
+                    style: TextStyle(color: text.withOpacity(.62), fontSize: 12, fontWeight: FontWeight.w800),
                   ),
                 ),
               ],
@@ -446,10 +533,10 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                   onPressed: _cancel,
                   style: OutlinedButton.styleFrom(
                     foregroundColor: text,
-                    side: BorderSide(color: text.withOpacity(.2)),
+                    side: BorderSide(color: text.withOpacity(.24)),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
                   ),
-                  child: const Text('Aramayı iptal et', style: TextStyle(fontWeight: FontWeight.w800)),
+                  child: Text(widget.partyMode ? 'Davet / aramayı iptal et' : 'Aramayı iptal et', style: const TextStyle(fontWeight: FontWeight.w800)),
                 ),
               ),
             ],
