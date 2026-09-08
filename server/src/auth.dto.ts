@@ -15,3 +15,23 @@ export class VerifyOtpDto {
   @Length(6, 6)
   code!: string;
 }
+
+export class RegisterPasswordDto {
+  @IsString()
+  @Length(10, 20)
+  phone!: string;
+
+  @IsString()
+  @Length(8, 72)
+  password!: string;
+}
+
+export class LoginPasswordDto {
+  @IsString()
+  @Length(10, 20)
+  phone!: string;
+
+  @IsString()
+  @Length(8, 72)
+  password!: string;
+}
