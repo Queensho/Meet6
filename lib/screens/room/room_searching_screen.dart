@@ -189,6 +189,22 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
           queuePosition = 1;
         });
       }
+
+      if (widget.gameMode) {
+        try {
+          // Game queues are HTTP based. Re-publish the already-created room
+          // through the rooms socket so Home receives queue:matched while it
+          // is still mounted underneath this route. This makes the first back
+          // navigation show the Dön / Ayrıl card without a manual refresh.
+          await RealtimeService.connect();
+          await RealtimeService.joinQueue();
+        } catch (_) {
+          // The room itself is already valid; navigation must not fail if the
+          // realtime bridge is temporarily unavailable. Home can still recover
+          // it from /room-session/current later.
+        }
+      }
+
       await Future<void>.delayed(const Duration(milliseconds: 250));
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
