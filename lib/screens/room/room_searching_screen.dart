@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../services/api_service.dart';
+import '../../services/mini_game_selection_service.dart';
 import '../../services/realtime_service.dart';
 import '../../services/room_queue_api_service.dart';
 import '../../services/voice_room_service.dart';
@@ -12,6 +13,7 @@ import '../../widgets/phone_frame.dart';
 import '../chat/room_chat_screen.dart';
 import '../chat/voice_room_screen.dart';
 import 'mini_game_room_screen.dart';
+import 'tabu_room_screen.dart';
 
 class RoomSearchingScreen extends StatefulWidget {
   const RoomSearchingScreen({
@@ -222,10 +224,15 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                   profileName: widget.profileName,
                 )
               : widget.gameMode
-                  ? MiniGameRoomScreen(
-                      roomId: roomId,
-                      profileName: widget.profileName,
-                    )
+                  ? (MiniGameSelectionService.selectedGameKey == 'tabu'
+                      ? TabuRoomScreen(
+                          roomId: roomId,
+                          profileName: widget.profileName,
+                        )
+                      : MiniGameRoomScreen(
+                          roomId: roomId,
+                          profileName: widget.profileName,
+                        ))
                   : RoomChatScreen(
                       roomId: roomId,
                       profileName: widget.profileName,
