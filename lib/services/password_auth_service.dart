@@ -9,10 +9,30 @@ import 'observability_service.dart';
 class PasswordAuthService {
   const PasswordAuthService._();
 
+  static Future<AuthResult> Function({
+    required String phone,
+    required String password,
+  })? debugRegisterOverride;
+
+  static Future<AuthResult> Function({
+    required String phone,
+    required String password,
+  })? debugLoginOverride;
+
+  static void debugResetTestHooks() {
+    debugRegisterOverride = null;
+    debugLoginOverride = null;
+  }
+
   static Future<AuthResult> register({
     required String phone,
     required String password,
   }) async {
+    final fake = debugRegisterOverride;
+    if (fake != null) {
+      return fake(phone: phone, password: password);
+    }
+
     final response = await http
         .post(
           AppConfig.apiUri('/api/auth/register'),
@@ -30,6 +50,11 @@ class PasswordAuthService {
     required String phone,
     required String password,
   }) async {
+    final fake = debugLoginOverride;
+    if (fake != null) {
+      return fake(phone: phone, password: password);
+    }
+
     final response = await http
         .post(
           AppConfig.apiUri('/api/auth/login'),
