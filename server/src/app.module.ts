@@ -22,6 +22,8 @@ import { ContentSafetyService } from './content-safety.service';
 import { GameRoomTestService } from './game-room-test.service';
 import { RedFlagGameService } from './red-flag-game.service';
 import { TabuGameService } from './tabu-game.service';
+import { TabuWordRepository } from './tabu-word.repository';
+import { TabuGateway } from './tabu.gateway';
 import { GiftController } from './gift.controller';
 import { GiftService } from './gift.service';
 import { HealthController } from './health.controller';
@@ -57,10 +59,10 @@ import { VoiceRoomService } from './voice-room.service';
   providers: [
     InfrastructureService, RuntimeSettingsService, ContentSafetyService, AuthService, ProfileService,
     BillingService, CoinPurchaseService, GiftService, RoomService, GameRoomTestService, RedFlagGameService,
-    TabuGameService, RoomRefillService, VoiceRoomService, RoomMessageService, SocialService, ReportService,
-    SupportService, PushService, RoomsGateway, PrivateMessageGateway, MatchmakingSchedulerService, AdminService,
-    AdminRoomService, AdminMatchService, AdminReportService, AdminSupportService, AdminGovernanceService,
-    AdminSettingsService, AdminSafetyService,
+    TabuWordRepository, TabuGameService, TabuGateway, RoomRefillService, VoiceRoomService, RoomMessageService,
+    SocialService, ReportService, SupportService, PushService, RoomsGateway, PrivateMessageGateway,
+    MatchmakingSchedulerService, AdminService, AdminRoomService, AdminMatchService, AdminReportService,
+    AdminSupportService, AdminGovernanceService, AdminSettingsService, AdminSafetyService,
   ],
 })
 export class AppModule {}
