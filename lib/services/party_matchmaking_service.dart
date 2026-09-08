@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/app_config.dart';
 import 'api_service.dart';
@@ -8,6 +9,46 @@ import 'session_service.dart';
 
 class PartyMatchmakingService {
   const PartyMatchmakingService._();
+
+  static const _partnerKey = 'meet6_active_party_partner_user_id';
+
+  static Future<void> _rememberPartner(Map<String, dynamic> result) async {
+    final prefs = await SharedPreferences.getInstance();
+    final state = result['state']?.toString() ?? '';
+    final rawParty = result['party'];
+    if (state == 'idle' || rawParty is! Map) {
+      await prefs.remove(_partnerKey);
+      return;
+    }
+
+    final party = Map<String, dynamic>.from(rawParty);
+    final myId = await SessionService.loadAuthUserId();
+    final ownerId = party['ownerUserId']?.toString() ?? '';
+    final guestId = party['guestUserId']?.toString() ?? '';
+    String partnerId = '';
+    if (myId != null && myId == ownerId) {
+      partnerId = guestId;
+    } else if (myId != null && myId == guestId) {
+      partnerId = ownerId;
+    }
+
+    if (partnerId.isEmpty || partnerId == 'null') {
+      await prefs.remove(_partnerKey);
+    } else {
+      await prefs.setString(_partnerKey, partnerId);
+    }
+  }
+
+  static Future<String?> loadActivePartnerUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    final value = prefs.getString(_partnerKey)?.trim();
+    return value == null || value.isEmpty ? null : value;
+  }
+
+  static Future<void> clearActivePartner() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_partnerKey);
+  }
 
   static Future<Map<String, dynamic>> _request(
     String method,
@@ -47,6 +88,7 @@ class PartyMatchmakingService {
       final raw = result['message'];
       throw ApiException(raw is List ? raw.join('\n') : raw?.toString() ?? 'İstek tamamlanamadı.');
     }
+    await _rememberPartner(result);
     return result;
   }
 
@@ -89,10 +131,12 @@ class PartyMatchmakingService {
     );
   }
 
-  static Future<Map<String, dynamic>> cancel(String code) {
-    return _request(
+  static Future<Map<String, dynamic>> cancel(String code) async {
+    final result = await _request(
       'DELETE',
       '/api/rooms/party?code=${Uri.encodeQueryComponent(code.trim().toUpperCase())}',
     );
+    await clearActivePartner();
+    return result;
   }
 }
