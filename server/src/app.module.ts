@@ -22,6 +22,7 @@ import { ContentSafetyService } from './content-safety.service';
 import { GameRoomTestService } from './game-room-test.service';
 import { RedFlagGameService } from './red-flag-game.service';
 import { TabuGameService } from './tabu-game.service';
+import { TabuQueueController } from './tabu-queue.controller';
 import { TabuWordRepository } from './tabu-word.repository';
 import { TabuGateway } from './tabu.gateway';
 import { GiftController } from './gift.controller';
@@ -53,7 +54,7 @@ import { VoiceRoomService } from './voice-room.service';
   imports: [ConfigModule.forRoot({ isGlobal: true, envFilePath: ['../.env', '.env'] })],
   controllers: [
     HealthController, AppConfigController, AuthController, ProfileController, BillingController,
-    CoinPurchaseController, GiftController, RoomController, VoiceRoomController, ActiveRoomController,
+    CoinPurchaseController, GiftController, RoomController, TabuQueueController, VoiceRoomController, ActiveRoomController,
     RoomControlController, SocialController, SupportController, PushController, AdminController,
   ],
   providers: [
