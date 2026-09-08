@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
 import '../services/app_runtime_config_service.dart';
+import '../services/party_invite_link_service.dart';
 import '../services/push_notification_service.dart';
 import '../services/realtime_service.dart';
 import '../services/session_service.dart';
@@ -11,6 +12,7 @@ import '../theme/app_colors.dart';
 import '../widgets/brand.dart';
 import 'home/home_screen.dart';
 import 'login_screen.dart';
+import 'room/party_invite_accept_screen.dart';
 
 class SessionGate extends StatefulWidget {
   const SessionGate({super.key});
@@ -42,12 +44,14 @@ class _SessionGateState extends State<SessionGate> {
   }
 
   Future<Widget> _resolveAuthenticatedLanding(SavedSession session) async {
-    // Always land on Home first. Home already knows how to recover an active room
-    // and shows the "Odaya dön" action. Auto-opening a raw room here caused game
-    // rooms (for example Red Flag / Green Flag) to be rendered as RoomChatScreen.
-    // Keeping recovery on Home also makes Android back from a mini-game predictable:
-    // mini-game -> Home -> "Odaya dön" -> correct mini-game screen.
     _startAuthenticatedServices();
+    final pendingInvite = await PartyInviteLinkService.pendingCode();
+    if (pendingInvite != null && pendingInvite.isNotEmpty) {
+      return PartyInviteAcceptScreen(
+        code: pendingInvite,
+        profileName: session.profileName,
+      );
+    }
     return _home(session);
   }
 
@@ -97,12 +101,26 @@ class _SessionGateState extends State<SessionGate> {
       }
       if (local != null) {
         _startAuthenticatedServices();
+        final pendingInvite = await PartyInviteLinkService.pendingCode();
+        if (pendingInvite != null && pendingInvite.isNotEmpty) {
+          return PartyInviteAcceptScreen(
+            code: pendingInvite,
+            profileName: local.profileName,
+          );
+        }
         return _home(local);
       }
       return const LoginScreen();
     } catch (_) {
       if (local != null) {
         _startAuthenticatedServices();
+        final pendingInvite = await PartyInviteLinkService.pendingCode();
+        if (pendingInvite != null && pendingInvite.isNotEmpty) {
+          return PartyInviteAcceptScreen(
+            code: pendingInvite,
+            profileName: local.profileName,
+          );
+        }
         return _home(local);
       }
       return const LoginScreen();
