@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -78,7 +79,9 @@ class _TabuRoomScreenState extends State<TabuRoomScreen> {
   int _secondsLeft(String key) {
     final end = DateTime.tryParse(state?[key]?.toString() ?? '');
     if (end == null) return 0;
-    return end.difference(DateTime.now()).inSeconds.clamp(0, 999);
+    final ms = end.difference(DateTime.now()).inMilliseconds;
+    if (ms <= 0) return 0;
+    return math.min(999, (ms / 1000).ceil());
   }
 
   String _photo(Map<String, dynamic> p) {
@@ -191,7 +194,7 @@ class _TabuRoomScreenState extends State<TabuRoomScreen> {
     }
   }
 
-  Widget _avatar(Map<String, dynamic> p, {double radius = 25, bool ring = false}) {
+  Widget _avatar(Map<String, dynamic> p, {double radius = 25, bool ring = false, Color? ringColor}) {
     final name = p['name']?.toString() ?? 'Oyuncu';
     final photo = _photo(p);
     return Container(
@@ -200,7 +203,7 @@ class _TabuRoomScreenState extends State<TabuRoomScreen> {
       padding: EdgeInsets.all(ring ? 3 : 0),
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: ring ? Border.all(color: lime, width: 3) : null,
+        border: ring ? Border.all(color: ringColor ?? lime, width: 3) : null,
       ),
       child: ClipOval(
         child: photo.isEmpty
@@ -316,11 +319,7 @@ class _TabuRoomScreenState extends State<TabuRoomScreen> {
                 Positioned(
                   right: -1,
                   bottom: 2,
-                  child: Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(color: const Color(0xFF16A13A), shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 1.5)),
-                  ),
+                  child: Container(width: 10, height: 10, decoration: BoxDecoration(color: const Color(0xFF16A13A), shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 1.5))),
                 ),
               ]),
               const SizedBox(height: 4),
@@ -353,7 +352,9 @@ class _TabuRoomScreenState extends State<TabuRoomScreen> {
 
   Widget _narratorCard() {
     final target = state?['target']?.toString() ?? '';
-    final forbidden = state?['forbidden'] is List ? (state!['forbidden'] as List).map((e) => e.toString()).toList() : const <String>[];
+    final forbidden = state?['forbidden'] is List
+        ? (state!['forbidden'] as List).map((e) => e.toString()).toList()
+        : const <String>[];
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 4, 16, 10),
       padding: const EdgeInsets.fromLTRB(22, 24, 22, 20),
@@ -369,11 +370,16 @@ class _TabuRoomScreenState extends State<TabuRoomScreen> {
         const SizedBox(height: 22),
         const Text('Yasaklı kelimeler (kullanamazsın)', style: TextStyle(color: Color(0xFFBFC4D5), fontSize: 13, fontWeight: FontWeight.w800)),
         const SizedBox(height: 13),
-        Wrap(spacing: 9, runSpacing: 9, alignment: WrapAlignment.center, children: forbidden.map((w) => Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(color: coral, borderRadius: BorderRadius.circular(23)),
-          child: Text(w, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w900)),
-        )).toList()),
+        Wrap(
+          spacing: 9,
+          runSpacing: 9,
+          alignment: WrapAlignment.center,
+          children: forbidden.map((w) => Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(color: coral, borderRadius: BorderRadius.circular(23)),
+            child: Text(w, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w900)),
+          )).toList(),
+        ),
         const SizedBox(height: 18),
         Container(
           width: double.infinity,
@@ -399,23 +405,13 @@ class _TabuRoomScreenState extends State<TabuRoomScreen> {
         borderRadius: BorderRadius.circular(28),
       ),
       child: Row(children: [
-        Container(
-          width: 72,
-          height: 72,
-          decoration: const BoxDecoration(color: navy, shape: BoxShape.circle),
-          child: const Icon(Icons.campaign_rounded, color: lime, size: 42),
-        ),
+        Container(width: 72, height: 72, decoration: const BoxDecoration(color: navy, shape: BoxShape.circle), child: const Icon(Icons.campaign_rounded, color: lime, size: 42)),
         const SizedBox(width: 18),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('$narrator anlatıyor', style: const TextStyle(color: navy, fontSize: 24, height: 1.05, fontWeight: FontWeight.w900, letterSpacing: -.6)),
-            const SizedBox(height: 8),
-            const Text(
-              'Hedef kelime ve yasaklı kelimeler sana gösterilmez.\nİlk doğru tahmin +20 XP.',
-              style: TextStyle(color: Color(0xFF666D7D), fontSize: 14.5, height: 1.35, fontWeight: FontWeight.w600),
-            ),
-          ]),
-        ),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('$narrator anlatıyor', style: const TextStyle(color: navy, fontSize: 24, height: 1.05, fontWeight: FontWeight.w900, letterSpacing: -.6)),
+          const SizedBox(height: 8),
+          const Text('Hedef kelime ve yasaklı kelimeler sana gösterilmez.\nİlk doğru tahmin +20 XP.', style: TextStyle(color: Color(0xFF666D7D), fontSize: 14.5, height: 1.35, fontWeight: FontWeight.w600)),
+        ])),
       ]),
     );
   }
@@ -426,17 +422,11 @@ class _TabuRoomScreenState extends State<TabuRoomScreen> {
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
-        decoration: BoxDecoration(
-          color: correct ? const Color(0xFFE9FFD1) : const Color(0xFFF0ECFF),
-          borderRadius: BorderRadius.circular(16),
-        ),
+        decoration: BoxDecoration(color: correct ? const Color(0xFFE9FFD1) : const Color(0xFFF0ECFF), borderRadius: BorderRadius.circular(16)),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(correct ? Icons.check_circle_rounded : Icons.group_rounded, color: correct ? const Color(0xFF71D82C) : const Color(0xFF583DF2), size: 23),
           const SizedBox(width: 9),
-          Text(
-            correct ? 'Doğru tahmin için\ndevam edin!' : 'Sadece tahmin yazın,\nsohbet etmeyin.',
-            style: TextStyle(color: correct ? navy : const Color(0xFF4938C8), fontSize: 12.5, height: 1.25, fontWeight: FontWeight.w800),
-          ),
+          Text(correct ? 'Doğru tahmin için\ndevam edin!' : 'Sadece tahmin yazın,\nsohbet etmeyin.', style: TextStyle(color: correct ? navy : const Color(0xFF4938C8), fontSize: 12.5, height: 1.25, fontWeight: FontWeight.w800)),
         ]),
       ),
     );
@@ -473,6 +463,8 @@ class _TabuRoomScreenState extends State<TabuRoomScreen> {
         final userId = m['userId']?.toString() ?? m['senderUserId']?.toString() ?? '';
         final p = byId(userId) ?? <String, dynamic>{'name': m['name']?.toString() ?? 'Oyuncu'};
         final name = m['name']?.toString() ?? p['name']?.toString() ?? 'Oyuncu';
+        final at = DateTime.tryParse(m['at']?.toString() ?? '');
+        final time = at == null ? '' : '${at.toLocal().hour.toString().padLeft(2, '0')}:${at.toLocal().minute.toString().padLeft(2, '0')}';
 
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
@@ -482,22 +474,20 @@ class _TabuRoomScreenState extends State<TabuRoomScreen> {
               Positioned(right: 1, bottom: 1, child: Container(width: 9, height: 9, decoration: BoxDecoration(color: const Color(0xFF16A13A), shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 1.2)))),
             ]),
             const SizedBox(width: 10),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  Flexible(child: Text(narratorMsg ? '$name (Anlatıyor)' : name, overflow: TextOverflow.ellipsis, style: TextStyle(color: narratorMsg ? const Color(0xFF1E79E9) : navy, fontSize: 13, fontWeight: FontWeight.w900))),
-                  const SizedBox(width: 10),
-                  Text(m['time']?.toString() ?? '', style: const TextStyle(color: Color(0xFFA5A9B7), fontSize: 11.5)),
-                ]),
-                const SizedBox(height: 5),
-                Container(
-                  constraints: const BoxConstraints(maxWidth: 330),
-                  padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
-                  decoration: BoxDecoration(color: narratorMsg ? paleBlue : const Color(0xFFF0F1F5), borderRadius: BorderRadius.circular(16)),
-                  child: Text(m['text']?.toString() ?? '', style: const TextStyle(color: navy, fontSize: 14.5, height: 1.3, fontWeight: FontWeight.w600)),
-                ),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Flexible(child: Text(narratorMsg ? '$name (Anlatıyor)' : name, overflow: TextOverflow.ellipsis, style: TextStyle(color: narratorMsg ? const Color(0xFF1E79E9) : navy, fontSize: 13, fontWeight: FontWeight.w900))),
+                const SizedBox(width: 10),
+                Text(time, style: const TextStyle(color: Color(0xFFA5A9B7), fontSize: 11.5)),
               ]),
-            ),
+              const SizedBox(height: 5),
+              Container(
+                constraints: const BoxConstraints(maxWidth: 330),
+                padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 11),
+                decoration: BoxDecoration(color: narratorMsg ? paleBlue : const Color(0xFFF0F1F5), borderRadius: BorderRadius.circular(16)),
+                child: Text(m['text']?.toString() ?? '', style: const TextStyle(color: navy, fontSize: 14.5, height: 1.3, fontWeight: FontWeight.w600)),
+              ),
+            ])),
           ]),
         );
       },
@@ -532,47 +522,44 @@ class _TabuRoomScreenState extends State<TabuRoomScreen> {
             ),
             const SizedBox(width: 10),
           ],
-          Expanded(
-            child: Column(children: [
-              SizedBox(
-                height: narrator ? 52 : 58,
-                child: TextField(
-                  controller: input,
-                  enabled: enabled,
-                  textInputAction: TextInputAction.send,
-                  onSubmitted: (_) => _send(),
-                  maxLength: narrator ? 200 : 80,
-                  textAlignVertical: TextAlignVertical.center,
-                  style: const TextStyle(color: navy, fontSize: 15, fontWeight: FontWeight.w700),
-                  decoration: InputDecoration(
-                    counterText: '',
-                    hintText: narrator ? 'Mesajını yaz, kelimeyi anlat...' : 'Tahminini yaz...',
-                    hintStyle: const TextStyle(color: Color(0xFFB1B5C3), fontSize: 15, fontWeight: FontWeight.w700),
-                    filled: true,
-                    fillColor: const Color(0xFFF7F8FB),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 18),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: const BorderSide(color: Color(0xFFDDE1EA))),
-                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: const BorderSide(color: Color(0xFFDDE1EA))),
-                    focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: const BorderSide(color: Color(0xFFC9D0DE))),
-                  ),
+          Expanded(child: Column(children: [
+            SizedBox(
+              height: narrator ? 52 : 58,
+              child: TextField(
+                controller: input,
+                enabled: enabled,
+                textInputAction: TextInputAction.send,
+                onSubmitted: (_) => _send(),
+                maxLength: narrator ? 200 : 80,
+                textAlignVertical: TextAlignVertical.center,
+                style: const TextStyle(color: navy, fontSize: 15, fontWeight: FontWeight.w700),
+                decoration: InputDecoration(
+                  counterText: '',
+                  hintText: narrator ? 'Mesajını yaz, kelimeyi anlat...' : 'Tahminini yaz...',
+                  hintStyle: const TextStyle(color: Color(0xFFB1B5C3), fontSize: 15, fontWeight: FontWeight.w700),
+                  filled: true,
+                  fillColor: const Color(0xFFF7F8FB),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 18),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: const BorderSide(color: Color(0xFFDDE1EA))),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: const BorderSide(color: Color(0xFFDDE1EA))),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: const BorderSide(color: Color(0xFFC9D0DE))),
+                  disabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: const BorderSide(color: Color(0xFFDDE1EA))),
                 ),
               ),
-              if (narrator) ...[
-                const SizedBox(height: 5),
-                Align(alignment: Alignment.centerRight, child: Text('${input.text.length}/200', style: const TextStyle(color: Color(0xFF9AA0B0), fontSize: 10.5))),
-              ],
-            ]),
-          ),
+            ),
+            if (narrator) ...[
+              const SizedBox(height: 5),
+              Align(alignment: Alignment.centerRight, child: Text('${input.text.length}/200', style: const TextStyle(color: Color(0xFF9AA0B0), fontSize: 10.5))),
+            ],
+          ])),
           const SizedBox(width: 12),
           SizedBox(
             width: narrator ? 56 : 60,
             height: narrator ? 56 : 60,
             child: IconButton.filled(
               onPressed: enabled ? _send : null,
-              style: IconButton.styleFrom(backgroundColor: navy, foregroundColor: lime, disabledBackgroundColor: navy),
-              icon: sending
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: lime))
-                  : const Icon(Icons.send_rounded, size: 30),
+              style: IconButton.styleFrom(backgroundColor: navy, foregroundColor: lime, disabledBackgroundColor: navy, disabledForegroundColor: lime.withOpacity(.45)),
+              icon: sending ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: lime)) : const Icon(Icons.send_rounded, size: 30),
             ),
           ),
         ]),
@@ -587,32 +574,138 @@ class _TabuRoomScreenState extends State<TabuRoomScreen> {
     return null;
   }
 
-  Widget _result() {
-    final result = state?['lastResult'] is Map ? Map<String, dynamic>.from(state!['lastResult'] as Map) : <String, dynamic>{};
+  Widget _countdownBar() {
+    return Container(
+      height: 58,
+      padding: const EdgeInsets.symmetric(horizontal: 22),
+      decoration: BoxDecoration(color: lime, borderRadius: BorderRadius.circular(30)),
+      child: Row(children: [
+        const Expanded(child: Text('Devam ediyor...', textAlign: TextAlign.center, style: TextStyle(color: navy, fontSize: 17, fontWeight: FontWeight.w900))),
+        Text('${_secondsLeft('phaseEndsAt')} sn', style: const TextStyle(color: navy, fontSize: 17, fontWeight: FontWeight.w900)),
+        const SizedBox(width: 5),
+        const Icon(Icons.chevron_right_rounded, color: navy, size: 28),
+      ]),
+    );
+  }
+
+  Widget _resultOverlay() {
+    final result = state?['lastResult'] is Map
+        ? Map<String, dynamic>.from(state!['lastResult'] as Map)
+        : <String, dynamic>{};
     final kind = result['kind']?.toString() ?? '';
-    final correct = kind == 'correct';
-    final tabu = kind == 'tabu';
     final target = result['target']?.toString() ?? '';
 
-    if (!correct) {
-      final title = tabu ? 'TABU!' : '$target pas geçildi';
-      final subtitle = tabu
-          ? (state?['isNarrator'] == true ? 'Yasaklı kelime: ${result['forbiddenWord'] ?? ''} · −10 XP' : 'Anlatıcı tabu yaptı · −10 XP')
-          : 'Yeni kelime geliyor...';
-      return Center(
-        child: Container(
-          margin: const EdgeInsets.all(24),
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(28)),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(tabu ? Icons.block_rounded : Icons.skip_next_rounded, color: tabu ? coral : const Color(0xFF77839B), size: 58),
-            const SizedBox(height: 12),
-            Text(title, style: const TextStyle(color: navy, fontSize: 25, fontWeight: FontWeight.w900)),
-            const SizedBox(height: 8),
-            Text(subtitle, textAlign: TextAlign.center, style: const TextStyle(color: Color(0xFF70778B), fontWeight: FontWeight.w800)),
-          ]),
+    if (kind == 'tabu') {
+      final narratorName = result['narratorName']?.toString() ?? 'Anlatıcı';
+      final narrator = _playerByName(narratorName) ?? <String, dynamic>{'name': narratorName};
+      final forbiddenWord = result['forbiddenWord']?.toString() ?? 'Yasaklı kelime';
+
+      return Stack(children: [
+        Positioned.fill(child: Container(color: const Color(0xFF10172A).withOpacity(.58))),
+        Center(
+          child: Container(
+            width: 370,
+            margin: const EdgeInsets.symmetric(horizontal: 24),
+            padding: const EdgeInsets.fromLTRB(26, 26, 26, 22),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(32), boxShadow: [BoxShadow(color: navy.withOpacity(.25), blurRadius: 42, offset: const Offset(0, 20))]),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Container(
+                width: 104,
+                height: 104,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: const RadialGradient(colors: [Color(0xFFFFC7C7), Color(0xFFFF665F)]),
+                  boxShadow: [BoxShadow(color: coral.withOpacity(.35), blurRadius: 22, spreadRadius: 4)],
+                ),
+                child: const Icon(Icons.block_rounded, color: Colors.white, size: 66),
+              ),
+              const SizedBox(height: 16),
+              const Text('TABU!', style: TextStyle(color: navy, fontSize: 39, height: 1, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 6),
+              const Text('Yasaklı kelime kullanıldı', textAlign: TextAlign.center, style: TextStyle(color: navy, fontSize: 23, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 10),
+              const Text('Anlatıcı yasaklı kelime söyledi. -10 XP uygulandı.', textAlign: TextAlign.center, style: TextStyle(color: Color(0xFF7F8598), fontSize: 14.5, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 22),
+              Row(children: [
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(10, 15, 10, 14),
+                    decoration: BoxDecoration(color: const Color(0xFFF7F8FC), borderRadius: BorderRadius.circular(26)),
+                    child: Column(children: [
+                      _avatar(narrator, radius: 43, ring: true, ringColor: coral),
+                      const SizedBox(height: 9),
+                      Text(narratorName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: navy, fontSize: 17, fontWeight: FontWeight.w900)),
+                      const SizedBox(height: 3),
+                      const Text('-10 XP', style: TextStyle(color: Color(0xFFFF4F57), fontSize: 22, fontWeight: FontWeight.w900)),
+                      const Text('Anlattı', style: TextStyle(color: Color(0xFF8B91A3), fontSize: 12.5)),
+                    ]),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(10, 15, 10, 14),
+                    decoration: BoxDecoration(color: const Color(0xFFF7F8FC), borderRadius: BorderRadius.circular(26)),
+                    child: Column(children: [
+                      Container(
+                        width: 92,
+                        height: 92,
+                        decoration: const BoxDecoration(color: Color(0xFFFFE6E8), shape: BoxShape.circle),
+                        child: const Icon(Icons.warning_rounded, color: Color(0xFFFF4F57), size: 56),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(forbiddenWord, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: navy, fontSize: 17, fontWeight: FontWeight.w900)),
+                      const SizedBox(height: 8),
+                      const Text('Yasaklı kelime', style: TextStyle(color: Color(0xFF8B91A3), fontSize: 12.5)),
+                    ]),
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 22),
+              _countdownBar(),
+            ]),
+          ),
         ),
-      );
+      ]);
+    }
+
+    if (kind == 'pass') {
+      return Stack(children: [
+        Positioned.fill(child: Container(color: const Color(0xFF10172A).withOpacity(.58))),
+        Center(
+          child: Container(
+            width: 360,
+            margin: const EdgeInsets.symmetric(horizontal: 28),
+            padding: const EdgeInsets.fromLTRB(26, 26, 26, 22),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(32), boxShadow: [BoxShadow(color: navy.withOpacity(.22), blurRadius: 38, offset: const Offset(0, 18))]),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Container(
+                width: 102,
+                height: 102,
+                decoration: const BoxDecoration(color: Color(0xFFF0F2F8), shape: BoxShape.circle),
+                child: const Icon(Icons.skip_next_rounded, color: Color(0xFF68728A), size: 62),
+              ),
+              const SizedBox(height: 18),
+              const Text('Pas geçildi!', style: TextStyle(color: navy, fontSize: 32, fontWeight: FontWeight.w900)),
+              const SizedBox(height: 8),
+              const Text('Yeni kelime geliyor...', style: TextStyle(color: Color(0xFF7F8598), fontSize: 17, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 22),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                decoration: BoxDecoration(color: const Color(0xFFF7F8FC), borderRadius: BorderRadius.circular(20)),
+                child: Row(children: [
+                  Container(width: 50, height: 50, decoration: const BoxDecoration(color: Color(0xFFE8FF95), shape: BoxShape.circle), child: const Icon(Icons.lightbulb_rounded, color: navy, size: 28)),
+                  const SizedBox(width: 14),
+                  const Expanded(child: Text('Pas geçme hakkını iyi kullan,\nsüreyi verimli değerlendir!', style: TextStyle(color: navy, fontSize: 14, height: 1.35, fontWeight: FontWeight.w800))),
+                ]),
+              ),
+              const SizedBox(height: 22),
+              _countdownBar(),
+            ]),
+          ),
+        ),
+      ]);
     }
 
     final guesserName = result['guesserName']?.toString() ?? 'Oyuncu';
@@ -639,7 +732,7 @@ class _TabuRoomScreenState extends State<TabuRoomScreen> {
     }
 
     return Stack(children: [
-      Positioned.fill(child: Container(color: navy.withOpacity(.22))),
+      Positioned.fill(child: Container(color: const Color(0xFF10172A).withOpacity(.58))),
       Center(
         child: Container(
           width: 360,
@@ -659,17 +752,7 @@ class _TabuRoomScreenState extends State<TabuRoomScreen> {
               scoreCard(narrator, 'Anlattı', '+15 XP', const Color(0xFF5A6FF0)),
             ]),
             const SizedBox(height: 20),
-            Container(
-              height: 54,
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              decoration: BoxDecoration(color: lime, borderRadius: BorderRadius.circular(28)),
-              child: Row(children: [
-                const Expanded(child: Text('Devam ediyor...', textAlign: TextAlign.center, style: TextStyle(color: navy, fontSize: 16, fontWeight: FontWeight.w900))),
-                Text('${_secondsLeft('phaseEndsAt')} sn', style: const TextStyle(color: navy, fontSize: 16, fontWeight: FontWeight.w900)),
-                const SizedBox(width: 5),
-                const Icon(Icons.chevron_right_rounded, color: navy, size: 26),
-              ]),
-            ),
+            _countdownBar(),
           ]),
         ),
       ),
@@ -677,7 +760,9 @@ class _TabuRoomScreenState extends State<TabuRoomScreen> {
   }
 
   Widget _turnResult() {
-    final t = state?['currentTurn'] is Map ? Map<String, dynamic>.from(state!['currentTurn'] as Map) : <String, dynamic>{};
+    final t = state?['currentTurn'] is Map
+        ? Map<String, dynamic>.from(state!['currentTurn'] as Map)
+        : <String, dynamic>{};
     final narrator = state?['narratorName']?.toString() ?? 'Anlatıcı';
     return Center(
       child: Container(
@@ -750,30 +835,48 @@ class _TabuRoomScreenState extends State<TabuRoomScreen> {
     );
   }
 
+  Widget _playLayer({required bool overlay}) {
+    final narrator = state?['isNarrator'] == true;
+    return Column(children: [
+      _header(),
+      _players(),
+      if (error != null)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
+          child: Text(error!, style: const TextStyle(color: Color(0xFFD65A60), fontSize: 10.5, fontWeight: FontWeight.w800)),
+        ),
+      narrator ? _narratorCard() : _guesserCard(),
+      Expanded(child: _feed()),
+      _composer(),
+    ]);
+  }
+
   @override
   Widget build(BuildContext context) {
     if (loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    if (state?['phase']?.toString() == 'final') return _final();
-
     final phase = state?['phase']?.toString() ?? 'play';
-    final narrator = state?['isNarrator'] == true;
+    if (phase == 'final') return _final();
+
+    if (phase == 'word_result') {
+      return Scaffold(
+        resizeToAvoidBottomInset: true,
+        backgroundColor: pageBg,
+        body: SafeArea(
+          child: Stack(children: [
+            Positioned.fill(child: _playLayer(overlay: true)),
+            Positioned.fill(child: _resultOverlay()),
+          ]),
+        ),
+      );
+    }
 
     return Scaffold(
       resizeToAvoidBottomInset: true,
       backgroundColor: pageBg,
       body: SafeArea(
-        child: Column(children: [
-          _header(),
-          _players(),
-          if (error != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
-              child: Text(error!, style: const TextStyle(color: Color(0xFFD65A60), fontSize: 10.5, fontWeight: FontWeight.w800)),
-            ),
-          if (phase == 'play') narrator ? _narratorCard() : _guesserCard(),
-          Expanded(child: phase == 'word_result' ? _result() : phase == 'turn_result' ? _turnResult() : _feed()),
-          if (phase == 'play') _composer(),
-        ]),
+        child: phase == 'turn_result'
+            ? Column(children: [_header(), _players(), Expanded(child: _turnResult())])
+            : _playLayer(overlay: false),
       ),
     );
   }
