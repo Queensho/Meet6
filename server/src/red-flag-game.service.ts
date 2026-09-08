@@ -36,6 +36,13 @@ export class RedFlagGameService {
     return pref === 'Herkes' || (pref === 'Kadınlar' && gender === 'Kadın') || (pref === 'Erkekler' && gender === 'Erkek');
   }
 
+  private oppositeSex(a: string, b: string) {
+    const normalize = (value: string) => String(value ?? '').trim().toLocaleLowerCase('tr-TR');
+    const female = (value: string) => ['kadın', 'kadin', 'female', 'woman'].includes(normalize(value));
+    const male = (value: string) => ['erkek', 'male', 'man'].includes(normalize(value));
+    return (female(a) && male(b)) || (male(a) && female(b));
+  }
+
   private botChoice(userId: string, questionId: string): Choice {
     return (Number(userId) + Number(questionId)) % 3 === 0 ? 'red' : 'green';
   }
@@ -112,10 +119,19 @@ export class RedFlagGameService {
       if (a?.test || b?.test) continue;
       blocked.add(key(r.a, r.b));
     }
+    const partyTable = await this.infra.db.query<{exists:boolean}>(`select to_regclass('public.matchmaking_parties') is not null as exists`);
+    if (partyTable.rows[0]?.exists) {
+      const partyPairs = await this.infra.db.query<{a:string;b:string}>(
+        `select owner_user_id::text a,guest_user_id::text b from matchmaking_parties
+         where room_id=$1 and status='matched' and guest_user_id is not null`,
+        [s.roomId],
+      );
+      for (const r of partyPairs.rows) blocked.add(key(r.a,r.b));
+    }
     const pairs: PairScore[] = [];
     for (let i=0;i<s.players.length;i++) for (let j=i+1;j<s.players.length;j++) {
       const a=s.players[i], b=s.players[j]; if (blocked.has(key(a.id,b.id))) continue;
-      if (!this.accepts(a.lookingFor,b.gender) || !this.accepts(b.lookingFor,a.gender)) continue;
+      if (!this.oppositeSex(a.gender,b.gender)) continue;
       const c=this.compatibility(s,a.id,b.id); pairs.push({a:a.id,b:b.id,score:c.score,same:c.same,different:c.different});
     }
     pairs.sort((x,y)=>y.score-x.score || Number(x.a)-Number(y.a) || Number(x.b)-Number(y.b));
