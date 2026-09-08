@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'app.dart';
 import 'services/observability_service.dart';
 import 'services/onboarding_service.dart';
+import 'services/party_invite_link_service.dart';
 import 'services/session_service.dart';
 
 const _introVideoSeenKey = 'meet6_intro_video_seen_v1';
@@ -14,6 +15,7 @@ Future<void> main() async {
   await runZonedGuarded<Future<void>>(() async {
     WidgetsFlutterBinding.ensureInitialized();
     await ObservabilityService.initialize();
+    await PartyInviteLinkService.initialize();
 
     final existingUserId = await SessionService.loadAuthUserId();
     await ObservabilityService.setUserId(existingUserId);
