@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
 import pg from 'pg';
@@ -32,7 +33,38 @@ function normalizeSeedRows(parsed, source) {
   return rows;
 }
 
+function loadPackedSeedRows() {
+  const packedFiles = fs
+    .readdirSync(seedsDir)
+    .filter((name) => /^tabu_words\.pack\.b64\.\d{2}$/i.test(name))
+    .sort();
+  if (!packedFiles.length) return null;
+
+  for (let i = 0; i < packedFiles.length; i += 1) {
+    const expected = `tabu_words.pack.b64.${String(i + 1).padStart(2, '0')}`;
+    if (packedFiles[i] !== expected) {
+      throw new Error(`Tabu packed seed parçası eksik: ${expected}`);
+    }
+  }
+
+  const encoded = packedFiles
+    .map((name) => fs.readFileSync(path.join(seedsDir, name), 'utf8').trim())
+    .join('');
+  if (!encoded) throw new Error('Tabu packed seed boş.');
+
+  try {
+    const compressed = Buffer.from(encoded, 'base64');
+    const json = zlib.gunzipSync(compressed).toString('utf8');
+    return normalizeSeedRows(JSON.parse(json), packedFiles.join(','));
+  } catch (error) {
+    throw new Error(`Tabu packed seed açılamadı: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
 function loadSeedRows() {
+  const packed = loadPackedSeedRows();
+  if (packed) return packed;
+
   const shardFiles = fs
     .readdirSync(seedsDir)
     .filter((name) => /^tabu_words_\d{2}\.tr\.json$/i.test(name))
