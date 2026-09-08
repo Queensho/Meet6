@@ -21,35 +21,86 @@ function assert(condition, message) {
   if (!condition) throw new Error(`TABU E2E FAIL: ${message}`);
 }
 
+function normalize(value) {
+  return String(value ?? '')
+    .normalize('NFKC')
+    .toLocaleLowerCase('tr-TR')
+    .replace(/[’']/g, "'")
+    .replace(/[^\p{L}\p{N}'-]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function containsExact(text, needle) {
+  const n = normalize(needle);
+  return n.length > 0 && (` ${normalize(text)} `).includes(` ${n} `);
+}
+
 try {
   const tables = await pool.query(
     `select to_regclass('public.tabu_words') words,
             to_regclass('public.tabu_forbidden_words') forbidden,
             to_regclass('public.tabu_word_history') history,
-            to_regclass('public.tabu_game_xp_events') xp_events`,
+            to_regclass('public.tabu_game_xp_events') xp_events,
+            to_regclass('public.tabu_matchmaking_queue') queue`,
   );
   const t = tables.rows[0];
-  assert(t.words && t.forbidden && t.history && t.xp_events, 'Tabu migration tabloları eksik.');
+  assert(
+    t.words && t.forbidden && t.history && t.xp_events && t.queue,
+    'Tabu migration tabloları eksik.',
+  );
 
   const words = await pool.query(
-    `select w.id::text,w.word,count(f.id)::int forbidden_count
-     from tabu_words w left join tabu_forbidden_words f on f.tabu_word_id=w.id
-     where w.enabled=true group by w.id,w.word order by w.id`,
+    `select w.id::text,w.word,w.category,count(f.id)::int forbidden_count
+     from tabu_words w
+     left join tabu_forbidden_words f on f.tabu_word_id=w.id
+     where w.enabled=true
+     group by w.id,w.word,w.category
+     order by w.id`,
   );
-  assert(words.rowCount >= 20, `Aktif Tabu kelime sayısı düşük: ${words.rowCount}`);
-  assert(words.rows.every((row) => row.forbidden_count === 4), 'Her aktif kelimede tam 4 yasaklı kelime olmalı.');
+  assert(
+    words.rowCount >= 1000,
+    `1000 kelimelik seed yüklenmedi. Aktif sayı: ${words.rowCount}`,
+  );
+  assert(
+    words.rows.every((row) => row.forbidden_count === 4),
+    'Her aktif kelimede tam 4 yasaklı kelime olmalı.',
+  );
+
+  const categories = new Set(words.rows.map((row) => row.category));
+  assert(categories.size >= 10, `Kategori sayısı düşük: ${categories.size}`);
 
   const duplicate = await pool.query(
-    `select lower(word),count(*)::int c from tabu_words group by lower(word) having count(*)>1`,
+    `select lower(word),count(*)::int c
+     from tabu_words
+     group by lower(word)
+     having count(*)>1`,
   );
   assert(duplicate.rowCount === 0, 'Aynı Tabu kelimesi birden fazla kayıtlı.');
 
+  const invalidForbidden = await pool.query(
+    `select w.word
+     from tabu_words w
+     join tabu_forbidden_words f on f.tabu_word_id=w.id
+     where lower(trim(w.word))=lower(trim(f.word))
+     limit 1`,
+  );
+  assert(
+    invalidForbidden.rowCount === 0,
+    'Hedef kelime kendi yasaklı listesinde bulunuyor.',
+  );
+
   const lockKey = `e2e:tabu:first-correct:${Date.now()}`;
   const attempts = await Promise.all(
-    Array.from({ length: 20 }, (_, i) => redis.set(lockKey, `guesser-${i}`, 'EX', 15, 'NX')),
+    Array.from({ length: 20 }, (_, i) =>
+      redis.set(lockKey, `guesser-${i}`, 'EX', 15, 'NX'),
+    ),
   );
   const winners = attempts.filter((value) => value === 'OK').length;
-  assert(winners === 1, `Atomik ilk doğru kilidi tek kazanan üretmedi: ${winners}`);
+  assert(
+    winners === 1,
+    `Atomik ilk doğru kilidi tek kazanan üretmedi: ${winners}`,
+  );
   await redis.del(lockKey);
 
   const normalizationSamples = [
@@ -57,14 +108,20 @@ try {
     ['sabahları', 'sabah', false],
     ['Bir fincan alırım.', 'fincan', true],
     ['fincancı', 'fincan', false],
+    ['KAFE, çok kalabalık.', 'kafe', true],
+    ['fast food severim', 'fast food', true],
+    ['İÇECEK', 'içecek', true],
   ];
-  const normalize = (value) => value.toLocaleLowerCase('tr-TR').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9çğıöşü\s]/gi, ' ').replace(/\s+/g, ' ').trim();
-  const containsExact = (text, needle) => (` ${normalize(text)} `).includes(` ${normalize(needle)} `);
   for (const [text, needle, expected] of normalizationSamples) {
-    assert(containsExact(text, needle) === expected, `Kelime sınırı testi başarısız: ${text} / ${needle}`);
+    assert(
+      containsExact(text, needle) === expected,
+      `Kelime sınırı testi başarısız: ${text} / ${needle}`,
+    );
   }
 
-  console.log(`TABU E2E OK: ${words.rowCount} aktif kelime, 4 yasaklı/kelime, Redis NX tek-kazanan, TR kelime sınırı.`);
+  console.log(
+    `TABU E2E OK: ${words.rowCount} aktif kelime, ${categories.size} kategori, 4 yasaklı/kelime, Redis NX tek-kazanan, NFKC TR kelime sınırı.`,
+  );
 } finally {
   await redis.quit().catch(() => undefined);
   await pool.end();
