@@ -83,6 +83,14 @@ class _RoomRulesScreenState extends State<RoomRulesScreen> {
   }
 
   Future<void> _cycleMode() async {
+    if (premiumLoading) return;
+    if (!premium) {
+      setState(() {
+        roomMode = gameMode ? 'text' : 'game';
+        roomDurationMinutes = 15;
+      });
+      return;
+    }
     const modes = ['text', 'voice', 'game'];
     await _selectMode(modes[(modeIndex + 1) % modes.length]);
   }
