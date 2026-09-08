@@ -52,6 +52,9 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
   int cycleDurationSeconds = 15;
   int cycleSecondsLeft = 15;
 
+  bool get _realTabu =>
+      widget.gameMode && MiniGameSelectionService.selectedGameKey == 'tabu';
+
   @override
   void initState() {
     super.initState();
@@ -121,7 +124,11 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
     joining = true;
     try {
       final Map<String, dynamic> data;
-      if (widget.gameMode) {
+      if (_realTabu) {
+        data = newCycle
+            ? await RoomQueueApiService.tabuQueueStatus()
+            : await RoomQueueApiService.joinTabuQueue();
+      } else if (widget.gameMode) {
         data = await RoomQueueApiService.createGameTestRoom();
       } else if (widget.voiceMode) {
         data = await VoiceRoomService.joinQueue();
@@ -134,7 +141,7 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
       }
       if (!mounted) return;
       await _handleStatus(data);
-      if (!widget.gameMode &&
+      if ((!widget.gameMode || _realTabu) &&
           !leavingForRoom &&
           data['state']?.toString() != 'room') {
         _startSearchCycle(data, increment: newCycle);
@@ -158,8 +165,9 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
     if (!mounted || leavingForRoom) return;
     searchCycleTimer?.cancel();
 
-    final rawSeconds = (data['nextRetrySeconds'] as num?)?.toInt() ?? 15;
-    final seconds = rawSeconds.clamp(5, 120).toInt();
+    final rawSeconds = (data['nextRetrySeconds'] as num?)?.toInt() ??
+        (_realTabu ? 2 : 15);
+    final seconds = rawSeconds.clamp(_realTabu ? 2 : 5, 120).toInt();
 
     setState(() {
       if (increment) searchCycle++;
@@ -184,7 +192,8 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
   }
 
   Future<void> _restartSearchCycle() async {
-    if (cycleRestarting || leavingForRoom || !mounted || widget.gameMode) return;
+    if (cycleRestarting || leavingForRoom || !mounted) return;
+    if (widget.gameMode && !_realTabu) return;
     cycleRestarting = true;
     try {
       await _joinQueue(newCycle: true);
@@ -224,7 +233,7 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                   profileName: widget.profileName,
                 )
               : widget.gameMode
-                  ? (MiniGameSelectionService.selectedGameKey == 'tabu'
+                  ? (_realTabu
                       ? TabuRoomScreen(
                           roomId: roomId,
                           profileName: widget.profileName,
@@ -254,8 +263,10 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
   Future<void> _cancel() async {
     searchCycleTimer?.cancel();
     try {
-      if (widget.gameMode) {
-        // Test game room is created server-side immediately; there is no queue to cancel.
+      if (_realTabu) {
+        await RoomQueueApiService.cancelTabuQueue();
+      } else if (widget.gameMode) {
+        // Other mini games still use the server-side test-room endpoint.
       } else if (widget.voiceMode) {
         await VoiceRoomService.cancelQueue();
       } else {
@@ -277,8 +288,10 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
     searchCycleTimer?.cancel();
     pulse.dispose();
     if (!leavingForRoom) {
-      if (widget.gameMode) {
-        // No matchmaking queue is used by the game test endpoint.
+      if (_realTabu) {
+        unawaited(RoomQueueApiService.cancelTabuQueue().catchError((_) => <String, dynamic>{}));
+      } else if (widget.gameMode) {
+        // Other mini games still use the test-room endpoint.
       } else if (widget.voiceMode) {
         unawaited(VoiceRoomService.cancelQueue().catchError((_) {}));
       } else {
@@ -346,11 +359,7 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                     ? Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(
-                            Icons.mic_rounded,
-                            color: AppColors.navy,
-                            size: 58,
-                          ),
+                          const Icon(Icons.mic_rounded, color: AppColors.navy, size: 58),
                           const SizedBox(height: 5),
                           Text(
                             '${cycleSecondsLeft.clamp(0, 999)} sn',
@@ -373,9 +382,7 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                             )
                           else
                             Text(
-                              leavingForRoom
-                                  ? '6'
-                                  : '${cycleSecondsLeft.clamp(0, 999)}',
+                              leavingForRoom ? '6' : '${cycleSecondsLeft.clamp(0, 999)}',
                               style: const TextStyle(
                                 color: AppColors.navy,
                                 fontSize: 70,
@@ -410,6 +417,52 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
     final scheme = theme.colorScheme;
     final connectionOkay = error == null || error == 'Bağlantı yenileniyor...';
 
+    String title;
+    if (error != null && error != 'Bağlantı yenileniyor...') {
+      title = 'Bağlantı sorunu';
+    } else if (leavingForRoom) {
+      title = widget.voiceMode
+          ? 'Birebir eşleşme bulundu!'
+          : widget.gameMode
+              ? (_realTabu ? 'Tabu odası hazır!' : 'Mini oyun odası hazır!')
+              : 'Uygun oda bulundu!';
+    } else if (widget.voiceMode) {
+      title = 'Premium 1’e 1 eşleşme aranıyor...';
+    } else if (_realTabu) {
+      title = 'Tabu için 6 oyuncu aranıyor...';
+    } else if (widget.gameMode) {
+      title = 'Mini oyun test odası hazırlanıyor...';
+    } else {
+      title = 'Oda aranıyor...';
+    }
+
+    String subtitle;
+    if (error != null) {
+      subtitle = error!;
+    } else if (leavingForRoom) {
+      subtitle = widget.voiceMode
+          ? '2 kişi hazır. Sesli görüşmeye bağlanıyorsun.'
+          : _realTabu
+              ? '6 gerçek oyuncu hazır. Tabu başlıyor.'
+              : widget.gameMode
+                  ? 'Sen ve 5 test kullanıcı hazır. Oyun odasına bağlanıyorsun.'
+                  : '6 kişi hazır. Odaya bağlanıyorsun.';
+    } else if (_realTabu) {
+      subtitle = queueTotal > 0
+          ? 'Tabu havuzunda $queueTotal kişi var. Sıra konumun: $queuePosition'
+          : 'Gerçek oyuncuların Tabu havuzuna katılması bekleniyor.';
+    } else if (widget.gameMode) {
+      subtitle = 'Sunucu 5 test kullanıcıyı hesabınla aynı oyun odasına ekliyor.';
+    } else if (queueTotal > 0) {
+      subtitle = widget.voiceMode
+          ? 'Birebir Premium havuzunda $queueTotal kişi var. Sıra konumun: $queuePosition'
+          : '${widget.roomDurationMinutes} dk havuzunda $queueTotal kişi var. Sıra konumun: $queuePosition';
+    } else {
+      subtitle = widget.voiceMode
+          ? 'Tercihlerine uyan bir Premium kullanıcı bekleniyor.'
+          : '${widget.roomDurationMinutes} dk oda için tercihlerine uyan kullanıcılar bekleniyor.';
+    }
+
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: PhoneFrame(
@@ -435,36 +488,18 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                       if (widget.voiceMode || widget.roomDurationMinutes == 30)
                         Container(
                           margin: const EdgeInsets.only(right: 6),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 9,
-                            vertical: 5,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
                           decoration: BoxDecoration(
                             color: AppColors.navy,
                             borderRadius: BorderRadius.circular(99),
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (widget.voiceMode) ...[
-                                const Icon(
-                                  Icons.mic_rounded,
-                                  size: 12,
-                                  color: AppColors.lime,
-                                ),
-                                const SizedBox(width: 4),
-                              ],
-                              Text(
-                                widget.voiceMode
-                                    ? '1’E 1 PREMIUM'
-                                    : '30 DK PREMIUM',
-                                style: const TextStyle(
-                                  color: AppColors.lime,
-                                  fontSize: 9.5,
-                                  fontWeight: FontWeight.w900,
-                                ),
-                              ),
-                            ],
+                          child: Text(
+                            widget.voiceMode ? '1’E 1 PREMIUM' : '30 DK PREMIUM',
+                            style: const TextStyle(
+                              color: AppColors.lime,
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w900,
+                            ),
                           ),
                         ),
                       TextButton(
@@ -483,19 +518,7 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                   _searchOrb(dark),
                   const SizedBox(height: 24),
                   Text(
-                    error != null && error != 'Bağlantı yenileniyor...'
-                        ? 'Bağlantı sorunu'
-                        : leavingForRoom
-                            ? (widget.voiceMode
-                                ? 'Birebir eşleşme bulundu!'
-                                : widget.gameMode
-                                    ? 'Mini oyun odası hazır!'
-                                    : 'Uygun oda bulundu!')
-                            : (widget.voiceMode
-                                ? 'Premium 1’e 1 eşleşme aranıyor...'
-                                : widget.gameMode
-                                    ? 'Mini oyun test odası hazırlanıyor...'
-                                    : 'Oda aranıyor...'),
+                    title,
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: dark ? Colors.white : AppColors.navy,
@@ -506,41 +529,24 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    error ??
-                        (leavingForRoom
-                            ? (widget.voiceMode
-                                ? '2 kişi hazır. Sesli görüşmeye bağlanıyorsun.'
-                                : widget.gameMode
-                                    ? 'Sen ve 5 test kullanıcı hazır. Oyun odasına bağlanıyorsun.'
-                                    : '6 kişi hazır. Odaya bağlanıyorsun.')
-                            : widget.gameMode
-                                ? 'Sunucu 5 test kullanıcıyı hesabınla aynı oyun odasına ekliyor.'
-                                : queueTotal > 0
-                                    ? (widget.voiceMode
-                                        ? 'Birebir Premium havuzunda $queueTotal kişi var. Sıra konumun: $queuePosition'
-                                        : '${widget.roomDurationMinutes} dk havuzunda $queueTotal kişi var. Sıra konumun: $queuePosition')
-                                    : (widget.voiceMode
-                                        ? 'Tercihlerine uyan bir Premium kullanıcı bekleniyor.'
-                                        : '${widget.roomDurationMinutes} dk oda için tercihlerine uyan kullanıcılar bekleniyor.')),
+                    subtitle,
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: dark
-                          ? Colors.white70
-                          : AppColors.navy.withOpacity(.66),
+                      color: dark ? Colors.white70 : AppColors.navy.withOpacity(.66),
                       fontSize: 12.5,
                       height: 1.4,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  if (!widget.gameMode && !leavingForRoom && connectionOkay) ...[
+                  if ((!widget.gameMode || _realTabu) && !leavingForRoom && connectionOkay) ...[
                     const SizedBox(height: 8),
                     Text(
-                      'Süre dolarsa sıranı kaybetmeden otomatik yeni oda aranır.',
+                      _realTabu
+                          ? '6 gerçek oyuncu hazır olduğunda oyun otomatik başlar.'
+                          : 'Süre dolarsa sıranı kaybetmeden otomatik yeni oda aranır.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: dark
-                            ? Colors.white54
-                            : AppColors.navy.withOpacity(.52),
+                        color: dark ? Colors.white54 : AppColors.navy.withOpacity(.52),
                         fontSize: 10.5,
                         fontWeight: FontWeight.w700,
                       ),
@@ -575,9 +581,7 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                       decoration: BoxDecoration(
                         color: scheme.surface.withOpacity(dark ? .72 : .52),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: scheme.outlineVariant.withOpacity(.7),
-                        ),
+                        border: Border.all(color: scheme.outlineVariant.withOpacity(.7)),
                       ),
                       child: Row(
                         children: [
@@ -591,20 +595,19 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                               ),
                             )
                           else
-                            const Icon(
-                              Icons.check_circle_rounded,
-                              color: AppColors.blue,
-                            ),
+                            const Icon(Icons.check_circle_rounded, color: AppColors.blue),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
                               leavingForRoom
                                   ? 'Oda sunucuda oluşturuldu.'
-                                  : widget.gameMode
-                                      ? 'Mini oyun test odası tamamen sunucuda oluşturuluyor.'
-                                      : widget.voiceMode
-                                          ? 'Premium kontrolü, yaş, tercih, mesafe ve güvenlik filtreleri sunucuda uygulanıyor.'
-                                          : 'Canlı bağlantı açık. Yaş, tercih, mesafe, engel ve Premium oda filtresi sunucuda uygulanıyor.',
+                                  : _realTabu
+                                      ? 'Tabu eşleştirmesi tamamen sunucuda gerçek kullanıcılarla yapılıyor.'
+                                      : widget.gameMode
+                                          ? 'Mini oyun test odası tamamen sunucuda oluşturuluyor.'
+                                          : widget.voiceMode
+                                              ? 'Premium kontrolü, yaş, tercih, mesafe ve güvenlik filtreleri sunucuda uygulanıyor.'
+                                              : 'Canlı bağlantı açık. Yaş, tercih, mesafe, engel ve Premium oda filtresi sunucuda uygulanıyor.',
                               style: TextStyle(
                                 color: scheme.onSurface,
                                 fontSize: 12,
@@ -618,16 +621,16 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                     ),
                   const Spacer(),
                   Text(
-                    widget.gameMode
-                        ? 'Test modu: sen + 5 sunucu test kullanıcısı ile 6 kişilik oyun odası açılır.'
-                        : widget.voiceMode
-                            ? 'Sesli oda yalnızca 6 aktif Premium kullanıcı hazır olduğunda başlar.'
-                            : '${widget.roomDurationMinutes} dakikalık oda yalnızca 6 uygun kullanıcı hazır olduğunda başlar.',
+                    _realTabu
+                        ? 'Tabu yalnızca 6 gerçek oyuncu hazır olduğunda başlar.'
+                        : widget.gameMode
+                            ? 'Test modu: sen + 5 sunucu test kullanıcısı ile 6 kişilik oyun odası açılır.'
+                            : widget.voiceMode
+                                ? 'Sesli oda yalnızca 2 aktif Premium kullanıcı hazır olduğunda başlar.'
+                                : '${widget.roomDurationMinutes} dakikalık oda yalnızca 6 uygun kullanıcı hazır olduğunda başlar.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: dark
-                          ? Colors.white54
-                          : AppColors.navy.withOpacity(.55),
+                      color: dark ? Colors.white54 : AppColors.navy.withOpacity(.55),
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                     ),
