@@ -43,29 +43,18 @@ export class ActiveRoomController {
     let gameKey: string | null = null;
     if (row.room_mode === 'game') {
       const marker = await this.infra.db.query<{ body: string }>(
-        `select body
-         from room_messages
-         where room_id=$1 and sender_user_id is null
-         order by id asc
-         limit 1`,
+        `select body from room_messages where room_id=$1 and sender_user_id is null order by id asc limit 1`,
         [row.room_id],
       );
       const body = marker.rows[0]?.body ?? '';
       gameKey = body.includes('Red Flag / Green Flag')
         ? 'red_flag_green_flag'
-        : body.includes('Meet6 Tabu')
+        : body.includes('Tabu')
           ? 'tabu'
           : 'two_truths_one_lie';
     }
 
-    return {
-      ok: true,
-      room: {
-        ...room,
-        roomMode: row.room_mode,
-        ...(gameKey ? { gameKey } : {}),
-      },
-    };
+    return { ok: true, room: { ...room, roomMode: row.room_mode, ...(gameKey ? { gameKey } : {}) } };
   }
 
   @Delete(':roomId')
@@ -76,59 +65,27 @@ export class ActiveRoomController {
     const userId = await this.userId(authorization);
     await this.rooms.syncExpiredRooms();
 
-    const membership = await this.infra.db.query<{
-      room_mode: string;
-      status: string;
-      started_at: Date;
-    }>(
+    const membership = await this.infra.db.query<{ room_mode: string; status: string; started_at: Date }>(
       `select r.room_mode, r.status, r.started_at
-       from room_members rm
-       join rooms r on r.id=rm.room_id
-       where rm.room_id=$1
-         and rm.user_id=$2
-         and rm.left_at is null
-         and rm.admin_removed_at is null
-         and r.status in ('active','selection')
-       limit 1`,
+       from room_members rm join rooms r on r.id=rm.room_id
+       where rm.room_id=$1 and rm.user_id=$2 and rm.left_at is null and rm.admin_removed_at is null
+         and r.status in ('active','selection') limit 1`,
       [roomId, userId],
     );
     const current = membership.rows[0];
-    if (!current) {
-      return { ok: true, roomId, left: false };
-    }
+    if (!current) return { ok: true, roomId, left: false };
 
     if (current.room_mode === 'voice') {
       const client = await this.infra.db.connect();
       try {
         await client.query('begin');
         const members = await client.query<{ user_id: string }>(
-          `select user_id::text
-           from room_members
-           where room_id=$1
-             and left_at is null
-             and admin_removed_at is null`,
+          `select user_id::text from room_members where room_id=$1 and left_at is null and admin_removed_at is null`,
           [roomId],
         );
-        const memberIds = members.rows.map((row) => row.user_id);
-
-        await client.query(
-          `update rooms
-           set status='closed',
-               closed_at=coalesce(closed_at,now()),
-               closed_reason=coalesce(closed_reason,'participant_left')
-           where id=$1 and status in ('active','selection')`,
-          [roomId],
-        );
-        await client.query(
-          `update room_members
-           set left_at=coalesce(left_at,now()),
-               leave_reason=case
-                 when user_id=$2 then 'voluntary_leave'
-                 else coalesce(leave_reason,'peer_left')
-               end
-           where room_id=$1 and left_at is null`,
-          [roomId, userId],
-        );
+        const memberIds = members.rows.map((r) => r.user_id);
+        await client.query(`update rooms set status='closed',closed_at=coalesce(closed_at,now()),closed_reason=coalesce(closed_reason,'participant_left') where id=$1 and status in ('active','selection')`, [roomId]);
+        await client.query(`update room_members set left_at=coalesce(left_at,now()),leave_reason=case when user_id=$2 then 'voluntary_leave' else coalesce(leave_reason,'peer_left') end where room_id=$1 and left_at is null`, [roomId, userId]);
         if (memberIds.length) {
           await client.query('delete from matchmaking_queue where user_id=any($1::bigint[])', [memberIds]);
           await client.query('delete from voice_matchmaking_queue where user_id=any($1::bigint[])', [memberIds]);
@@ -137,82 +94,32 @@ export class ActiveRoomController {
       } catch (error) {
         await client.query('rollback').catch(() => undefined);
         throw error;
-      } finally {
-        client.release();
-      }
-
+      } finally { client.release(); }
       await this.realtime.broadcastRoomUpdate(roomId);
-      return {
-        ok: true,
-        roomId,
-        left: true,
-        closedForEveryone: true,
-        roomMode: 'voice',
-      };
+      return { ok: true, roomId, left: true, closedForEveryone: true, roomMode: 'voice' };
     }
 
-    const result = await this.infra.db.query<{
-      room_id: string;
-      started_at: Date;
-      status: string;
-    }>(
-      `update room_members rm
-       set left_at=now(),
-           admin_removed_at=now(),
-           admin_removed_by=null,
-           leave_reason='voluntary_leave'
-       from rooms r
-       where rm.room_id=r.id
-         and rm.room_id=$1
-         and rm.user_id=$2
-         and rm.left_at is null
-         and rm.admin_removed_at is null
-         and r.status in ('active','selection')
+    const result = await this.infra.db.query<{ room_id: string; started_at: Date; status: string }>(
+      `update room_members rm set left_at=now(),admin_removed_at=now(),admin_removed_by=null,leave_reason='voluntary_leave'
+       from rooms r where rm.room_id=r.id and rm.room_id=$1 and rm.user_id=$2 and rm.left_at is null
+         and rm.admin_removed_at is null and r.status in ('active','selection')
        returning rm.room_id::text, r.started_at, r.status`,
       [roomId, userId],
     );
-
     await this.infra.db.query('delete from matchmaking_queue where user_id=$1', [userId]);
     await this.infra.db.query('delete from voice_matchmaking_queue where user_id=$1', [userId]);
-
     const left = (result.rowCount ?? 0) > 0;
     const updated = result.rows[0];
-    const elapsedSeconds = updated
-      ? Math.max(0, Math.floor((Date.now() - new Date(updated.started_at).getTime()) / 1000))
-      : Number.POSITIVE_INFINITY;
-    const refillOpen = left && updated?.status === 'active' && elapsedSeconds < 5 * 60;
-
+    const elapsedSeconds = updated ? Math.max(0, Math.floor((Date.now() - new Date(updated.started_at).getTime()) / 1000)) : Number.POSITIVE_INFINITY;
+    const refillOpen = left && current.room_mode === 'text' && updated?.status === 'active' && elapsedSeconds < 5 * 60;
     if (left) {
-      await this.infra.db.query(
-        `insert into room_messages(room_id,sender_user_id,body)
-         values($1,null,$2)`,
-        [
-          roomId,
-          refillOpen
-            ? 'Bir kişi odadan ayrıldı. İlk 5 dakika içinde yeni bir kişi katılabilir.'
-            : 'Bir kişi odadan ayrıldı. Oda kalan kişilerle devam ediyor.',
-        ],
-      );
+      await this.infra.db.query(`insert into room_messages(room_id,sender_user_id,body) values($1,null,$2)`, [roomId, refillOpen ? 'Bir kişi odadan ayrıldı. İlk 5 dakika içinde yeni bir kişi katılabilir.' : 'Bir kişi odadan ayrıldı. Oda kalan kişilerle devam ediyor.']);
     }
-
     const refilledRooms = refillOpen ? await this.refills.processOpenSeats() : [];
-    const roomsToRefresh = new Set<string>([roomId, ...refilledRooms]);
     if (left) {
-      for (const changedRoomId of roomsToRefresh) {
-        await this.realtime.broadcastRoomUpdate(changedRoomId);
-      }
-      if (refilledRooms.length) {
-        await this.realtime.broadcastQueueStatus();
-      }
+      for (const changedRoomId of new Set<string>([roomId, ...refilledRooms])) await this.realtime.broadcastRoomUpdate(changedRoomId);
+      if (refilledRooms.length) await this.realtime.broadcastQueueStatus();
     }
-
-    return {
-      ok: true,
-      roomId,
-      left,
-      roomMode: current.room_mode,
-      refillOpen,
-      refilled: refilledRooms.includes(roomId),
-    };
+    return { ok: true, roomId, left, roomMode: current.room_mode, refillOpen, refilled: refilledRooms.includes(roomId) };
   }
 }
