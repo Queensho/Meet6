@@ -7,7 +7,7 @@ import { TabuGameService } from './tabu-game.service';
   namespace: '/tabu',
   transports: ['websocket'],
   cors: {
-    origin: ['https://www.meet6.com.tr','https://meet6.com.tr','https://queensho.github.io'],
+    origin: ['https://www.meet6.com.tr', 'https://meet6.com.tr', 'https://queensho.github.io'],
     credentials: true,
   },
 })
@@ -36,8 +36,11 @@ export class TabuGateway {
   }
 
   private async safe<T>(work: () => Promise<T>) {
-    try { return { ok: true, ...((await work()) as object) }; }
-    catch (error) { return { ok: false, error: this.message(error) }; }
+    try {
+      return { ok: true, ...((await work()) as object) };
+    } catch (error) {
+      return { ok: false, error: this.message(error) };
+    }
   }
 
   async handleConnection(client: Socket) {
@@ -55,21 +58,33 @@ export class TabuGateway {
     }
   }
 
+  private hasManualResultTimer(roomId: string) {
+    return this.forbiddenTimers.has(roomId) || this.passTimers.has(roomId);
+  }
+
+  private clearResultTimers(roomId: string) {
+    const forbidden = this.forbiddenTimers.get(roomId);
+    if (forbidden) clearTimeout(forbidden);
+    this.forbiddenTimers.delete(roomId);
+    const pass = this.passTimers.get(roomId);
+    if (pass) clearTimeout(pass);
+    this.passTimers.delete(roomId);
+  }
+
   private ensureTimer(roomId: string) {
     if (this.timers.has(roomId)) return;
     const timer = setInterval(async () => {
+      // Pas ve TABU sonucu için geçişi yalnızca 5 sn'lik özel timer yönetir.
+      // Böylece TabuGameService.sync() aynı anda ilerleyip yarış durumu oluşturamaz.
+      if (this.hasManualResultTimer(roomId)) return;
+
       const changed = await this.tabu.tick(roomId).catch(() => null);
       if (!changed) return;
       await this.broadcast(roomId, changed.event);
       if (changed.event === 'tabu:game_finished') {
         clearInterval(timer);
         this.timers.delete(roomId);
-        const forbidden = this.forbiddenTimers.get(roomId);
-        if (forbidden) clearTimeout(forbidden);
-        this.forbiddenTimers.delete(roomId);
-        const pass = this.passTimers.get(roomId);
-        if (pass) clearTimeout(pass);
-        this.passTimers.delete(roomId);
+        this.clearResultTimers(roomId);
       }
     }, 500);
     this.timers.set(roomId, timer);
@@ -80,20 +95,30 @@ export class TabuGateway {
     const state = runtime.games?.get(roomId);
     if (!state || state.phase !== 'word_result' || state.lastResult?.kind !== 'tabu') return;
 
-    const old = this.forbiddenTimers.get(roomId);
-    if (old) clearTimeout(old);
+    this.clearResultTimers(roomId);
 
     const version = state.wordVersion;
-    state.phaseEndsAtMs = Date.now() + 5_250;
-    state.turnEndsAtMs = state.phaseEndsAtMs + 60_000;
+    state.phaseEndsAtMs = Date.now() + 5_000;
 
     const timer = setTimeout(async () => {
       this.forbiddenTimers.delete(roomId);
       const current = runtime.games?.get(roomId);
-      if (!current || current.phase !== 'word_result' || current.wordVersion !== version || current.lastResult?.kind !== 'tabu') return;
+      if (
+        !current ||
+        current.phase !== 'word_result' ||
+        current.wordVersion !== version ||
+        current.lastResult?.kind !== 'tabu'
+      ) {
+        return;
+      }
+
+      // TABU turu anında bitirir; sonuç tam 5 sn görünür ve sıradaki anlatıcı başlar.
       current.turnStats.push({ ...current.currentTurn });
       await runtime.nextNarrator(current);
-      await this.broadcast(roomId, current.phase === 'final' ? 'tabu:game_finished' : 'tabu:speaker_turn_ended');
+      await this.broadcast(
+        roomId,
+        current.phase === 'final' ? 'tabu:game_finished' : 'tabu:speaker_turn_ended',
+      );
     }, 5_000);
 
     this.forbiddenTimers.set(roomId, timer);
@@ -104,19 +129,24 @@ export class TabuGateway {
     const state = runtime.games?.get(roomId);
     if (!state || state.phase !== 'word_result' || state.lastResult?.kind !== 'pass') return;
 
-    const old = this.passTimers.get(roomId);
-    if (old) clearTimeout(old);
+    this.clearResultTimers(roomId);
 
     const version = state.wordVersion;
+    const previousCardId = state.card?.id?.toString() ?? '';
     const remainingTurnMs = Math.max(0, state.turnEndsAtMs - Date.now());
-    state.phaseEndsAtMs = Date.now() + 5_250;
-    // Genel tick'in popup bitmeden word_result durumunu kapatmasını engelle.
-    state.turnEndsAtMs = state.phaseEndsAtMs + remainingTurnMs;
+    state.phaseEndsAtMs = Date.now() + 5_000;
 
     const timer = setTimeout(async () => {
       this.passTimers.delete(roomId);
       const current = runtime.games?.get(roomId);
-      if (!current || current.phase !== 'word_result' || current.wordVersion !== version || current.lastResult?.kind !== 'pass') return;
+      if (
+        !current ||
+        current.phase !== 'word_result' ||
+        current.wordVersion !== version ||
+        current.lastResult?.kind !== 'pass'
+      ) {
+        return;
+      }
 
       if (remainingTurnMs <= 0) {
         runtime.finishTurn(current);
@@ -124,9 +154,18 @@ export class TabuGateway {
         return;
       }
 
+      // Aynı anlatıcı devam eder; tur süresi sonuç ekranında duraklatılır.
+      current.turnEndsAtMs = Date.now() + remainingTurnMs;
       current.phase = 'play';
       current.phaseEndsAtMs = current.turnEndsAtMs;
       await runtime.loadCard(current);
+
+      // Repository son kullanılan kartları exclude ettiği için aynı kart normalde
+      // mümkün değildir. Yine de regresyona karşı burada kesinlik kontrolü var.
+      if (previousCardId && current.card?.id?.toString() === previousCardId) {
+        await runtime.loadCard(current);
+      }
+
       await this.broadcast(roomId, 'tabu:round_started');
     }, 5_000);
 
