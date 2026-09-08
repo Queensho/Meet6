@@ -9,7 +9,6 @@ import '../../services/room_queue_api_service.dart';
 import '../../services/voice_room_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/brand.dart';
-import '../../widgets/phone_frame.dart';
 import '../chat/room_chat_screen.dart';
 import '../chat/voice_room_screen.dart';
 import 'mini_game_room_screen.dart';
@@ -38,64 +37,52 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController pulse;
   StreamSubscription<RealtimeEvent>? realtimeSub;
-  Timer? searchCycleTimer;
+  Timer? pollTimer;
 
+  bool joining = false;
   bool leavingForRoom = false;
   bool loading = true;
   bool firstConnectionSeen = false;
-  bool joining = false;
-  bool cycleRestarting = false;
   String? error;
   int queueTotal = 0;
   int queuePosition = 0;
-  int searchCycle = 1;
-  int cycleDurationSeconds = 15;
-  int cycleSecondsLeft = 15;
+  int secondsLeft = 2;
 
-  bool get _realTabu =>
-      widget.gameMode && MiniGameSelectionService.selectedGameKey == 'tabu';
+  String get _gameKey => MiniGameSelectionService.selectedGameKey;
+  bool get _tabu => widget.gameMode && _gameKey == 'tabu';
 
   @override
   void initState() {
     super.initState();
     pulse = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1800),
+      duration: const Duration(milliseconds: 1700),
     )..repeat(reverse: true);
     if (widget.gameMode) {
-      unawaited(_joinQueue());
+      unawaited(_joinGameQueue());
     } else {
-      _startRealtime();
+      unawaited(_startRealtime());
     }
   }
 
   Future<void> _startRealtime() async {
-    if (widget.gameMode) {
-      await _joinQueue();
-      return;
-    }
     await realtimeSub?.cancel();
     realtimeSub = RealtimeService.events.listen(_onRealtimeEvent);
     try {
       await RealtimeService.connect();
       if (!mounted) return;
-      await _joinQueue();
+      await _joinStandardQueue();
     } on ApiException catch (e) {
-      if (!mounted) return;
-      searchCycleTimer?.cancel();
-      setState(() {
-        loading = false;
-        error = e.message;
-      });
+      if (mounted) setState(() { loading = false; error = e.message; });
     } catch (_) {
-      if (!mounted) return;
-      searchCycleTimer?.cancel();
-      setState(() {
-        loading = false;
-        error = widget.voiceMode
-            ? 'Premium birebir sesli eşleşme servisine bağlanılamadı. Tekrar dene.'
-            : 'Oda servisine bağlanılamadı. Tekrar dene.';
-      });
+      if (mounted) {
+        setState(() {
+          loading = false;
+          error = widget.voiceMode
+              ? 'Premium birebir eşleşme servisine bağlanılamadı. Tekrar dene.'
+              : 'Oda servisine bağlanılamadı. Tekrar dene.';
+        });
+      }
     }
   }
 
@@ -103,7 +90,7 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
     if (!mounted || leavingForRoom || widget.gameMode) return;
     if (event.type == 'connection:connected') {
       if (firstConnectionSeen) {
-        unawaited(_joinQueue());
+        unawaited(_joinStandardQueue());
       } else {
         firstConnectionSeen = true;
       }
@@ -119,87 +106,68 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
     }
   }
 
-  Future<void> _joinQueue({bool newCycle = false}) async {
+  Future<void> _joinStandardQueue() async {
     if (joining || leavingForRoom) return;
     joining = true;
     try {
-      final Map<String, dynamic> data;
-      if (_realTabu) {
-        data = newCycle
-            ? await RoomQueueApiService.tabuQueueStatus()
-            : await RoomQueueApiService.joinTabuQueue();
-      } else if (widget.gameMode) {
-        data = await RoomQueueApiService.createGameTestRoom();
-      } else if (widget.voiceMode) {
-        data = await VoiceRoomService.joinQueue();
-      } else if (RealtimeService.debugAckOverride != null) {
-        data = await RealtimeService.joinQueue();
-      } else {
-        data = await RoomQueueApiService.joinQueue(
-          roomDurationMinutes: widget.roomDurationMinutes,
-        );
-      }
-      if (!mounted) return;
-      await _handleStatus(data);
-      if ((!widget.gameMode || _realTabu) &&
-          !leavingForRoom &&
-          data['state']?.toString() != 'room') {
-        _startSearchCycle(data, increment: newCycle);
-      }
+      final data = widget.voiceMode
+          ? await VoiceRoomService.joinQueue()
+          : RealtimeService.debugAckOverride != null
+              ? await RealtimeService.joinQueue()
+              : await RoomQueueApiService.joinQueue(
+                  roomDurationMinutes: widget.roomDurationMinutes,
+                );
+      if (mounted) await _handleStatus(data);
     } on ApiException catch (e) {
-      if (!mounted) return;
-      searchCycleTimer?.cancel();
-      setState(() {
-        loading = false;
-        error = e.message;
-      });
+      if (mounted) setState(() { loading = false; error = e.message; });
     } finally {
       joining = false;
     }
   }
 
-  void _startSearchCycle(
-    Map<String, dynamic> data, {
-    required bool increment,
-  }) {
-    if (!mounted || leavingForRoom) return;
-    searchCycleTimer?.cancel();
+  Future<void> _joinGameQueue({bool statusOnly = false}) async {
+    if (joining || leavingForRoom || !mounted) return;
+    joining = true;
+    try {
+      final Map<String, dynamic> data;
+      if (_tabu) {
+        data = statusOnly
+            ? await RoomQueueApiService.tabuQueueStatus()
+            : await RoomQueueApiService.joinTabuQueue();
+      } else {
+        data = statusOnly
+            ? await RoomQueueApiService.miniGameQueueStatus(gameKey: _gameKey)
+            : await RoomQueueApiService.joinMiniGameQueue(gameKey: _gameKey);
+      }
+      if (!mounted) return;
+      await _handleStatus(data);
+      if (!leavingForRoom && data['state']?.toString() != 'room') {
+        _scheduleGamePoll((data['nextRetrySeconds'] as num?)?.toInt() ?? 2);
+      }
+    } on ApiException catch (e) {
+      if (mounted) setState(() { loading = false; error = e.message; });
+    } finally {
+      joining = false;
+    }
+  }
 
-    final rawSeconds = (data['nextRetrySeconds'] as num?)?.toInt() ??
-        (_realTabu ? 2 : 15);
-    final seconds = rawSeconds.clamp(_realTabu ? 2 : 5, 120).toInt();
-
-    setState(() {
-      if (increment) searchCycle++;
-      cycleDurationSeconds = seconds;
-      cycleSecondsLeft = seconds;
-      error = null;
-    });
-
-    searchCycleTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+  void _scheduleGamePoll(int seconds) {
+    pollTimer?.cancel();
+    final wait = seconds.clamp(2, 10).toInt();
+    setState(() => secondsLeft = wait);
+    pollTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted || leavingForRoom) {
         timer.cancel();
         return;
       }
-      if (cycleSecondsLeft <= 1) {
+      if (secondsLeft <= 1) {
         timer.cancel();
-        setState(() => cycleSecondsLeft = 0);
-        unawaited(_restartSearchCycle());
+        setState(() => secondsLeft = 0);
+        unawaited(_joinGameQueue(statusOnly: true));
       } else {
-        setState(() => cycleSecondsLeft--);
+        setState(() => secondsLeft--);
       }
     });
-  }
-
-  Future<void> _restartSearchCycle() async {
-    if (cycleRestarting || leavingForRoom || !mounted) return;
-    if (widget.gameMode && !_realTabu) return;
-    cycleRestarting = true;
-    try {
-      await _joinQueue(newCycle: true);
-    } finally {
-      cycleRestarting = false;
-    }
   }
 
   Future<void> _handleStatus(Map<String, dynamic> data) async {
@@ -212,40 +180,26 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
       if (roomId.isEmpty || leavingForRoom) return;
 
       leavingForRoom = true;
-      searchCycleTimer?.cancel();
+      pollTimer?.cancel();
       if (mounted) {
         setState(() {
           loading = false;
           error = null;
           queueTotal = widget.voiceMode ? 2 : 6;
           queuePosition = 1;
-          cycleSecondsLeft = 0;
         });
       }
-
-      await Future<void>.delayed(const Duration(milliseconds: 350));
+      await Future<void>.delayed(const Duration(milliseconds: 250));
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => widget.voiceMode
-              ? VoiceRoomScreen(
-                  roomId: roomId,
-                  profileName: widget.profileName,
-                )
+              ? VoiceRoomScreen(roomId: roomId, profileName: widget.profileName)
               : widget.gameMode
-                  ? (_realTabu
-                      ? TabuRoomScreen(
-                          roomId: roomId,
-                          profileName: widget.profileName,
-                        )
-                      : MiniGameRoomScreen(
-                          roomId: roomId,
-                          profileName: widget.profileName,
-                        ))
-                  : RoomChatScreen(
-                      roomId: roomId,
-                      profileName: widget.profileName,
-                    ),
+                  ? (_tabu
+                      ? TabuRoomScreen(roomId: roomId, profileName: widget.profileName)
+                      : MiniGameRoomScreen(roomId: roomId, profileName: widget.profileName))
+                  : RoomChatScreen(roomId: roomId, profileName: widget.profileName),
         ),
       );
       return;
@@ -261,12 +215,14 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
   }
 
   Future<void> _cancel() async {
-    searchCycleTimer?.cancel();
+    pollTimer?.cancel();
     try {
-      if (_realTabu) {
-        await RoomQueueApiService.cancelTabuQueue();
-      } else if (widget.gameMode) {
-        // Other mini games still use the server-side test-room endpoint.
+      if (widget.gameMode) {
+        if (_tabu) {
+          await RoomQueueApiService.cancelTabuQueue();
+        } else {
+          await RoomQueueApiService.cancelMiniGameQueue();
+        }
       } else if (widget.voiceMode) {
         await VoiceRoomService.cancelQueue();
       } else {
@@ -276,368 +232,180 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
     if (mounted) Navigator.of(context).pop();
   }
 
-  double get _cycleProgress {
-    if (cycleDurationSeconds <= 0) return 0;
-    return cycleSecondsLeft.clamp(0, cycleDurationSeconds) /
-        cycleDurationSeconds;
+  String get _gameName {
+    switch (_gameKey) {
+      case 'red_flag_green_flag':
+        return 'Red Flag / Green Flag';
+      case 'two_truths_one_lie':
+        return '2 Doğru 1 Yanlış';
+      case 'tabu':
+        return 'Tabu';
+      default:
+        return 'Mini oyun';
+    }
   }
 
   @override
   void dispose() {
     realtimeSub?.cancel();
-    searchCycleTimer?.cancel();
+    pollTimer?.cancel();
     pulse.dispose();
     if (!leavingForRoom) {
-      if (_realTabu) {
-        unawaited(RoomQueueApiService.cancelTabuQueue().catchError((_) => <String, dynamic>{}));
-      } else if (widget.gameMode) {
-        // Other mini games still use the test-room endpoint.
+      if (widget.gameMode) {
+        if (_tabu) {
+          unawaited(RoomQueueApiService.cancelTabuQueue().catchError((_) => <String, dynamic>{}));
+        } else {
+          unawaited(RoomQueueApiService.cancelMiniGameQueue().catchError((_) => <String, dynamic>{}));
+        }
       } else if (widget.voiceMode) {
         unawaited(VoiceRoomService.cancelQueue().catchError((_) {}));
       } else {
-        unawaited(
-          RealtimeService.cancelQueue().catchError((_) => <String, dynamic>{}),
-        );
+        unawaited(RealtimeService.cancelQueue().catchError((_) => <String, dynamic>{}));
       }
     }
     super.dispose();
   }
 
-  Widget _searchOrb(bool dark) {
-    return AnimatedBuilder(
-      animation: pulse,
-      builder: (context, _) {
-        final orbSize = 170 + pulse.value * 18;
-        final progressColor = dark ? AppColors.lime : AppColors.navy;
-        final trackColor = (dark ? Colors.white : AppColors.navy).withOpacity(.14);
-
-        return SizedBox(
-          width: 300,
-          height: 300,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              for (final factor in const [.95, .73, .52])
-                Container(
-                  width: 280 * factor + pulse.value * 12,
-                  height: 280 * factor + pulse.value * 12,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: (dark ? Colors.white : AppColors.navy)
-                          .withOpacity(.10 + factor * .10),
-                    ),
-                  ),
-                ),
-              SizedBox(
-                width: orbSize + 22,
-                height: orbSize + 22,
-                child: CircularProgressIndicator(
-                  value: leavingForRoom ? 1 : _cycleProgress,
-                  strokeWidth: 7,
-                  backgroundColor: trackColor,
-                  valueColor: AlwaysStoppedAnimation<Color>(progressColor),
-                ),
-              ),
-              Container(
-                width: orbSize,
-                height: orbSize,
-                decoration: BoxDecoration(
-                  color: AppColors.lime,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.navy, width: 2.5),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.lime.withOpacity(.28),
-                      blurRadius: 34,
-                      spreadRadius: 8,
-                    ),
-                  ],
-                ),
-                alignment: Alignment.center,
-                child: widget.voiceMode
-                    ? Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.mic_rounded, color: AppColors.navy, size: 58),
-                          const SizedBox(height: 5),
-                          Text(
-                            '${cycleSecondsLeft.clamp(0, 999)} sn',
-                            style: const TextStyle(
-                              color: AppColors.navy,
-                              fontSize: 17,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ],
-                      )
-                    : Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (widget.gameMode)
-                            const Icon(
-                              Icons.sports_esports_rounded,
-                              color: AppColors.navy,
-                              size: 58,
-                            )
-                          else
-                            Text(
-                              leavingForRoom ? '6' : '${cycleSecondsLeft.clamp(0, 999)}',
-                              style: const TextStyle(
-                                color: AppColors.navy,
-                                fontSize: 70,
-                                fontWeight: FontWeight.w900,
-                                height: .9,
-                                letterSpacing: -3,
-                              ),
-                            ),
-                          const SizedBox(height: 9),
-                          Text(
-                            widget.gameMode ? '6 kişilik oyun' : '6 kişilik oda',
-                            style: const TextStyle(
-                              color: AppColors.navy,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ],
-                      ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final dark = theme.brightness == Brightness.dark;
-    final scheme = theme.colorScheme;
-    final connectionOkay = error == null || error == 'Bağlantı yenileniyor...';
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final bg = dark ? const Color(0xFF0D1220) : const Color(0xFFF7F8FC);
+    final text = dark ? Colors.white : AppColors.navy;
 
     String title;
+    String subtitle;
     if (error != null && error != 'Bağlantı yenileniyor...') {
       title = 'Bağlantı sorunu';
-    } else if (leavingForRoom) {
-      title = widget.voiceMode
-          ? 'Birebir eşleşme bulundu!'
-          : widget.gameMode
-              ? (_realTabu ? 'Tabu odası hazır!' : 'Mini oyun odası hazır!')
-              : 'Uygun oda bulundu!';
-    } else if (widget.voiceMode) {
-      title = 'Premium 1’e 1 eşleşme aranıyor...';
-    } else if (_realTabu) {
-      title = 'Tabu için 6 oyuncu aranıyor...';
-    } else if (widget.gameMode) {
-      title = 'Mini oyun test odası hazırlanıyor...';
-    } else {
-      title = 'Oda aranıyor...';
-    }
-
-    String subtitle;
-    if (error != null) {
       subtitle = error!;
     } else if (leavingForRoom) {
-      subtitle = widget.voiceMode
-          ? '2 kişi hazır. Sesli görüşmeye bağlanıyorsun.'
-          : _realTabu
-              ? '6 gerçek oyuncu hazır. Tabu başlıyor.'
-              : widget.gameMode
-                  ? 'Sen ve 5 test kullanıcı hazır. Oyun odasına bağlanıyorsun.'
-                  : '6 kişi hazır. Odaya bağlanıyorsun.';
-    } else if (_realTabu) {
-      subtitle = queueTotal > 0
-          ? 'Tabu havuzunda $queueTotal kişi var. Sıra konumun: $queuePosition'
-          : 'Gerçek oyuncuların Tabu havuzuna katılması bekleniyor.';
+      title = widget.gameMode ? '$_gameName odası hazır!' : 'Eşleşme bulundu!';
+      subtitle = widget.gameMode
+          ? '6 oyuncu hazır. Oyun başlıyor.'
+          : widget.voiceMode
+              ? '2 kişi hazır. Sesli görüşmeye bağlanıyorsun.'
+              : '6 kişi hazır. Odaya bağlanıyorsun.';
     } else if (widget.gameMode) {
-      subtitle = 'Sunucu 5 test kullanıcıyı hesabınla aynı oyun odasına ekliyor.';
-    } else if (queueTotal > 0) {
-      subtitle = widget.voiceMode
-          ? 'Birebir Premium havuzunda $queueTotal kişi var. Sıra konumun: $queuePosition'
-          : '${widget.roomDurationMinutes} dk havuzunda $queueTotal kişi var. Sıra konumun: $queuePosition';
+      title = '$_gameName için 6 oyuncu aranıyor...';
+      subtitle = queueTotal > 0
+          ? 'Havuzda $queueTotal kişi var. Sıra konumun: $queuePosition'
+          : '6 gerçek oyuncu hazır olduğunda oyun otomatik başlayacak.';
+    } else if (widget.voiceMode) {
+      title = 'Premium 1’e 1 eşleşme aranıyor...';
+      subtitle = queueTotal > 0
+          ? 'Havuzda $queueTotal kişi var. Sıra konumun: $queuePosition'
+          : 'Tercihlerine uygun kullanıcı bekleniyor.';
     } else {
-      subtitle = widget.voiceMode
-          ? 'Tercihlerine uyan bir Premium kullanıcı bekleniyor.'
-          : '${widget.roomDurationMinutes} dk oda için tercihlerine uyan kullanıcılar bekleniyor.';
+      title = 'Oda aranıyor...';
+      subtitle = queueTotal > 0
+          ? '${widget.roomDurationMinutes} dk havuzunda $queueTotal kişi var. Sıra konumun: $queuePosition'
+          : 'Uygun kullanıcılar aranıyor.';
     }
 
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      body: PhoneFrame(
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: dark
-                  ? const [Color(0xFF101D16), Color(0xFF071022)]
-                  : const [Color(0xFFD8FF32), Color(0xFFAECB18)],
-            ),
-          ),
-          child: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(22, 14, 22, 22),
-              child: Column(
+      backgroundColor: bg,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 18, 22, 24),
+          child: Column(
+            children: [
+              Row(
                 children: [
-                  Row(
-                    children: [
-                      const Meet6MiniBrand(height: 29),
-                      const Spacer(),
-                      if (widget.voiceMode || widget.roomDurationMinutes == 30)
-                        Container(
-                          margin: const EdgeInsets.only(right: 6),
-                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: AppColors.navy,
-                            borderRadius: BorderRadius.circular(99),
-                          ),
-                          child: Text(
-                            widget.voiceMode ? '1’E 1 PREMIUM' : '30 DK PREMIUM',
-                            style: const TextStyle(
-                              color: AppColors.lime,
-                              fontSize: 9.5,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ),
-                      TextButton(
-                        onPressed: _cancel,
-                        child: Text(
-                          'İptal',
-                          style: TextStyle(
-                            color: dark ? Colors.white70 : AppColors.navy,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
+                  IconButton(
+                    onPressed: _cancel,
+                    icon: Icon(Icons.arrow_back_ios_new_rounded, color: text),
+                  ),
+                  const Spacer(),
+                  const Brand(),
+                ],
+              ),
+              const Spacer(),
+              AnimatedBuilder(
+                animation: pulse,
+                builder: (_, __) => Container(
+                  width: 178 + pulse.value * 14,
+                  height: 178 + pulse.value * 14,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.lime,
+                    border: Border.all(color: AppColors.navy, width: 3),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.lime.withOpacity(.25),
+                        blurRadius: 34,
+                        spreadRadius: 8,
                       ),
                     ],
                   ),
-                  const Spacer(),
-                  _searchOrb(dark),
-                  const SizedBox(height: 24),
-                  Text(
-                    title,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: dark ? Colors.white : AppColors.navy,
-                      fontSize: 26,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -.8,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    subtitle,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: dark ? Colors.white70 : AppColors.navy.withOpacity(.66),
-                      fontSize: 12.5,
-                      height: 1.4,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  if ((!widget.gameMode || _realTabu) && !leavingForRoom && connectionOkay) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      _realTabu
-                          ? '6 gerçek oyuncu hazır olduğunda oyun otomatik başlar.'
-                          : 'Süre dolarsa sıranı kaybetmeden otomatik yeni oda aranır.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: dark ? Colors.white54 : AppColors.navy.withOpacity(.52),
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 18),
-                  if (error != null && error != 'Bağlantı yenileniyor...')
-                    FilledButton.icon(
-                      onPressed: () {
-                        setState(() {
-                          loading = true;
-                          error = null;
-                          searchCycle = 1;
-                        });
-                        if (widget.gameMode) {
-                          _joinQueue();
-                        } else {
-                          _startRealtime();
-                        }
-                      },
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.navy,
-                        foregroundColor: Colors.white,
-                      ),
-                      icon: const Icon(Icons.refresh_rounded),
-                      label: const Text('Tekrar dene'),
-                    )
-                  else
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: scheme.surface.withOpacity(dark ? .72 : .52),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: scheme.outlineVariant.withOpacity(.7)),
-                      ),
-                      child: Row(
-                        children: [
-                          if (loading || !leavingForRoom)
-                            const SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.5,
-                                color: AppColors.blue,
-                              ),
-                            )
-                          else
-                            const Icon(Icons.check_circle_rounded, color: AppColors.blue),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              leavingForRoom
-                                  ? 'Oda sunucuda oluşturuldu.'
-                                  : _realTabu
-                                      ? 'Tabu eşleştirmesi tamamen sunucuda gerçek kullanıcılarla yapılıyor.'
-                                      : widget.gameMode
-                                          ? 'Mini oyun test odası tamamen sunucuda oluşturuluyor.'
-                                          : widget.voiceMode
-                                              ? 'Premium kontrolü, yaş, tercih, mesafe ve güvenlik filtreleri sunucuda uygulanıyor.'
-                                              : 'Canlı bağlantı açık. Yaş, tercih, mesafe, engel ve Premium oda filtresi sunucuda uygulanıyor.',
+                  alignment: Alignment.center,
+                  child: widget.gameMode
+                      ? const Icon(Icons.sports_esports_rounded, color: AppColors.navy, size: 66)
+                      : widget.voiceMode
+                          ? const Icon(Icons.mic_rounded, color: AppColors.navy, size: 66)
+                          : const Text(
+                              '6',
                               style: TextStyle(
-                                color: scheme.onSurface,
-                                fontSize: 12,
-                                height: 1.35,
-                                fontWeight: FontWeight.w800,
+                                color: AppColors.navy,
+                                fontSize: 74,
+                                fontWeight: FontWeight.w900,
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  const Spacer(),
-                  Text(
-                    _realTabu
-                        ? 'Tabu yalnızca 6 gerçek oyuncu hazır olduğunda başlar.'
-                        : widget.gameMode
-                            ? 'Test modu: sen + 5 sunucu test kullanıcısı ile 6 kişilik oyun odası açılır.'
-                            : widget.voiceMode
-                                ? 'Sesli oda yalnızca 2 aktif Premium kullanıcı hazır olduğunda başlar.'
-                                : '${widget.roomDurationMinutes} dakikalık oda yalnızca 6 uygun kullanıcı hazır olduğunda başlar.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: dark ? Colors.white54 : AppColors.navy.withOpacity(.55),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
+              const SizedBox(height: 34),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: text,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -.7,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                subtitle,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: text.withOpacity(.62),
+                  fontSize: 15,
+                  height: 1.35,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              if (loading) ...[
+                const SizedBox(height: 20),
+                const CircularProgressIndicator(color: AppColors.lime),
+              ],
+              if (widget.gameMode && !leavingForRoom && error == null) ...[
+                const SizedBox(height: 18),
+                Text(
+                  'Yeni kontrol: ${secondsLeft.clamp(0, 9)} sn',
+                  style: TextStyle(
+                    color: text.withOpacity(.48),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+              const Spacer(),
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: OutlinedButton(
+                  onPressed: _cancel,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: text,
+                    side: BorderSide(color: text.withOpacity(.2)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                  ),
+                  child: const Text(
+                    'Aramayı iptal et',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
