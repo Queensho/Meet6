@@ -74,11 +74,33 @@ class RoomQueueApiService {
     if (selectedGameKey == 'tabu') {
       return joinTabuQueue();
     }
+    return joinMiniGameQueue(gameKey: selectedGameKey);
+  }
+
+  static Future<Map<String, dynamic>> joinMiniGameQueue({String? gameKey}) {
+    final selectedGameKey = gameKey ?? MiniGameSelectionService.selectedGameKey;
     return _requestJson(
       'POST',
-      '/api/rooms/game-test',
+      '/api/rooms/mini-game/queue',
       body: {'gameKey': selectedGameKey},
-      fallbackMessage: 'Mini oyun test odası oluşturulamadı.',
+      fallbackMessage: 'Mini oyun oyuncu araması başlatılamadı.',
+    );
+  }
+
+  static Future<Map<String, dynamic>> miniGameQueueStatus({String? gameKey}) {
+    final selectedGameKey = gameKey ?? MiniGameSelectionService.selectedGameKey;
+    return _requestJson(
+      'GET',
+      '/api/rooms/mini-game/queue?gameKey=${Uri.encodeQueryComponent(selectedGameKey)}',
+      fallbackMessage: 'Mini oyun sıra durumu alınamadı.',
+    );
+  }
+
+  static Future<Map<String, dynamic>> cancelMiniGameQueue() {
+    return _requestJson(
+      'DELETE',
+      '/api/rooms/mini-game/queue',
+      fallbackMessage: 'Mini oyun araması iptal edilemedi.',
     );
   }
 
