@@ -1,45 +1,17 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { InfrastructureService } from './infrastructure.service';
 import { RoomService } from './room.service';
+import { TabuCard, TabuWordRepository } from './tabu-word.repository';
 
 type Player = { id: string; name: string; test: boolean; photoUrl: string };
-type TabuCard = { target: string; forbidden: string[] };
-type GameMessage = {
-  id: number;
-  userId: string;
-  name: string;
-  role: 'narrator' | 'guesser' | 'system';
-  text: string;
-  at: string;
-};
+type GameMessage = { id: number; userId: string; name: string; role: 'narrator' | 'guesser'; text: string; at: string };
 type TurnStat = { narratorUserId: string; correct: number; tabu: number; pass: number; xp: number };
-type WordResult = {
-  kind: 'correct' | 'tabu' | 'pass';
-  target: string;
-  narratorUserId: string;
-  narratorName: string;
-  guesserUserId?: string;
-  guesserName?: string;
-  forbiddenWord?: string;
-  narratorXpDelta: number;
-  guesserXpDelta: number;
-};
+type WordResult = { kind: 'correct' | 'tabu' | 'pass'; target: string; narratorUserId: string; narratorName: string; guesserUserId?: string; guesserName?: string; forbiddenWord?: string; narratorXpDelta: number; guesserXpDelta: number };
 type State = {
-  roomId: string;
-  players: Player[];
-  narratorIndex: number;
-  turnEndsAtMs: number;
-  phase: 'play' | 'word_result' | 'turn_result' | 'final';
-  phaseEndsAtMs: number;
-  cardIndex: number;
-  card: TabuCard;
-  wordStartedAtMs: number;
-  messages: GameMessage[];
-  messageSeq: number;
-  xp: Record<string, number>;
-  turnStats: TurnStat[];
-  currentTurn: TurnStat;
-  lastResult: WordResult | null;
+  roomId: string; players: Player[]; narratorIndex: number; turnEndsAtMs: number;
+  phase: 'play' | 'word_result' | 'turn_result' | 'final'; phaseEndsAtMs: number;
+  card: TabuCard; usedCardIds: string[]; wordVersion: number; messages: GameMessage[]; messageSeq: number;
+  xp: Record<string, number>; turnStats: TurnStat[]; currentTurn: TurnStat; lastResult: WordResult | null;
   finalLeaderboard: Array<{ id: string; name: string; photoUrl: string; xp: number }>;
 };
 
@@ -49,429 +21,229 @@ export class TabuGameService {
   private static readonly TURN_MS = 60_000;
   private static readonly RESULT_MS = 3_000;
 
-  private readonly cards: TabuCard[] = [
-    { target: 'KAHVE', forbidden: ['fincan', 'kafe', 'sabah', 'içecek'] },
-    { target: 'TELEFON', forbidden: ['arama', 'mesaj', 'ekran', 'mobil'] },
-    { target: 'DENİZ', forbidden: ['su', 'dalga', 'sahil', 'yüzmek'] },
-    { target: 'PİZZA', forbidden: ['peynir', 'dilim', 'italya', 'hamur'] },
-    { target: 'KEDİ', forbidden: ['miyav', 'pati', 'hayvan', 'tüy'] },
-    { target: 'UÇAK', forbidden: ['hava', 'pilot', 'uçmak', 'havalimanı'] },
-    { target: 'FUTBOL', forbidden: ['top', 'gol', 'maç', 'takım'] },
-    { target: 'ÇİKOLATA', forbidden: ['tatlı', 'kakao', 'şeker', 'kahverengi'] },
-    { target: 'DOKTOR', forbidden: ['hastane', 'hasta', 'muayene', 'sağlık'] },
-    { target: 'GÜNEŞ', forbidden: ['sıcak', 'gökyüzü', 'yaz', 'ışık'] },
-    { target: 'KİTAP', forbidden: ['okumak', 'sayfa', 'yazar', 'roman'] },
-    { target: 'ARABA', forbidden: ['tekerlek', 'sürmek', 'motor', 'yol'] },
-    { target: 'MÜZİK', forbidden: ['şarkı', 'ses', 'dinlemek', 'ritim'] },
-    { target: 'YAĞMUR', forbidden: ['ıslak', 'bulut', 'şemsiye', 'damla'] },
-    { target: 'DONDURMA', forbidden: ['soğuk', 'külah', 'yaz', 'tatlı'] },
-    { target: 'OKUL', forbidden: ['öğrenci', 'öğretmen', 'ders', 'sınıf'] },
-    { target: 'SAAT', forbidden: ['zaman', 'dakika', 'kol', 'alarm'] },
-    { target: 'BİSİKLET', forbidden: ['pedal', 'tekerlek', 'sürmek', 'zincir'] },
-    { target: 'SİNEMA', forbidden: ['film', 'perde', 'salon', 'bilet'] },
-    { target: 'EKMEK', forbidden: ['fırın', 'un', 'kahvaltı', 'dilim'] },
-    { target: 'KÖPEK', forbidden: ['havlamak', 'pati', 'hayvan', 'tasmalı'] },
-    { target: 'TATİL', forbidden: ['otel', 'seyahat', 'yaz', 'dinlenmek'] },
-    { target: 'BİLGİSAYAR', forbidden: ['klavye', 'ekran', 'mouse', 'internet'] },
-    { target: 'ÇAY', forbidden: ['bardak', 'demlik', 'sıcak', 'içecek'] },
-    { target: 'AYNA', forbidden: ['yansıma', 'cam', 'bakmak', 'yüz'] },
-    { target: 'MARKET', forbidden: ['alışveriş', 'ürün', 'kasa', 'sepet'] },
-    { target: 'PASTA', forbidden: ['doğum günü', 'mum', 'tatlı', 'krem'] },
-    { target: 'KAR', forbidden: ['beyaz', 'kış', 'soğuk', 'yağmak'] },
-    { target: 'MOTOR', forbidden: ['iki teker', 'kask', 'sürmek', 'benzin'] },
-    { target: 'ANAHTAR', forbidden: ['kapı', 'kilit', 'açmak', 'metal'] },
-    { target: 'BALIK', forbidden: ['deniz', 'yüzmek', 'olta', 'akvaryum'] },
-    { target: 'ÇİÇEK', forbidden: ['koku', 'bahçe', 'gül', 'bitki'] },
-    { target: 'KOLTUK', forbidden: ['oturmak', 'salon', 'mobilya', 'kanepe'] },
-    { target: 'DİŞ', forbidden: ['fırça', 'ağız', 'dişçi', 'beyaz'] },
-    { target: 'AYAKKABI', forbidden: ['giymek', 'ayak', 'bağcık', 'spor'] },
-    { target: 'KAMERA', forbidden: ['fotoğraf', 'çekmek', 'lens', 'video'] },
-  ];
-
-  constructor(private readonly infra: InfrastructureService, private readonly rooms: RoomService) {}
+  constructor(
+    private readonly infra: InfrastructureService,
+    private readonly rooms: RoomService,
+    private readonly words: TabuWordRepository,
+  ) {}
 
   private testIds(currentUserId: string) {
-    if (process.env.GAME_ROOM_TEST_ENABLED !== 'true') {
-      throw new ForbiddenException('Mini oyun test odası sunucuda kapalı.');
-    }
-    const ids = (process.env.GAME_ROOM_TEST_USER_IDS ?? '')
-      .split(',')
-      .map((v) => v.trim())
-      .filter((v) => /^\d+$/.test(v) && v !== currentUserId);
+    if (process.env.GAME_ROOM_TEST_ENABLED !== 'true') throw new ForbiddenException('Mini oyun test odası sunucuda kapalı.');
+    const ids = (process.env.GAME_ROOM_TEST_USER_IDS ?? '').split(',').map((v) => v.trim()).filter((v) => /^\d+$/.test(v) && v !== currentUserId);
     const unique = [...new Set(ids)];
-    if (unique.length !== 5) {
-      throw new BadRequestException('GAME_ROOM_TEST_USER_IDS içinde mevcut kullanıcı hariç tam 5 test kullanıcı ID olmalı.');
-    }
+    if (unique.length !== 5) throw new BadRequestException('GAME_ROOM_TEST_USER_IDS içinde mevcut kullanıcı hariç tam 5 test kullanıcı ID olmalı.');
     return unique;
   }
 
   private normalize(value: string) {
-    return value
-      .toLocaleLowerCase('tr-TR')
-      .normalize('NFKD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9çğıöşü\s]/gi, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
+    return value.toLocaleLowerCase('tr-TR').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9çğıöşü\s]/gi, ' ').replace(/\s+/g, ' ').trim();
   }
 
-  private containsForbidden(text: string, card: TabuCard) {
-    const normalized = this.normalize(text);
-    const tokens = normalized.split(' ').filter(Boolean);
-    const banned = [card.target, ...card.forbidden].map((v) => this.normalize(v));
-    for (const bannedWord of banned) {
-      if (!bannedWord) continue;
-      if (bannedWord.includes(' ')) {
-        if (normalized.includes(bannedWord)) return bannedWord;
-        continue;
-      }
-      if (tokens.some((token) => token === bannedWord || token.startsWith(bannedWord))) return bannedWord;
-    }
-    return null;
+  private containsExact(text: string, needle: string) {
+    const target = this.normalize(needle);
+    if (!target) return false;
+    return (` ${this.normalize(text)} `).includes(` ${target} `);
   }
 
-  private narrator(state: State) {
-    return state.players[state.narratorIndex];
+  private narrator(s: State) { return s.players[s.narratorIndex]; }
+  private player(s: State, userId: string) { return s.players.find((p) => p.id === String(userId)); }
+
+  private assertPlayer(s: State, userId: string) {
+    if (!this.player(s, userId)) throw new ForbiddenException('Bu Tabu oyununa erişimin yok.');
   }
 
-  private nextCard(state: State) {
-    state.cardIndex = (state.cardIndex + 1) % this.cards.length;
-    state.card = this.cards[state.cardIndex];
-    state.wordStartedAtMs = Date.now();
-    state.lastResult = null;
-    const narrator = this.narrator(state);
-    if (narrator?.test) {
-      this.addMessage(state, narrator, 'narrator', 'Bu kelimeyi günlük hayatta sık kullanırız.');
-    }
+  private addMessage(s: State, p: Player, role: GameMessage['role'], text: string) {
+    s.messageSeq += 1;
+    s.messages.push({ id: s.messageSeq, userId: p.id, name: p.name, role, text, at: new Date().toISOString() });
+    if (s.messages.length > 120) s.messages.splice(0, s.messages.length - 120);
   }
 
-  private addMessage(state: State, player: Player | null, role: GameMessage['role'], text: string) {
-    state.messageSeq += 1;
-    state.messages.push({
-      id: state.messageSeq,
-      userId: player?.id ?? '',
-      name: player?.name ?? 'Meet6',
-      role,
-      text,
-      at: new Date().toISOString(),
-    });
-    if (state.messages.length > 120) state.messages.splice(0, state.messages.length - 120);
+  private async loadCard(s: State) {
+    const card = await this.words.nextCard(s.players.map((p) => p.id), s.usedCardIds.slice(-18));
+    s.card = card;
+    s.usedCardIds.push(card.id);
+    s.wordVersion += 1;
+    s.lastResult = null;
   }
 
-  private resolveWord(
-    state: State,
-    result: Omit<WordResult, 'target' | 'narratorUserId' | 'narratorName'>,
-  ) {
-    const narrator = this.narrator(state);
-    if (!narrator || state.phase !== 'play') return;
-    const full: WordResult = {
-      ...result,
-      target: state.card.target,
-      narratorUserId: narrator.id,
-      narratorName: narrator.name,
-    };
-    state.lastResult = full;
-    state.phase = 'word_result';
-    state.phaseEndsAtMs = Date.now() + TabuGameService.RESULT_MS;
+  private async grantXp(roomId: string, userId: string, delta: number, eventKey: string) {
+    if (!delta) return;
+    const inserted = await this.infra.db.query(
+      `insert into tabu_game_xp_events(room_id,user_id,event_key,delta) values($1,$2,$3,$4)
+       on conflict(room_id,user_id,event_key) do nothing returning id`,
+      [roomId, userId, eventKey, delta],
+    );
+    if (!inserted.rowCount) return;
+    await this.infra.db.query(
+      `insert into user_wallets(user_id,profile_xp) values($1,greatest(0,$2))
+       on conflict(user_id) do update set profile_xp=greatest(0,user_wallets.profile_xp+$2)`,
+      [userId, delta],
+    ).catch(() => undefined);
+  }
 
+  private async resolveWord(s: State, result: Omit<WordResult, 'target' | 'narratorUserId' | 'narratorName'>) {
+    if (s.phase !== 'play') throw new BadRequestException('Bu kelime artık aktif değil.');
+    const narrator = this.narrator(s);
+    const full: WordResult = { ...result, target: s.card.word, narratorUserId: narrator.id, narratorName: narrator.name };
+    s.lastResult = full;
+    s.phase = 'word_result';
+    s.phaseEndsAtMs = Date.now() + TabuGameService.RESULT_MS;
+    const eventBase = `w${s.wordVersion}`;
     if (result.kind === 'correct') {
-      state.currentTurn.correct += 1;
-      state.currentTurn.xp += 15;
-      state.xp[narrator.id] = (state.xp[narrator.id] ?? 0) + 15;
+      s.currentTurn.correct += 1; s.currentTurn.xp += 15; s.xp[narrator.id] = (s.xp[narrator.id] ?? 0) + 15;
+      await this.grantXp(s.roomId, narrator.id, 15, `${eventBase}:narrator-correct`);
       if (result.guesserUserId) {
-        state.xp[result.guesserUserId] = (state.xp[result.guesserUserId] ?? 0) + 20;
+        s.xp[result.guesserUserId] = (s.xp[result.guesserUserId] ?? 0) + 20;
+        await this.grantXp(s.roomId, result.guesserUserId, 20, `${eventBase}:guesser:${result.guesserUserId}`);
       }
     } else if (result.kind === 'tabu') {
-      state.currentTurn.tabu += 1;
-      state.currentTurn.xp -= 10;
-      state.xp[narrator.id] = (state.xp[narrator.id] ?? 0) - 10;
-    } else {
-      state.currentTurn.pass += 1;
-    }
+      s.currentTurn.tabu += 1; s.currentTurn.xp -= 10; s.xp[narrator.id] = (s.xp[narrator.id] ?? 0) - 10;
+      await this.grantXp(s.roomId, narrator.id, -10, `${eventBase}:tabu`);
+    } else s.currentTurn.pass += 1;
+    return full;
   }
 
-  private finishTurn(state: State) {
-    if (state.phase === 'final') return;
-    state.turnStats.push({ ...state.currentTurn });
-    state.phase = 'turn_result';
-    state.phaseEndsAtMs = Date.now() + TabuGameService.RESULT_MS;
+  private finishTurn(s: State) {
+    if (s.phase === 'final' || s.phase === 'turn_result') return;
+    s.turnStats.push({ ...s.currentTurn });
+    s.phase = 'turn_result';
+    s.phaseEndsAtMs = Date.now() + TabuGameService.RESULT_MS;
   }
 
-  private startNextNarrator(state: State) {
-    state.narratorIndex += 1;
-    if (state.narratorIndex >= state.players.length) {
-      state.phase = 'final';
-      state.phaseEndsAtMs = Date.now();
-      state.finalLeaderboard = state.players
-        .map((p) => ({ id: p.id, name: p.name, photoUrl: p.photoUrl, xp: state.xp[p.id] ?? 0 }))
-        .sort((a, b) => b.xp - a.xp || Number(a.id) - Number(b.id));
+  private async nextNarrator(s: State) {
+    s.narratorIndex += 1;
+    if (s.narratorIndex >= s.players.length) {
+      s.phase = 'final'; s.phaseEndsAtMs = Date.now();
+      s.finalLeaderboard = s.players.map((p) => ({ id: p.id, name: p.name, photoUrl: p.photoUrl, xp: s.xp[p.id] ?? 0 })).sort((a, b) => b.xp - a.xp || Number(a.id) - Number(b.id));
+      await this.infra.db.query(`update rooms set status='closed',closed_at=coalesce(closed_at,now()),closed_reason=coalesce(closed_reason,'game_finished') where id=$1 and room_mode='game'`, [s.roomId]).catch(() => undefined);
       return;
     }
-    const narrator = this.narrator(state);
-    state.currentTurn = { narratorUserId: narrator.id, correct: 0, tabu: 0, pass: 0, xp: 0 };
-    state.turnEndsAtMs = Date.now() + TabuGameService.TURN_MS;
-    state.phase = 'play';
-    state.phaseEndsAtMs = state.turnEndsAtMs;
-    this.nextCard(state);
+    const narrator = this.narrator(s);
+    s.currentTurn = { narratorUserId: narrator.id, correct: 0, tabu: 0, pass: 0, xp: 0 };
+    s.turnEndsAtMs = Date.now() + TabuGameService.TURN_MS;
+    s.phase = 'play'; s.phaseEndsAtMs = s.turnEndsAtMs;
+    await this.loadCard(s);
   }
 
-  private maybeAutoTestAction(state: State) {
-    if (state.phase !== 'play') return;
-    const narrator = this.narrator(state);
-    if (!narrator) return;
-    const elapsed = Date.now() - state.wordStartedAtMs;
-
-    if (narrator.test && elapsed >= 6_000) {
-      const guesser = state.players.find((p) => p.id !== narrator.id && p.test) ?? state.players.find((p) => p.id !== narrator.id);
-      if (!guesser) return;
-      this.addMessage(state, guesser, 'guesser', state.card.target);
-      this.resolveWord(state, {
-        kind: 'correct',
-        guesserUserId: guesser.id,
-        guesserName: guesser.name,
-        narratorXpDelta: 15,
-        guesserXpDelta: 20,
-      });
-      return;
-    }
-
-    if (!narrator.test) {
-      const hasHumanClue = state.messages.some(
-        (m) => m.userId === narrator.id && m.role === 'narrator' && new Date(m.at).getTime() >= state.wordStartedAtMs,
-      );
-      if (hasHumanClue && elapsed >= 8_000) {
-        const guesser = state.players.find((p) => p.test && p.id !== narrator.id);
-        if (!guesser) return;
-        this.addMessage(state, guesser, 'guesser', state.card.target);
-        this.resolveWord(state, {
-          kind: 'correct',
-          guesserUserId: guesser.id,
-          guesserName: guesser.name,
-          narratorXpDelta: 15,
-          guesserXpDelta: 20,
-        });
-      }
-    }
-  }
-
-  private sync(state: State) {
-    if (state.phase === 'final') return;
+  private async sync(s: State) {
+    if (s.phase === 'final') return;
     const now = Date.now();
-    if (now >= state.turnEndsAtMs && state.phase !== 'turn_result') {
-      this.finishTurn(state);
+    if (s.phase === 'play' && now >= s.turnEndsAtMs) { this.finishTurn(s); return; }
+    if (s.phase === 'word_result' && now >= s.phaseEndsAtMs) {
+      if (now >= s.turnEndsAtMs) this.finishTurn(s);
+      else { s.phase = 'play'; s.phaseEndsAtMs = s.turnEndsAtMs; await this.loadCard(s); }
       return;
     }
-    if (state.phase === 'word_result' && now >= state.phaseEndsAtMs) {
-      if (now >= state.turnEndsAtMs) this.finishTurn(state);
-      else {
-        state.phase = 'play';
-        state.phaseEndsAtMs = state.turnEndsAtMs;
-        this.nextCard(state);
-      }
-      return;
-    }
-    if (state.phase === 'turn_result' && now >= state.phaseEndsAtMs) {
-      this.startNextNarrator(state);
-      return;
-    }
-    this.maybeAutoTestAction(state);
+    if (s.phase === 'turn_result' && now >= s.phaseEndsAtMs) await this.nextNarrator(s);
   }
 
-  private view(state: State, userId: string) {
-    this.sync(state);
-    const narrator = this.narrator(state);
+  private viewRaw(s: State, userId: string) {
+    const narrator = this.narrator(s);
     const isNarrator = narrator?.id === String(userId);
     return {
-      roomId: state.roomId,
-      game: 'tabu',
-      phase: state.phase,
-      phaseEndsAt: new Date(state.phaseEndsAtMs).toISOString(),
-      turnEndsAt: new Date(state.turnEndsAtMs).toISOString(),
-      narratorIndex: state.narratorIndex,
-      totalNarrators: state.players.length,
-      narratorUserId: narrator?.id ?? null,
-      narratorName: narrator?.name ?? '',
-      isNarrator,
-      meUserId: String(userId),
-      target: isNarrator && state.phase !== 'final' ? state.card.target : null,
-      forbidden: isNarrator && state.phase !== 'final' ? state.card.forbidden : [],
-      players: state.players.map((p) => ({ id: p.id, name: p.name, photoUrl: p.photoUrl, xp: state.xp[p.id] ?? 0 })),
-      messages: state.messages,
-      currentTurn: state.currentTurn,
-      lastResult: state.lastResult,
-      leaderboard: state.phase === 'final'
-        ? state.finalLeaderboard
-        : state.players
-            .map((p) => ({ id: p.id, name: p.name, photoUrl: p.photoUrl, xp: state.xp[p.id] ?? 0 }))
-            .sort((a, b) => b.xp - a.xp || Number(a.id) - Number(b.id)),
+      roomId: s.roomId, game: 'tabu', phase: s.phase,
+      phaseEndsAt: new Date(s.phaseEndsAtMs).toISOString(), turnEndsAt: new Date(s.turnEndsAtMs).toISOString(),
+      narratorIndex: s.narratorIndex, totalNarrators: s.players.length, narratorUserId: narrator?.id ?? null,
+      narratorName: narrator?.name ?? '', isNarrator, meUserId: String(userId),
+      ...(isNarrator && s.phase !== 'final' ? { target: s.card.word, forbidden: s.card.forbidden } : {}),
+      players: s.players.map((p) => ({ id: p.id, name: p.name, photoUrl: p.photoUrl, xp: s.xp[p.id] ?? 0 })),
+      messages: s.messages, currentTurn: s.currentTurn,
+      lastResult: s.phase === 'word_result' || s.phase === 'turn_result' ? s.lastResult : null,
+      leaderboard: s.phase === 'final' ? s.finalLeaderboard : [],
+      turnStats: s.phase === 'final' ? s.turnStats : undefined,
+      wordVersion: s.wordVersion,
     };
-  }
-
-  private async assertMember(userId: string, roomId: string) {
-    const result = await this.infra.db.query(
-      `select 1 from room_members rm join rooms r on r.id=rm.room_id
-       where rm.room_id=$1 and rm.user_id=$2 and rm.left_at is null
-         and rm.admin_removed_at is null and r.room_mode='game'`,
-      [roomId, userId],
-    );
-    if (!result.rowCount) throw new ForbiddenException('Bu Tabu odasına erişimin yok.');
   }
 
   async create(userId: string) {
     const testIds = this.testIds(String(userId));
     const memberIds = [String(userId), ...testIds];
     const client = await this.infra.db.connect();
+    let roomId = '';
+    let players: Player[] = [];
     try {
-      await client.query('begin');
-      await client.query('select pg_advisory_xact_lock(606063)');
-      const profiles = await client.query<{ user_id: string; name: string; photo_url: string }>(
-        `select u.id::text user_id,
-                coalesce(nullif(trim(p.display_name),''),'Oyuncu') name,
-                coalesce(p.photo_urls[1],'') photo_url
-         from users u join profiles p on p.user_id=u.id
-         where u.id=any($1::bigint[]) and u.status='active' and p.profile_completed=true`,
-        [memberIds],
-      );
-      const ready = new Set(profiles.rows.map((r) => r.user_id));
-      const missing = memberIds.filter((id) => !ready.has(id));
-      if (missing.length) throw new BadRequestException(`Mini oyun test kullanıcıları hazır değil: ${missing.join(', ')}`);
-      const busy = await client.query(
-        `select 1 from room_members rm join rooms r on r.id=rm.room_id
-         where rm.user_id=$1 and rm.left_at is null and rm.admin_removed_at is null
-           and r.status in ('active','selection') limit 1`,
-        [userId],
-      );
+      await client.query('begin'); await client.query('select pg_advisory_xact_lock(606063)');
+      const profiles = await client.query<{user_id:string;name:string;photo_url:string}>(
+        `select u.id::text user_id,coalesce(nullif(trim(p.display_name),''),'Oyuncu') name,coalesce(p.photo_urls[1],'') photo_url
+         from users u join profiles p on p.user_id=u.id where u.id=any($1::bigint[]) and u.status='active' and p.profile_completed=true`, [memberIds]);
+      const byId = new Map(profiles.rows.map((r) => [r.user_id, r]));
+      const missing = memberIds.filter((id) => !byId.has(id)); if (missing.length) throw new BadRequestException(`Tabu test kullanıcıları hazır değil: ${missing.join(', ')}`);
+      const busy = await client.query(`select 1 from room_members rm join rooms r on r.id=rm.room_id where rm.user_id=$1 and rm.left_at is null and rm.admin_removed_at is null and r.status in ('active','selection') limit 1`, [userId]);
       if (busy.rowCount) throw new BadRequestException('Önce mevcut aktif odandan çıkmalısın.');
-      await client.query(
-        `update room_members rm set left_at=now() from rooms r
-         where rm.room_id=r.id and rm.user_id=any($1::bigint[])
-           and rm.left_at is null and rm.admin_removed_at is null
-           and r.status in ('active','selection')`,
-        [testIds],
-      );
-      const created = await client.query<{ id: string }>(
-        `insert into rooms(status,started_at,ends_at,room_duration_minutes,room_mode)
-         values('active',now(),now()+interval '15 minutes',15,'game') returning id::text`,
-      );
-      const roomId = created.rows[0]?.id;
-      if (!roomId) throw new BadRequestException('Tabu odası oluşturulamadı.');
+      await client.query(`update room_members rm set left_at=now() from rooms r where rm.room_id=r.id and rm.user_id=any($1::bigint[]) and rm.left_at is null and rm.admin_removed_at is null and r.status in ('active','selection')`, [testIds]);
+      const created = await client.query<{id:string}>(`insert into rooms(status,started_at,ends_at,room_duration_minutes,room_mode) values('active',now(),now()+interval '8 minutes',8,'game') returning id::text`);
+      roomId = created.rows[0]?.id ?? ''; if (!roomId) throw new BadRequestException('Tabu odası oluşturulamadı.');
       for (const id of memberIds) await client.query('insert into room_members(room_id,user_id) values($1,$2)', [roomId, id]);
       await client.query('delete from matchmaking_queue where user_id=any($1::bigint[])', [memberIds]);
-      await client.query(
-        `insert into room_messages(room_id,sender_user_id,body)
-         values($1,null,'Meet6 Tabu başladı. 6 kişi • 60 sn anlatıcı • yazılı anlatım ve tahmin.')`,
-        [roomId],
-      );
+      await client.query(`insert into room_messages(room_id,sender_user_id,body) values($1,null,'Mini oyun başladı: Tabu.')`, [roomId]);
       await client.query('commit');
+      players = memberIds.map((id) => { const r = byId.get(id)!; return { id, name: r.name, photoUrl: r.photo_url, test: id !== String(userId) }; });
+    } catch (e) { await client.query('rollback').catch(() => undefined); throw e; } finally { client.release(); }
 
-      const byId = new Map(profiles.rows.map((r) => [r.user_id, r]));
-      const players: Player[] = memberIds.map((id) => {
-        const row = byId.get(id)!;
-        return { id, name: row.name, photoUrl: row.photo_url, test: id !== String(userId) };
-      });
-      const narrator = players[0];
-      const started = Date.now();
-      const state: State = {
-        roomId,
-        players,
-        narratorIndex: 0,
-        turnEndsAtMs: started + TabuGameService.TURN_MS,
-        phase: 'play',
-        phaseEndsAtMs: started + TabuGameService.TURN_MS,
-        cardIndex: Math.floor(Math.random() * this.cards.length),
-        card: this.cards[0],
-        wordStartedAtMs: started,
-        messages: [],
-        messageSeq: 0,
-        xp: Object.fromEntries(players.map((p) => [p.id, 0])),
-        turnStats: [],
-        currentTurn: { narratorUserId: narrator.id, correct: 0, tabu: 0, pass: 0, xp: 0 },
-        lastResult: null,
-        finalLeaderboard: [],
-      };
-      state.card = this.cards[state.cardIndex];
-      this.games.set(roomId, state);
-      return {
-        ok: true,
-        state: 'room',
-        testMode: true,
-        participantCount: 6,
-        gameKey: 'tabu',
-        room: await this.rooms.getRoom(userId, roomId),
-        gameState: this.view(state, String(userId)),
-      };
-    } catch (error) {
-      await client.query('rollback').catch(() => undefined);
-      throw error;
-    } finally {
-      client.release();
-    }
+    const first = await this.words.nextCard(memberIds);
+    const narrator = players[0];
+    const turnEnds = Date.now() + TabuGameService.TURN_MS;
+    const s: State = { roomId, players, narratorIndex: 0, turnEndsAtMs: turnEnds, phase: 'play', phaseEndsAtMs: turnEnds, card: first, usedCardIds: [first.id], wordVersion: 1, messages: [], messageSeq: 0, xp: Object.fromEntries(players.map((p) => [p.id, 0])), turnStats: [], currentTurn: { narratorUserId: narrator.id, correct: 0, tabu: 0, pass: 0, xp: 0 }, lastResult: null, finalLeaderboard: [] };
+    this.games.set(roomId, s);
+    return { ok: true, state: 'room', testMode: true, participantCount: 6, gameKey: 'tabu', room: await this.rooms.getRoom(userId, roomId), gameState: this.viewRaw(s, String(userId)) };
   }
 
   async state(userId: string, roomId: string) {
-    await this.assertMember(userId, roomId);
-    const state = this.games.get(roomId);
-    if (!state) throw new BadRequestException('Tabu oyun durumu bulunamadı. Odayı yeniden oluştur.');
-    return this.view(state, String(userId));
+    const s = this.games.get(roomId); if (!s) throw new BadRequestException('Tabu oyun durumu bulunamadı. Odayı yeniden oluştur.');
+    this.assertPlayer(s, userId); await this.sync(s); return this.viewRaw(s, String(userId));
   }
 
   async clue(userId: string, roomId: string, raw: unknown) {
-    await this.assertMember(userId, roomId);
-    const state = this.games.get(roomId);
-    if (!state) throw new BadRequestException('Tabu oyun durumu bulunamadı.');
-    this.sync(state);
-    if (state.phase !== 'play') throw new BadRequestException('Şu anda anlatım gönderilemez.');
-    const narrator = this.narrator(state);
-    if (narrator?.id !== String(userId)) throw new ForbiddenException('Bu turda anlatıcı değilsin.');
-    const text = String(raw ?? '').trim();
-    if (text.length < 2 || text.length > 240) throw new BadRequestException('Anlatım 2-240 karakter arasında olmalı.');
-    const forbiddenWord = this.containsForbidden(text, state.card);
-    this.addMessage(state, narrator, 'narrator', text);
-    if (forbiddenWord) {
-      this.resolveWord(state, {
-        kind: 'tabu',
-        forbiddenWord,
-        narratorXpDelta: -10,
-        guesserXpDelta: 0,
-      });
+    const s = this.games.get(roomId); if (!s) throw new BadRequestException('Tabu oyun durumu bulunamadı.');
+    this.assertPlayer(s, userId); await this.sync(s);
+    const narrator = this.narrator(s); if (narrator.id !== String(userId)) throw new ForbiddenException('Sadece anlatıcı ipucu yazabilir.');
+    if (s.phase !== 'play') throw new BadRequestException('Şu an ipucu gönderilemez.');
+    const text = String(raw ?? '').trim(); if (text.length < 1 || text.length > 240) throw new BadRequestException('İpucu 1-240 karakter olmalı.');
+    const banned = [s.card.word, ...s.card.forbidden].find((word) => this.containsExact(text, word));
+    if (banned) {
+      const result = await this.resolveWord(s, { kind: 'tabu', forbiddenWord: banned, narratorXpDelta: -10, guesserXpDelta: 0 });
+      return { state: this.viewRaw(s, String(userId)), event: 'tabu:forbidden_used', eventData: result };
     }
-    return this.view(state, String(userId));
+    this.addMessage(s, narrator, 'narrator', text);
+    return { state: this.viewRaw(s, String(userId)), event: 'tabu:speaker_message', eventData: { roomId, message: s.messages[s.messages.length - 1] } };
   }
 
   async guess(userId: string, roomId: string, raw: unknown) {
-    await this.assertMember(userId, roomId);
-    const state = this.games.get(roomId);
-    if (!state) throw new BadRequestException('Tabu oyun durumu bulunamadı.');
-    this.sync(state);
-    if (state.phase !== 'play') throw new BadRequestException('Bu kelime için tahmin süresi kapandı.');
-    const narrator = this.narrator(state);
-    if (narrator?.id === String(userId)) throw new ForbiddenException('Anlatıcı tahmin gönderemez.');
-    const player = state.players.find((p) => p.id === String(userId));
-    if (!player) throw new ForbiddenException('Oyuncu bulunamadı.');
-    const text = String(raw ?? '').trim();
-    if (text.length < 1 || text.length > 80) throw new BadRequestException('Tahmin 1-80 karakter arasında olmalı.');
-    this.addMessage(state, player, 'guesser', text);
-    if (this.normalize(text) === this.normalize(state.card.target)) {
-      this.resolveWord(state, {
-        kind: 'correct',
-        guesserUserId: player.id,
-        guesserName: player.name,
-        narratorXpDelta: 15,
-        guesserXpDelta: 20,
-      });
+    const s = this.games.get(roomId); if (!s) throw new BadRequestException('Tabu oyun durumu bulunamadı.');
+    this.assertPlayer(s, userId); await this.sync(s);
+    const guesser = this.player(s, userId)!; const narrator = this.narrator(s);
+    if (guesser.id === narrator.id) throw new ForbiddenException('Anlatıcı tahmin gönderemez.');
+    if (s.phase !== 'play') throw new BadRequestException('Bu kelime için tahmin süresi kapandı.');
+    const guess = String(raw ?? '').trim(); if (guess.length < 1 || guess.length > 80) throw new BadRequestException('Tahmin 1-80 karakter olmalı.');
+    this.addMessage(s, guesser, 'guesser', guess);
+    if (this.normalize(guess) !== this.normalize(s.card.word)) {
+      return { state: this.viewRaw(s, String(userId)), event: 'tabu:guess_submitted', eventData: { roomId, message: s.messages[s.messages.length - 1] } };
     }
-    return this.view(state, String(userId));
+    const lockKey = `tabu:correct:${roomId}:${s.wordVersion}`;
+    const won = await this.infra.redis.set(lockKey, String(userId), 'EX', 70, 'NX');
+    if (won !== 'OK' || s.phase !== 'play') return { state: this.viewRaw(s, String(userId)), event: 'tabu:guess_submitted', eventData: { roomId, message: s.messages[s.messages.length - 1], accepted: false } };
+    const result = await this.resolveWord(s, { kind: 'correct', guesserUserId: guesser.id, guesserName: guesser.name, narratorXpDelta: 15, guesserXpDelta: 20 });
+    return { state: this.viewRaw(s, String(userId)), event: 'tabu:correct_guess', eventData: result };
   }
 
   async pass(userId: string, roomId: string) {
-    await this.assertMember(userId, roomId);
-    const state = this.games.get(roomId);
-    if (!state) throw new BadRequestException('Tabu oyun durumu bulunamadı.');
-    this.sync(state);
-    if (state.phase !== 'play') throw new BadRequestException('Şu anda pas geçilemez.');
-    const narrator = this.narrator(state);
-    if (narrator?.id !== String(userId)) throw new ForbiddenException('Sadece anlatıcı pas geçebilir.');
-    this.resolveWord(state, { kind: 'pass', narratorXpDelta: 0, guesserXpDelta: 0 });
-    return this.view(state, String(userId));
+    const s = this.games.get(roomId); if (!s) throw new BadRequestException('Tabu oyun durumu bulunamadı.');
+    this.assertPlayer(s, userId); await this.sync(s);
+    if (this.narrator(s).id !== String(userId)) throw new ForbiddenException('Sadece anlatıcı pas geçebilir.');
+    if (s.phase !== 'play') throw new BadRequestException('Şu an pas geçilemez.');
+    const result = await this.resolveWord(s, { kind: 'pass', narratorXpDelta: 0, guesserXpDelta: 0 });
+    return { state: this.viewRaw(s, String(userId)), event: 'tabu:word_skipped', eventData: result };
   }
+
+  async tick(roomId: string) {
+    const s = this.games.get(roomId); if (!s) return null;
+    const before = `${s.phase}:${s.narratorIndex}:${s.wordVersion}`;
+    await this.sync(s);
+    const after = `${s.phase}:${s.narratorIndex}:${s.wordVersion}`;
+    if (before === after) return null;
+    const event = s.phase === 'final' ? 'tabu:game_finished' : s.phase === 'turn_result' ? 'tabu:speaker_turn_ended' : 'tabu:round_started';
+    return { event, roomId };
+  }
+
+  memberIds(roomId: string) { return this.games.get(roomId)?.players.map((p) => p.id) ?? []; }
 }
