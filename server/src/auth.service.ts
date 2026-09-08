@@ -7,7 +7,12 @@ import {
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { createHmac, randomBytes } from 'node:crypto';
+import {
+  createHmac,
+  randomBytes,
+  scrypt,
+  timingSafeEqual,
+} from 'node:crypto';
 
 import { InfrastructureService } from './infrastructure.service';
 import { normalizeTurkishPhone } from './phone.util';
@@ -20,6 +25,61 @@ export class AuthService {
     const secret = process.env.JWT_SECRET;
     if (!secret) throw new Error('JWT_SECRET is required');
     return createHmac('sha256', secret).update(`${phone}:${code}`).digest('hex');
+  }
+
+  private derivePassword(password: string, salt: string) {
+    return new Promise<Buffer>((resolve, reject) => {
+      scrypt(password, salt, 64, (error, derivedKey) => {
+        if (error) return reject(error);
+        resolve(Buffer.from(derivedKey));
+      });
+    });
+  }
+
+  private validatePassword(password: string) {
+    if (password.length < 8 || password.length > 72) {
+      throw new BadRequestException('Şifre 8 ile 72 karakter arasında olmalı.');
+    }
+  }
+
+  private async passwordCredential(password: string) {
+    this.validatePassword(password);
+    const salt = randomBytes(16).toString('hex');
+    const hash = await this.derivePassword(password, salt);
+    return { salt, hash: hash.toString('hex') };
+  }
+
+  private async passwordMatches(password: string, salt: string, expectedHex: string) {
+    this.validatePassword(password);
+    const actual = await this.derivePassword(password, salt);
+    const expected = Buffer.from(expectedHex, 'hex');
+    return actual.length === expected.length && timingSafeEqual(actual, expected);
+  }
+
+  private async createSession(userId: string, isNewUser: boolean) {
+    await this.ensureUserAllowed(userId);
+    const sessionId = randomBytes(32).toString('base64url');
+    const ttlSeconds = 60 * 60 * 24 * 30;
+    const sessionsKey = `user-sessions:${userId}`;
+    await this.infra.redis
+      .multi()
+      .set(`session:${sessionId}`, userId, 'EX', ttlSeconds)
+      .sadd(sessionsKey, sessionId)
+      .expire(sessionsKey, ttlSeconds)
+      .exec();
+
+    const profile = await this.infra.db.query<{ profile_completed: boolean }>(
+      'select profile_completed from profiles where user_id = $1',
+      [userId],
+    );
+
+    return {
+      ok: true,
+      sessionId,
+      userId,
+      isNewUser,
+      profileCompleted: profile.rows[0]?.profile_completed ?? false,
+    };
   }
 
   private async ensureUserAllowed(userId: string) {
@@ -60,6 +120,90 @@ export class AuthService {
     );
     const userId = user.rows[0]?.id;
     if (userId) await this.ensureUserAllowed(userId);
+  }
+
+  async registerWithPassword(phoneInput: string, password: string) {
+    const phone = normalizeTurkishPhone(phoneInput);
+    const credential = await this.passwordCredential(password);
+    const client = await this.infra.db.connect();
+    try {
+      await client.query('begin');
+      const existing = await client.query<{ id: string }>(
+        `select id::text from users where phone_e164=$1 for update`,
+        [phone],
+      );
+      if (existing.rowCount) {
+        throw new BadRequestException('Bu telefon numarasıyla zaten kayıtlı bir hesap var.');
+      }
+
+      const user = await client.query<{ id: string }>(
+        `insert into users(
+           phone_e164,
+           password_hash,
+           password_salt,
+           password_updated_at,
+           last_seen_at
+         ) values ($1,$2,$3,now(),now())
+         returning id::text`,
+        [phone, credential.hash, credential.salt],
+      );
+      const userId = user.rows[0].id;
+      await client.query(
+        `insert into matching_preferences(user_id) values ($1)
+         on conflict (user_id) do nothing`,
+        [userId],
+      );
+      await client.query('commit');
+      return this.createSession(userId, true);
+    } catch (error: any) {
+      await client.query('rollback').catch(() => undefined);
+      if (error?.code === '23505') {
+        throw new BadRequestException('Bu telefon numarasıyla zaten kayıtlı bir hesap var.');
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async loginWithPassword(phoneInput: string, password: string) {
+    const phone = normalizeTurkishPhone(phoneInput);
+    const failKey = `password-login:fail:${phone}`;
+    const failures = Number(await this.infra.redis.get(failKey) ?? '0');
+    if (failures >= 8) {
+      throw new HttpException('Çok fazla hatalı deneme. 15 dakika sonra tekrar dene.', HttpStatus.TOO_MANY_REQUESTS);
+    }
+
+    const result = await this.infra.db.query<{
+      id: string;
+      password_hash: string | null;
+      password_salt: string | null;
+    }>(
+      `select id::text, password_hash, password_salt
+       from users
+       where phone_e164=$1`,
+      [phone],
+    );
+    const user = result.rows[0];
+    if (!user) {
+      await this.infra.redis.multi().incr(failKey).expire(failKey, 900).exec();
+      throw new UnauthorizedException('Telefon numarası veya şifre yanlış.');
+    }
+    await this.ensureUserAllowed(user.id);
+
+    if (!user.password_hash || !user.password_salt) {
+      throw new UnauthorizedException('Bu eski hesapta henüz şifre yok. OTP ile giriş yapabilirsin.');
+    }
+
+    const matches = await this.passwordMatches(password, user.password_salt, user.password_hash);
+    if (!matches) {
+      await this.infra.redis.multi().incr(failKey).expire(failKey, 900).exec();
+      throw new UnauthorizedException('Telefon numarası veya şifre yanlış.');
+    }
+
+    await this.infra.redis.del(failKey);
+    await this.infra.db.query('update users set last_seen_at=now(), updated_at=now() where id=$1', [user.id]);
+    return this.createSession(user.id, false);
   }
 
   async requestCode(phoneInput: string) {
@@ -131,12 +275,15 @@ export class AuthService {
         [phone],
       );
       const isNewUser = existingUser.rowCount === 0;
+      if (isNewUser && process.env.OTP_TEST_MODE !== 'true') {
+        throw new UnauthorizedException('Bu telefon numarasıyla kayıtlı hesap yok. Önce kayıt ol.');
+      }
       const userResult = await client.query<{ id: string }>(
         `insert into users(phone_e164, last_seen_at)
          values ($1, now())
          on conflict (phone_e164)
          do update set last_seen_at = now(), updated_at = now()
-         returning id`,
+         returning id::text`,
         [phone],
       );
       const userId = userResult.rows[0].id;
@@ -146,31 +293,7 @@ export class AuthService {
         [userId],
       );
       await client.query('commit');
-
-      await this.ensureUserAllowed(userId);
-
-      const sessionId = randomBytes(32).toString('base64url');
-      const ttlSeconds = 60 * 60 * 24 * 30;
-      const sessionsKey = `user-sessions:${userId}`;
-      await this.infra.redis
-        .multi()
-        .set(`session:${sessionId}`, userId, 'EX', ttlSeconds)
-        .sadd(sessionsKey, sessionId)
-        .expire(sessionsKey, ttlSeconds)
-        .exec();
-
-      const profile = await this.infra.db.query<{ profile_completed: boolean }>(
-        'select profile_completed from profiles where user_id = $1',
-        [userId],
-      );
-
-      return {
-        ok: true,
-        sessionId,
-        userId,
-        isNewUser,
-        profileCompleted: profile.rows[0]?.profile_completed ?? false,
-      };
+      return this.createSession(userId, isNewUser);
     } catch (error) {
       await client.query('rollback').catch(() => undefined);
       throw error;
