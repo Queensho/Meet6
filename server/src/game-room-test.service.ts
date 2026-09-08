@@ -63,6 +63,13 @@ export class GameRoomTestService {
     return false;
   }
 
+  private oppositeSex(a: string, b: string) {
+    const normalize = (value: string) => String(value ?? '').trim().toLocaleLowerCase('tr-TR');
+    const female = (value: string) => ['kadın', 'kadin', 'female', 'woman'].includes(normalize(value));
+    const male = (value: string) => ['erkek', 'male', 'man'].includes(normalize(value));
+    return (female(a) && male(b)) || (male(a) && female(b));
+  }
+
   private botStatements(seed: number) {
     const sets = [
       ['Gece yürüyüşlerini severim.', 'Kahveyi şekersiz içerim.', 'Hiç denize girmedim.'],
@@ -169,12 +176,25 @@ export class GameRoomTestService {
       blocked.add(key(row.a, row.b));
     }
 
+    const partyTable = await this.infra.db.query<{ exists: boolean }>(
+      `select to_regclass('public.matchmaking_parties') is not null as exists`,
+    );
+    if (partyTable.rows[0]?.exists) {
+      const partyPairs = await this.infra.db.query<{ a: string; b: string }>(
+        `select owner_user_id::text a, guest_user_id::text b
+         from matchmaking_parties
+         where room_id=$1 and status='matched' and guest_user_id is not null`,
+        [state.roomId],
+      );
+      for (const row of partyPairs.rows) blocked.add(key(row.a, row.b));
+    }
+
     const pairs: PairScore[] = [];
     for (let i = 0; i < state.players.length; i++) {
       for (let j = i + 1; j < state.players.length; j++) {
         const a = state.players[i], b = state.players[j];
         if (blocked.has(key(a.id, b.id))) continue;
-        if (!this.accepts(a.lookingFor, b.gender) || !this.accepts(b.lookingFor, a.gender)) continue;
+        if (!this.oppositeSex(a.gender, b.gender)) continue;
         pairs.push({ a: a.id, b: b.id, score: this.pairCompatibility(state, a.id, b.id) });
       }
     }
