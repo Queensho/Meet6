@@ -1,9 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../services/api_service.dart';
 import '../../services/mini_game_selection_service.dart';
+import '../../services/party_invite_link_service.dart';
 import '../../services/party_matchmaking_service.dart';
 import '../../services/realtime_service.dart';
 import '../../services/room_queue_api_service.dart';
@@ -49,6 +51,7 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
   bool loading = true;
   bool firstConnectionSeen = false;
   bool waitingFriend = false;
+  bool sharing = false;
   String? friendName;
   String? error;
   int queueTotal = 0;
@@ -60,6 +63,7 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
   String get _gameKey => MiniGameSelectionService.selectedGameKey;
   bool get _tabu => widget.gameMode && _gameKey == 'tabu';
   String get _partyCode => widget.partyCode?.trim().toUpperCase() ?? '';
+  String get _inviteUrl => PartyInviteLinkService.buildInviteUrl(_partyCode);
 
   @override
   void initState() {
@@ -165,13 +169,17 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
           : await PartyMatchmakingService.search(_partyCode);
       if (!mounted) return;
       final rawParty = data['party'];
-      final party = rawParty is Map ? Map<String, dynamic>.from(rawParty) : <String, dynamic>{};
+      final party = rawParty is Map
+          ? Map<String, dynamic>.from(rawParty)
+          : <String, dynamic>{};
       setState(() {
         waitingFriend = data['state']?.toString() == 'waiting_friend';
         friendName = party['guestName']?.toString();
       });
       await _handleStatus(data);
-      if (!leavingForRoom && data['state']?.toString() != 'room' && data['state']?.toString() != 'idle') {
+      if (!leavingForRoom &&
+          data['state']?.toString() != 'room' &&
+          data['state']?.toString() != 'idle') {
         _schedulePartyPoll((data['nextRetrySeconds'] as num?)?.toInt() ?? 2);
       }
     } on ApiException catch (e) {
@@ -307,9 +315,44 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
     setState(() {
       loading = false;
       error = state == 'idle' ? 'Davet sona erdi.' : null;
-      queueTotal = (data['total'] as num?)?.toInt() ?? (widget.partyMode ? (waitingFriend ? 1 : 2) : 0);
+      queueTotal = (data['total'] as num?)?.toInt() ??
+          (widget.partyMode ? (waitingFriend ? 1 : 2) : 0);
       queuePosition = (data['position'] as num?)?.toInt() ?? 0;
     });
+  }
+
+  Future<void> _shareWhatsApp() async {
+    if (sharing) return;
+    setState(() => sharing = true);
+    try {
+      final opened = await PartyInviteLinkService.shareWhatsApp(_partyCode);
+      if (!opened && mounted) {
+        await _copyInviteLink();
+      }
+    } finally {
+      if (mounted) setState(() => sharing = false);
+    }
+  }
+
+  Future<void> _shareSms() async {
+    if (sharing) return;
+    setState(() => sharing = true);
+    try {
+      final opened = await PartyInviteLinkService.shareSms(_partyCode);
+      if (!opened && mounted) {
+        await _copyInviteLink();
+      }
+    } finally {
+      if (mounted) setState(() => sharing = false);
+    }
+  }
+
+  Future<void> _copyInviteLink() async {
+    await Clipboard.setData(ClipboardData(text: _inviteUrl));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Davet linki panoya kopyalandı.')),
+    );
   }
 
   Future<void> _cancel() async {
@@ -335,10 +378,14 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
 
   String get _gameName {
     switch (_gameKey) {
-      case 'red_flag_green_flag': return 'Red Flag / Green Flag';
-      case 'two_truths_one_lie': return '2 Doğru 1 Yanlış';
-      case 'tabu': return 'Tabu';
-      default: return 'Mini oyun';
+      case 'red_flag_green_flag':
+        return 'Red Flag / Green Flag';
+      case 'two_truths_one_lie':
+        return '2 Doğru 1 Yanlış';
+      case 'tabu':
+        return 'Tabu';
+      default:
+        return 'Mini oyun';
     }
   }
 
@@ -355,17 +402,29 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
     pulse.dispose();
     if (!leavingForRoom) {
       if (widget.partyMode) {
-        unawaited(PartyMatchmakingService.cancel(_partyCode).catchError((_) => <String, dynamic>{}));
+        unawaited(
+          PartyMatchmakingService.cancel(_partyCode)
+              .catchError((_) => <String, dynamic>{}),
+        );
       } else if (widget.gameMode) {
         if (_tabu) {
-          unawaited(RoomQueueApiService.cancelTabuQueue().catchError((_) => <String, dynamic>{}));
+          unawaited(
+            RoomQueueApiService.cancelTabuQueue()
+                .catchError((_) => <String, dynamic>{}),
+          );
         } else {
-          unawaited(RoomQueueApiService.cancelMiniGameQueue().catchError((_) => <String, dynamic>{}));
+          unawaited(
+            RoomQueueApiService.cancelMiniGameQueue()
+                .catchError((_) => <String, dynamic>{}),
+          );
         }
       } else if (widget.voiceMode) {
         unawaited(VoiceRoomService.cancelQueue().catchError((_) {}));
       } else {
-        unawaited(RealtimeService.cancelQueue().catchError((_) => <String, dynamic>{}));
+        unawaited(
+          RealtimeService.cancelQueue()
+              .catchError((_) => <String, dynamic>{}),
+        );
       }
     }
     super.dispose();
@@ -390,7 +449,9 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                   height: 280 * factor + pulse.value * 12,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(color: softRing.withOpacity(.10 + factor * .10)),
+                    border: Border.all(
+                      color: softRing.withValues(alpha: .10 + factor * .10),
+                    ),
                   ),
                 ),
               SizedBox(
@@ -399,7 +460,7 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                 child: CircularProgressIndicator(
                   value: leavingForRoom ? 1 : _cycleProgress,
                   strokeWidth: 7,
-                  backgroundColor: softRing.withOpacity(.14),
+                  backgroundColor: softRing.withValues(alpha: .14),
                   valueColor: AlwaysStoppedAnimation<Color>(ringColor),
                 ),
               ),
@@ -410,7 +471,13 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                   color: AppColors.lime,
                   shape: BoxShape.circle,
                   border: Border.all(color: AppColors.navy, width: 2.5),
-                  boxShadow: [BoxShadow(color: AppColors.lime.withOpacity(.28), blurRadius: 34, spreadRadius: 8)],
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.lime.withValues(alpha: .28),
+                      blurRadius: 34,
+                      spreadRadius: 8,
+                    ),
+                  ],
                 ),
                 alignment: Alignment.center,
                 child: Column(
@@ -419,7 +486,13 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                     if (widget.partyMode)
                       Text(
                         '${queueTotal.clamp(1, 6)}/6',
-                        style: const TextStyle(color: AppColors.navy, fontSize: 54, fontWeight: FontWeight.w900, height: .95, letterSpacing: -2),
+                        style: const TextStyle(
+                          color: AppColors.navy,
+                          fontSize: 54,
+                          fontWeight: FontWeight.w900,
+                          height: .95,
+                          letterSpacing: -2,
+                        ),
                       )
                     else if (widget.voiceMode)
                       const Icon(Icons.mic_rounded, color: AppColors.navy, size: 46)
@@ -428,11 +501,24 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                     else
                       Text(
                         leavingForRoom ? '6' : '${secondsLeft.clamp(0, 999)}',
-                        style: const TextStyle(color: AppColors.navy, fontSize: 70, fontWeight: FontWeight.w900, height: .9, letterSpacing: -3),
+                        style: const TextStyle(
+                          color: AppColors.navy,
+                          fontSize: 70,
+                          fontWeight: FontWeight.w900,
+                          height: .9,
+                          letterSpacing: -3,
+                        ),
                       ),
                     if (!widget.partyMode && (widget.voiceMode || widget.gameMode)) ...[
                       const SizedBox(height: 5),
-                      Text(leavingForRoom ? 'Hazır' : '${secondsLeft.clamp(0, 999)} sn', style: const TextStyle(color: AppColors.navy, fontSize: 19, fontWeight: FontWeight.w900)),
+                      Text(
+                        leavingForRoom ? 'Hazır' : '${secondsLeft.clamp(0, 999)} sn',
+                        style: const TextStyle(
+                          color: AppColors.navy,
+                          fontSize: 19,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
                     ],
                     const SizedBox(height: 9),
                     Text(
@@ -443,7 +529,11 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                               : widget.gameMode
                                   ? '6 kişilik oyun'
                                   : '6 kişilik oda',
-                      style: const TextStyle(color: AppColors.navy, fontSize: 12, fontWeight: FontWeight.w900),
+                      style: const TextStyle(
+                        color: AppColors.navy,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                   ],
                 ),
@@ -452,6 +542,67 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
           ),
         );
       },
+    );
+  }
+
+  Widget _partySharePanel(Color text) {
+    return Column(
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: text.withValues(alpha: .075),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Column(
+            children: [
+              Text(
+                _inviteUrl,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: text, fontSize: 12, fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: sharing ? null : _shareWhatsApp,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.navy,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(0, 48),
+                      ),
+                      icon: const Icon(Icons.chat_rounded, size: 20),
+                      label: const Text('WhatsApp', style: TextStyle(fontWeight: FontWeight.w900)),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: sharing ? null : _shareSms,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: text,
+                        side: BorderSide(color: text.withValues(alpha: .28)),
+                        minimumSize: const Size(0, 48),
+                      ),
+                      icon: const Icon(Icons.sms_rounded, size: 20),
+                      label: const Text('Mesaj', style: TextStyle(fontWeight: FontWeight.w900)),
+                    ),
+                  ),
+                ],
+              ),
+              TextButton.icon(
+                onPressed: sharing ? null : _copyInviteLink,
+                icon: const Icon(Icons.link_rounded),
+                label: const Text('Davet linkini kopyala'),
+                style: TextButton.styleFrom(foregroundColor: text),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -465,7 +616,8 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
     String title;
     String subtitle;
     if (error != null && error != 'Bağlantı yenileniyor...') {
-      title = 'Bağlantı sorunu'; subtitle = error!;
+      title = 'Bağlantı sorunu';
+      subtitle = error!;
     } else if (leavingForRoom) {
       title = widget.gameMode ? '$_gameName odası hazır!' : 'Eşleşme bulundu!';
       subtitle = widget.partyMode
@@ -477,19 +629,27 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                   : '6 kişi hazır. Odaya bağlanıyorsun.';
     } else if (widget.partyMode && waitingFriend) {
       title = 'Arkadaşın bekleniyor...';
-      subtitle = 'Davet kodu: $_partyCode\nArkadaşın kodu kabul edince kalan 4 kişiyi Meet6 bulacak.';
+      subtitle = 'Davet linkini WhatsApp veya mesaj ile gönder. Arkadaşın katılınca kalan 4 kişiyi Meet6 bulacak.';
     } else if (widget.partyMode) {
-      title = friendName?.trim().isNotEmpty == true ? '${friendName!} katıldı · 4 kişi aranıyor...' : 'Arkadaşın katıldı · 4 kişi aranıyor...';
+      title = friendName?.trim().isNotEmpty == true
+          ? '${friendName!} katıldı · 4 kişi aranıyor...'
+          : 'Arkadaşın katıldı · 4 kişi aranıyor...';
       subtitle = '${queueTotal.clamp(2, 6)}/6 hazır. Siz aynı odada kalırsınız; kalan kişileri sistem eşleştirir.';
     } else if (widget.gameMode) {
       title = '$_gameName için 6 oyuncu aranıyor...';
-      subtitle = queueTotal > 0 ? 'Havuzda $queueTotal kişi var. Sıra konumun: $queuePosition' : '6 gerçek oyuncu hazır olduğunda oyun otomatik başlayacak.';
+      subtitle = queueTotal > 0
+          ? 'Havuzda $queueTotal kişi var. Sıra konumun: $queuePosition'
+          : '6 gerçek oyuncu hazır olduğunda oyun otomatik başlayacak.';
     } else if (widget.voiceMode) {
       title = 'Premium 1’e 1 eşleşme aranıyor...';
-      subtitle = queueTotal > 0 ? 'Havuzda $queueTotal kişi var. Sıra konumun: $queuePosition' : 'Tercihlerine uygun kullanıcı bekleniyor.';
+      subtitle = queueTotal > 0
+          ? 'Havuzda $queueTotal kişi var. Sıra konumun: $queuePosition'
+          : 'Tercihlerine uygun kullanıcı bekleniyor.';
     } else {
       title = 'Oda aranıyor...';
-      subtitle = queueTotal > 0 ? '${widget.roomDurationMinutes} dk havuzunda $queueTotal kişi var. Sıra konumun: $queuePosition' : 'Uygun kullanıcılar aranıyor.';
+      subtitle = queueTotal > 0
+          ? '${widget.roomDurationMinutes} dk havuzunda $queueTotal kişi var. Sıra konumun: $queuePosition'
+          : 'Uygun kullanıcılar aranıyor.';
     }
 
     return Scaffold(
@@ -499,31 +659,67 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
           padding: const EdgeInsets.fromLTRB(22, 18, 22, 24),
           child: Column(
             children: [
-              Row(children: [
-                IconButton(onPressed: _cancel, icon: Icon(Icons.arrow_back_ios_new_rounded, color: text)),
-                const Spacer(),
-                const Meet6MiniBrand(),
-              ]),
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: _cancel,
+                    icon: Icon(Icons.arrow_back_ios_new_rounded, color: text),
+                  ),
+                  const Spacer(),
+                  const Meet6MiniBrand(),
+                ],
+              ),
               const Spacer(),
               _searchOrb(dark),
-              const SizedBox(height: 26),
-              Text(title, textAlign: TextAlign.center, style: TextStyle(color: text, fontSize: 26, fontWeight: FontWeight.w900, letterSpacing: -.7)),
+              const SizedBox(height: 22),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: text,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -.7,
+                ),
+              ),
               const SizedBox(height: 10),
-              Text(subtitle, textAlign: TextAlign.center, style: TextStyle(color: text.withOpacity(.68), fontSize: 15, height: 1.35, fontWeight: FontWeight.w700)),
+              Text(
+                subtitle,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: text.withValues(alpha: .68),
+                  fontSize: 15,
+                  height: 1.35,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
               if (!leavingForRoom && error == null) ...[
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
-                  decoration: BoxDecoration(color: text.withOpacity(.075), borderRadius: BorderRadius.circular(999)),
+                  decoration: BoxDecoration(
+                    color: text.withValues(alpha: .075),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
                   child: Text(
                     widget.partyMode
-                        ? (waitingFriend ? 'Kod: $_partyCode' : 'Yeni kontrol ${secondsLeft.clamp(0, 999)} sn sonra')
+                        ? (waitingFriend
+                            ? 'Kod: $_partyCode'
+                            : 'Yeni kontrol ${secondsLeft.clamp(0, 999)} sn sonra')
                         : widget.gameMode
                             ? 'Yeni kontrol ${secondsLeft.clamp(0, 999)} sn sonra'
                             : 'Arama turu $searchCycle',
-                    style: TextStyle(color: text.withOpacity(.62), fontSize: 12, fontWeight: FontWeight.w800),
+                    style: TextStyle(
+                      color: text.withValues(alpha: .62),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
+              ],
+              if (widget.partyMode && waitingFriend && !leavingForRoom && error == null) ...[
+                const SizedBox(height: 14),
+                _partySharePanel(text),
               ],
               const Spacer(),
               SizedBox(
@@ -533,10 +729,13 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                   onPressed: _cancel,
                   style: OutlinedButton.styleFrom(
                     foregroundColor: text,
-                    side: BorderSide(color: text.withOpacity(.24)),
+                    side: BorderSide(color: text.withValues(alpha: .24)),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
                   ),
-                  child: Text(widget.partyMode ? 'Davet / aramayı iptal et' : 'Aramayı iptal et', style: const TextStyle(fontWeight: FontWeight.w800)),
+                  child: Text(
+                    widget.partyMode ? 'Davet / aramayı iptal et' : 'Aramayı iptal et',
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
                 ),
               ),
             ],
