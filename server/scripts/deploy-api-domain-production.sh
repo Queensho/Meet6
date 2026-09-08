@@ -52,8 +52,8 @@ run_as_app bash -lc "cd '$SERVER_ROOT' && npm ci"
 echo "[3/8] Backend derleniyor..."
 run_as_app bash -lc "cd '$SERVER_ROOT' && npm run build"
 
-echo "[4/8] Veritabanı migrationları uygulanıyor..."
-run_as_app bash -lc "cd '$SERVER_ROOT' && npm run migrate"
+echo "[4/8] Veritabanı migrationları ve Tabu kelime seed'i uygulanıyor..."
+run_as_app bash -lc "cd '$SERVER_ROOT' && npm run migrate && npm run seed:tabu"
 
 echo "[5/8] PM2 production API yeniden yükleniyor..."
 PM2_BIN="$(command -v pm2 || true)"
@@ -104,9 +104,17 @@ if [[ "$ROUTE_STATUS" == "404" || "$ROUTE_STATUS" == "000" ]]; then
   exit 1
 fi
 
+TABU_STATUS="$(curl -sS -o /dev/null -w '%{http_code}' \
+  "https://$API_DOMAIN/api/rooms/game/0/tabu/state" || true)"
+if [[ "$TABU_STATUS" == "404" || "$TABU_STATUS" == "000" ]]; then
+  echo "Tabu route production'da aktif değil. HTTP $TABU_STATUS" >&2
+  exit 1
+fi
+
 run_as_app "$PM2_BIN" list || true
 
 echo
 echo "Meet6 API production deploy tamamlandı."
 echo "Health: https://$API_DOMAIN/api/health"
 echo "force-finish route status (auth'suz smoke): HTTP $ROUTE_STATUS"
+echo "Tabu route status (auth'suz smoke): HTTP $TABU_STATUS"
