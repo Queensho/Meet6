@@ -25,7 +25,6 @@ class RealtimeService {
   static final _events = StreamController<RealtimeEvent>.broadcast();
   static final Random _random = Random.secure();
 
-  // Null in production. Tests can exercise the real screens without opening a socket.
   static Future<Map<String, dynamic>> Function(
     String event,
     Map<String, dynamic> data,
@@ -43,6 +42,10 @@ class RealtimeService {
       throw StateError('debugEmit yalnızca test adapteri kuruluyken kullanılabilir.');
     }
     _push(type, data);
+  }
+
+  static void publishActiveRoom(Map<String, dynamic> room) {
+    _push('queue:matched', {'state': 'room', 'room': room});
   }
 
   static void debugResetTestHooks() {
@@ -139,32 +142,15 @@ class RealtimeService {
 
   static void _register(io.Socket socket) {
     const forwarded = [
-      'server:ready',
-      'auth:error',
-      'app:config',
-      'queue:status',
-      'queue:matched',
-      'room:update',
-      'room:message',
-      'room:sync-messages',
-      'room:selection-status',
-      'room:closed-by-admin',
-      'room:removed',
-      'matches:update',
-      'match:created',
-      'match:message',
-      'user:message',
-      'match:delivered',
-      'match:read',
-      'match:typing',
-      'match:message-deleted',
-      'presence:update',
+      'server:ready', 'auth:error', 'app:config', 'queue:status', 'queue:matched',
+      'room:update', 'room:message', 'room:sync-messages', 'room:selection-status',
+      'room:closed-by-admin', 'room:removed', 'matches:update', 'match:created',
+      'match:message', 'user:message', 'match:delivered', 'match:read',
+      'match:typing', 'match:message-deleted', 'presence:update',
     ];
-
     for (final name in forwarded) {
       socket.on(name, (data) => _push(name, data));
     }
-
     socket.onConnect((_) {
       _events.add(const RealtimeEvent('connection:connected', {}));
       if (!(_connecting?.isCompleted ?? true)) _connecting?.complete();
@@ -185,10 +171,7 @@ class RealtimeService {
 
   static Future<void> connect() async {
     final token = await SessionService.loadAuthSessionId();
-    if (token == null || token.isEmpty) {
-      throw const ApiException('Oturum bulunamadı.');
-    }
-
+    if (token == null || token.isEmpty) throw const ApiException('Oturum bulunamadı.');
     if (debugAckOverride != null) {
       if (!_debugConnected) {
         _debugConnected = true;
@@ -196,7 +179,6 @@ class RealtimeService {
       }
       return;
     }
-
     if (_socket != null && _token == token) {
       if (_socket!.connected) return;
       if (_connecting != null && !(_connecting!.isCompleted)) {
@@ -206,88 +188,54 @@ class RealtimeService {
       _socket!.connect();
       return _connecting!.future.timeout(const Duration(seconds: 12));
     }
-
     _socket?.dispose();
     _token = token;
     _connecting = Completer<void>();
-    final socket = io.io(
-      '${ApiService.baseUrl}/rooms',
-      <String, dynamic>{
-        'transports': ['websocket'],
-        'autoConnect': false,
-        'reconnection': true,
-        'reconnectionAttempts': 1000000,
-        'reconnectionDelay': 500,
-        'reconnectionDelayMax': 4000,
-        'randomizationFactor': 0.35,
-        'timeout': 10000,
-        'auth': {'token': token},
-      },
-    );
+    final socket = io.io('${ApiService.baseUrl}/rooms', <String, dynamic>{
+      'transports': ['websocket'], 'autoConnect': false, 'reconnection': true,
+      'reconnectionAttempts': 1000000, 'reconnectionDelay': 500,
+      'reconnectionDelayMax': 4000, 'randomizationFactor': 0.35,
+      'timeout': 10000, 'auth': {'token': token},
+    });
     _socket = socket;
     _register(socket);
     socket.connect();
     return _connecting!.future.timeout(const Duration(seconds: 12));
   }
 
-  static Future<Map<String, dynamic>> _ack(
-    String event, [
-    Map<String, dynamic> data = const {},
-  ]) async {
+  static Future<Map<String, dynamic>> _ack(String event, [Map<String, dynamic> data = const {}]) async {
     final fake = debugAckOverride;
     if (fake != null) {
       await connect();
       final result = await fake(event, data);
-      if (result['ok'] == false) {
-        throw ApiException(result['error']?.toString() ?? 'İşlem başarısız oldu.');
-      }
+      if (result['ok'] == false) throw ApiException(result['error']?.toString() ?? 'İşlem başarısız oldu.');
       return result;
     }
-
     await connect();
     final socket = _socket;
-    if (socket == null || !socket.connected) {
-      throw const ApiException('Gerçek zamanlı bağlantı yok.');
-    }
-
+    if (socket == null || !socket.connected) throw const ApiException('Gerçek zamanlı bağlantı yok.');
     final completer = Completer<Map<String, dynamic>>();
-    socket.emitWithAck(
-      event,
-      data,
-      ack: (raw) {
-        if (completer.isCompleted) return;
-        final result = _map(raw);
-        if (result['ok'] == false) {
-          completer.completeError(
-            ApiException(result['error']?.toString() ?? 'İşlem başarısız oldu.'),
-          );
-          return;
-        }
-        completer.complete(result);
-      },
-    );
-    return completer.future.timeout(
-      const Duration(seconds: 12),
-      onTimeout: () => throw const ApiException('Sunucudan gerçek zamanlı yanıt alınamadı.'),
-    );
+    socket.emitWithAck(event, data, ack: (raw) {
+      if (completer.isCompleted) return;
+      final result = _map(raw);
+      if (result['ok'] == false) {
+        completer.completeError(ApiException(result['error']?.toString() ?? 'İşlem başarısız oldu.'));
+        return;
+      }
+      completer.complete(result);
+    });
+    return completer.future.timeout(const Duration(seconds: 12),
+      onTimeout: () => throw const ApiException('Sunucudan gerçek zamanlı yanıt alınamadı.'));
   }
 
-  static Future<Map<String, dynamic>> _ackWithReconnectRetry(
-    String event,
-    Map<String, dynamic> data, {
-    int attempts = 3,
-  }) async {
+  static Future<Map<String, dynamic>> _ackWithReconnectRetry(String event, Map<String, dynamic> data, {int attempts = 3}) async {
     Object? lastError;
     for (var attempt = 0; attempt < attempts; attempt++) {
-      try {
-        return await _ack(event, data);
-      } catch (error) {
+      try { return await _ack(event, data); } catch (error) {
         lastError = error;
         if (attempt + 1 >= attempts) rethrow;
         await Future<void>.delayed(Duration(milliseconds: 350 * (attempt + 1)));
-        try {
-          await connect();
-        } catch (_) {}
+        try { await connect(); } catch (_) {}
       }
     }
     throw lastError ?? const ApiException('Gerçek zamanlı işlem başarısız oldu.');
@@ -297,12 +245,9 @@ class RealtimeService {
     await ObservabilityService.roomSearchStarted();
     final result = await _ack('queue:join');
     final rawRoom = result['room'];
-    if (result['state'] == 'room' && rawRoom is Map) {
-      _trackRoom(Map<String, dynamic>.from(rawRoom));
-    }
+    if (result['state'] == 'room' && rawRoom is Map) _trackRoom(Map<String, dynamic>.from(rawRoom));
     return result;
   }
-
   static Future<Map<String, dynamic>> queueStatus() => _ack('queue:status');
   static Future<Map<String, dynamic>> cancelQueue() => _ack('queue:cancel');
 
@@ -310,137 +255,67 @@ class RealtimeService {
     final result = await _ack('room:join', {'roomId': roomId});
     _activeRoomId = roomId;
     final rawRoom = result['room'];
-    if (rawRoom is Map) {
-      _trackRoom(Map<String, dynamic>.from(rawRoom), fallbackRoomId: roomId);
-    }
+    if (rawRoom is Map) _trackRoom(Map<String, dynamic>.from(rawRoom), fallbackRoomId: roomId);
     return result;
   }
 
-  static Future<List<Map<String, dynamic>>> roomMessages(
-    String roomId, {
-    int after = 0,
-  }) async {
-    final result = await _ack('room:messages', {
-      'roomId': roomId,
-      'after': after,
-    });
+  static Future<List<Map<String, dynamic>>> roomMessages(String roomId, {int after = 0}) async {
+    final result = await _ack('room:messages', {'roomId': roomId, 'after': after});
     return _listOfMaps(result['messages']);
   }
 
   static Future<void> leaveRoom(String roomId) async {
-    try {
-      await _ack('room:leave', {'roomId': roomId});
-    } catch (_) {
-      // Bağlantı kopmuş olsa bile yerel aktif-oda durumu temizlenir.
-    } finally {
-      if (_activeRoomId == roomId) _activeRoomId = null;
-    }
+    try { await _ack('room:leave', {'roomId': roomId}); } catch (_) {
+    } finally { if (_activeRoomId == roomId) _activeRoomId = null; }
   }
 
   static Future<Map<String, dynamic>> sendRoomMessage(String roomId, String body) {
     final clientMessageId = _newClientMessageId();
-    return _ackWithReconnectRetry(
-      'room:send',
-      {
-        'roomId': roomId,
-        'body': body,
-        'clientMessageId': clientMessageId,
-      },
-      attempts: 4,
-    );
+    return _ackWithReconnectRetry('room:send', {
+      'roomId': roomId, 'body': body, 'clientMessageId': clientMessageId,
+    }, attempts: 4);
   }
-
-  static Future<Map<String, dynamic>> voteRoomExtension(String roomId, bool vote) =>
-      _ack('room:extension', {'roomId': roomId, 'vote': vote});
-
-  static Future<Map<String, dynamic>> submitRoomSelection(
-    String roomId,
-    String selectedUserId,
-  ) async {
-    final result = await _ack(
-      'room:selection',
-      {'roomId': roomId, 'selectedUserId': int.parse(selectedUserId)},
-    );
+  static Future<Map<String, dynamic>> voteRoomExtension(String roomId, bool vote) => _ack('room:extension', {'roomId': roomId, 'vote': vote});
+  static Future<Map<String, dynamic>> submitRoomSelection(String roomId, String selectedUserId) async {
+    final result = await _ack('room:selection', {'roomId': roomId, 'selectedUserId': int.parse(selectedUserId)});
     await ObservabilityService.selectionSubmitted(roomId);
     final matchId = result['matchId']?.toString() ?? '';
-    if (result['matched'] == true && matchId.isNotEmpty) {
-      await ObservabilityService.matchCreated(matchId, roomId: roomId);
-    }
+    if (result['matched'] == true && matchId.isNotEmpty) await ObservabilityService.matchCreated(matchId, roomId: roomId);
     return result;
   }
-
   static Future<Map<String, dynamic>> listMatches() => _ack('matches:list');
-
   static Future<Map<String, dynamic>> joinMatch(String matchId) async {
     final result = await _ack('match:join', {'matchId': matchId});
     _activeMatchId = matchId;
     return result;
   }
-
-  static Future<List<Map<String, dynamic>>> privateMessages(
-    String matchId, {
-    int after = 0,
-  }) async {
-    final result = await _ack('match:messages', {
-      'matchId': matchId,
-      'after': after,
-    });
+  static Future<List<Map<String, dynamic>>> privateMessages(String matchId, {int after = 0}) async {
+    final result = await _ack('match:messages', {'matchId': matchId, 'after': after});
     return _listOfMaps(result['messages']);
   }
-
   static Future<void> leaveMatch(String matchId) async {
-    try {
-      await _ack('match:leave', {'matchId': matchId});
-    } catch (_) {
-      // Bağlantı kopmuş olsa bile yerel aktif-sohbet durumu temizlenir.
-    } finally {
-      if (_activeMatchId == matchId) _activeMatchId = null;
-    }
+    try { await _ack('match:leave', {'matchId': matchId}); } catch (_) {
+    } finally { if (_activeMatchId == matchId) _activeMatchId = null; }
   }
-
-  static Future<Map<String, dynamic>> sendPrivateMessage(
-    String matchId,
-    String body,
-  ) async {
+  static Future<Map<String, dynamic>> sendPrivateMessage(String matchId, String body) async {
     final result = await _ack('match:send', {'matchId': matchId, 'body': body});
     await ObservabilityService.firstMessageSent(matchId);
     return result;
   }
-
-  static Future<Map<String, dynamic>> markMatchDelivered(
-    String matchId,
-    String messageId,
-  ) =>
-      _ack('match:delivered', {'matchId': matchId, 'messageId': messageId});
-
-  static Future<Map<String, dynamic>> markMatchRead(String matchId) =>
-      _ack('match:read', {'matchId': matchId});
-
-  static Future<Map<String, dynamic>> deletePrivateMessage(
-    String matchId,
-    String messageId,
-  ) =>
-      _ack('match:delete', {'matchId': matchId, 'messageId': messageId});
-
+  static Future<Map<String, dynamic>> markMatchDelivered(String matchId, String messageId) => _ack('match:delivered', {'matchId': matchId, 'messageId': messageId});
+  static Future<Map<String, dynamic>> markMatchRead(String matchId) => _ack('match:read', {'matchId': matchId});
+  static Future<Map<String, dynamic>> deletePrivateMessage(String matchId, String messageId) => _ack('match:delete', {'matchId': matchId, 'messageId': messageId});
   static void setTyping(String matchId, bool typing) {
     if (debugAckOverride != null) return;
     final socket = _socket;
     if (socket?.connected != true) return;
     socket!.emit('match:typing', {'matchId': matchId, 'typing': typing});
   }
-
   static void disconnect() {
     if (debugAckOverride != null) {
-      _debugConnected = false;
-      _activeRoomId = null;
-      _activeMatchId = null;
-      return;
+      _debugConnected = false; _activeRoomId = null; _activeMatchId = null; return;
     }
-    _socket?.dispose();
-    _socket = null;
-    _token = null;
-    _connecting = null;
-    _activeRoomId = null;
-    _activeMatchId = null;
+    _socket?.dispose(); _socket = null; _token = null; _connecting = null;
+    _activeRoomId = null; _activeMatchId = null;
   }
 }
