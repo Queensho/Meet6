@@ -1,8 +1,11 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
+import '../../services/api_service.dart';
 import '../../services/mini_game_selection_service.dart';
+import '../../services/party_matchmaking_service.dart';
 import '../../services/premium_subscription_service.dart';
 import '../../services/runtime_app_config_service.dart';
 import '../../theme/app_colors.dart';
@@ -21,6 +24,7 @@ class RoomRulesScreen extends StatefulWidget {
 class _RoomRulesScreenState extends State<RoomRulesScreen> {
   bool premium = false;
   bool premiumLoading = true;
+  bool partyLoading = false;
   int roomDurationMinutes = 15;
   String roomMode = 'text';
   late String selectedGame;
@@ -167,6 +171,132 @@ class _RoomRulesScreenState extends State<RoomRulesScreen> {
     Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => RoomSearchingScreen(profileName: widget.profileName, roomDurationMinutes: roomDurationMinutes, roomMode: roomMode)));
   }
 
+  Future<void> _openPartyOptions() async {
+    if (voiceMode) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Arkadaşınla Katıl yazılı oda ve mini oyunlarda kullanılabilir.')));
+      return;
+    }
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => SafeArea(
+        top: false,
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(18, 10, 18, 20),
+          decoration: BoxDecoration(color: AppColors.navy, borderRadius: BorderRadius.circular(30)),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(width: 46, height: 5, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(99))),
+            const SizedBox(height: 18),
+            const Icon(Icons.group_add_rounded, color: AppColors.lime, size: 44),
+            const SizedBox(height: 10),
+            const Text('Arkadaşınla Katıl', style: TextStyle(color: Colors.white, fontSize: 25, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 6),
+            Text('1 arkadaşını getir, kalan 4 kişiyi Meet6 bulsun. İkiniz aynı odada kalırsınız.', textAlign: TextAlign.center, style: TextStyle(color: Colors.white.withOpacity(.7), fontSize: 12.5, height: 1.4, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 18),
+            SizedBox(width: double.infinity, height: 54, child: FilledButton.icon(
+              onPressed: () => Navigator.pop(sheetContext, 'create'),
+              style: FilledButton.styleFrom(backgroundColor: AppColors.lime, foregroundColor: AppColors.navy),
+              icon: const Icon(Icons.person_add_alt_1_rounded),
+              label: const Text('Arkadaşını davet et', style: TextStyle(fontWeight: FontWeight.w900)),
+            )),
+            const SizedBox(height: 10),
+            SizedBox(width: double.infinity, height: 52, child: OutlinedButton.icon(
+              onPressed: () => Navigator.pop(sheetContext, 'accept'),
+              style: OutlinedButton.styleFrom(foregroundColor: Colors.white, side: const BorderSide(color: Colors.white30)),
+              icon: const Icon(Icons.key_rounded),
+              label: const Text('Davet kodum var', style: TextStyle(fontWeight: FontWeight.w900)),
+            )),
+          ]),
+        ),
+      ),
+    );
+    if (!mounted || action == null) return;
+    if (action == 'create') await _createPartyInvite();
+    if (action == 'accept') await _acceptPartyInvite();
+  }
+
+  Future<void> _createPartyInvite() async {
+    if (partyLoading) return;
+    setState(() => partyLoading = true);
+    try {
+      if (gameMode) MiniGameSelectionService.select(selectedGame);
+      final result = await PartyMatchmakingService.create(
+        roomMode: roomMode,
+        roomDurationMinutes: roomDurationMinutes,
+        gameKey: gameMode ? selectedGame : null,
+      );
+      final raw = result['party'];
+      final party = raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+      final code = party['code']?.toString() ?? '';
+      if (code.isEmpty) throw const ApiException('Davet kodu oluşturulamadı.');
+      await Clipboard.setData(ClipboardData(text: code));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Davet kodu $code panoya kopyalandı.')));
+      Navigator.of(context).pushReplacement(MaterialPageRoute(
+        builder: (_) => RoomSearchingScreen(
+          profileName: widget.profileName,
+          roomDurationMinutes: roomDurationMinutes,
+          roomMode: roomMode,
+          partyCode: code,
+        ),
+      ));
+    } on ApiException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => partyLoading = false);
+    }
+  }
+
+  Future<void> _acceptPartyInvite() async {
+    final controller = TextEditingController();
+    final code = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Davet kodunu gir'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.characters,
+          maxLength: 8,
+          decoration: const InputDecoration(hintText: 'Örn. A1B2C3', counterText: ''),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Vazgeç')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text.trim().toUpperCase()), child: const Text('Katıl')),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (!mounted || code == null || code.isEmpty) return;
+
+    setState(() => partyLoading = true);
+    try {
+      final result = await PartyMatchmakingService.accept(code);
+      final raw = result['party'];
+      final party = raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+      final targetMode = party['roomMode']?.toString() == 'game' ? 'game' : 'text';
+      final targetGame = party['gameKey']?.toString();
+      final targetDuration = (party['roomDurationMinutes'] as num?)?.toInt() ?? 15;
+      if (targetMode == 'game' && targetGame != null && targetGame.isNotEmpty) {
+        MiniGameSelectionService.select(targetGame);
+      }
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(MaterialPageRoute(
+        builder: (_) => RoomSearchingScreen(
+          profileName: widget.profileName,
+          roomDurationMinutes: targetDuration,
+          roomMode: targetMode,
+          partyCode: code,
+        ),
+      ));
+    } on ApiException catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } finally {
+      if (mounted) setState(() => partyLoading = false);
+    }
+  }
+
   _ModeInfo _modeInfo(RuntimeAppConfig runtime) {
     if (voiceMode) return const _ModeInfo(icon: Icons.mic_rounded, title: 'Birebir Sesli', subtitle: '1 kişiyle özel sesli görüşme', pill: 'Premium');
     if (gameMode) return _ModeInfo(icon: Icons.sports_esports_rounded, title: '${runtime.minimumUsers} Kişi Mini Oyun', subtitle: 'Oyun + sohbet • ${selectedGameInfo.title}', pill: 'Yeni');
@@ -257,11 +387,31 @@ class _RoomRulesScreenState extends State<RoomRulesScreen> {
                       ),
                     ]),
                   )),
-                  Container(padding: const EdgeInsets.fromLTRB(22, 10, 22, 14), child: SizedBox(width: double.infinity, height: 58, child: FilledButton(
-                    onPressed: premiumLoading ? null : () => _startSearch(context),
-                    style: FilledButton.styleFrom(backgroundColor: AppColors.navy, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22))),
-                    child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(_searchIcon, size: 24), const SizedBox(width: 10), Flexible(child: Text(_searchLabel, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)))]),
-                  ))),
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(22, 8, 22, 14),
+                    child: Column(children: [
+                      if (!voiceMode) ...[
+                        SizedBox(width: double.infinity, height: 50, child: OutlinedButton.icon(
+                          onPressed: premiumLoading || partyLoading ? null : _openPartyOptions,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.navy,
+                            side: BorderSide(color: AppColors.navy.withOpacity(.45), width: 1.4),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                          ),
+                          icon: partyLoading
+                              ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.navy))
+                              : const Icon(Icons.group_add_rounded),
+                          label: const Text('Arkadaşınla Katıl · 2 + 4', style: TextStyle(fontWeight: FontWeight.w900)),
+                        )),
+                        const SizedBox(height: 8),
+                      ],
+                      SizedBox(width: double.infinity, height: 58, child: FilledButton(
+                        onPressed: premiumLoading || partyLoading ? null : () => _startSearch(context),
+                        style: FilledButton.styleFrom(backgroundColor: AppColors.navy, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22))),
+                        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(_searchIcon, size: 24), const SizedBox(width: 10), Flexible(child: Text(_searchLabel, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900)))]),
+                      )),
+                    ]),
+                  ),
                 ])),
               ),
             );
