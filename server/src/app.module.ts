@@ -22,6 +22,8 @@ import { ContentSafetyService } from './content-safety.service';
 import { GameRoomTestService } from './game-room-test.service';
 import { MiniGameMatchmakingController } from './mini-game-matchmaking.controller';
 import { MiniGameMatchmakingService } from './mini-game-matchmaking.service';
+import { PartyMatchmakingController } from './party-matchmaking.controller';
+import { PartyMatchmakingService } from './party-matchmaking.service';
 import { RedFlagGameService } from './red-flag-game.service';
 import { TabuGameService } from './tabu-game.service';
 import { TabuQueueController } from './tabu-queue.controller';
@@ -56,13 +58,13 @@ import { VoiceRoomService } from './voice-room.service';
   imports: [ConfigModule.forRoot({ isGlobal: true, envFilePath: ['../.env', '.env'] })],
   controllers: [
     HealthController, AppConfigController, AuthController, ProfileController, BillingController,
-    CoinPurchaseController, GiftController, RoomController, MiniGameMatchmakingController, TabuQueueController, VoiceRoomController, ActiveRoomController,
+    CoinPurchaseController, GiftController, RoomController, MiniGameMatchmakingController, PartyMatchmakingController, TabuQueueController, VoiceRoomController, ActiveRoomController,
     RoomControlController, SocialController, SupportController, PushController, AdminController,
   ],
   providers: [
     InfrastructureService, RuntimeSettingsService, ContentSafetyService, AuthService, ProfileService,
     BillingService, CoinPurchaseService, GiftService, RoomService, GameRoomTestService, RedFlagGameService,
-    MiniGameMatchmakingService, TabuWordRepository, TabuGameService, TabuGateway, RoomRefillService, VoiceRoomService, RoomMessageService,
+    MiniGameMatchmakingService, PartyMatchmakingService, TabuWordRepository, TabuGameService, TabuGateway, RoomRefillService, VoiceRoomService, RoomMessageService,
     SocialService, ReportService, SupportService, PushService, RoomsGateway, PrivateMessageGateway,
     MatchmakingSchedulerService, AdminService, AdminRoomService, AdminMatchService, AdminReportService,
     AdminSupportService, AdminGovernanceService, AdminSettingsService, AdminSafetyService,
