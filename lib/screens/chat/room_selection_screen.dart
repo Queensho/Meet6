@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../services/api_service.dart';
 import '../../services/live_service.dart';
+import '../../services/party_matchmaking_service.dart';
 import '../../services/realtime_service.dart';
 import '../../services/session_service.dart';
 import '../../theme/app_colors.dart';
@@ -26,6 +27,7 @@ class RoomSelectionScreen extends StatefulWidget {
 
 class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
   String? myUserId;
+  String? partyPartnerUserId;
   Map<String, dynamic>? room;
   String? selectedUserId;
   bool submitted = false;
@@ -45,6 +47,7 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
 
   Future<void> _start() async {
     myUserId = await SessionService.loadAuthUserId();
+    partyPartnerUserId = await PartyMatchmakingService.loadActivePartnerUserId();
     realtimeSub = RealtimeService.events.listen(_onRealtimeEvent);
     try {
       await RealtimeService.connect();
@@ -121,9 +124,14 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
     setState(() {
       room = data;
       selectionSecondsLeft = seconds;
-      if (chosen != null && chosen.isNotEmpty && chosen != 'null') {
+      if (chosen != null &&
+          chosen.isNotEmpty &&
+          chosen != 'null' &&
+          chosen != partyPartnerUserId) {
         selectedUserId = chosen;
         submitted = true;
+      } else if (selectedUserId == partyPartnerUserId) {
+        selectedUserId = null;
       }
       error = null;
     });
@@ -181,7 +189,7 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
       if (!mounted) return;
 
       final resultSelected = result['selectedUserId']?.toString();
-      if (result['submitted'] == true) {
+      if (result['submitted'] == true && resultSelected != partyPartnerUserId) {
         setState(() {
           submitted = true;
           if (resultSelected != null &&
@@ -206,7 +214,10 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
     return raw
         .whereType<Map>()
         .map((e) => Map<String, dynamic>.from(e))
-        .where((e) => e['user_id']?.toString() != myUserId)
+        .where((e) {
+          final id = e['user_id']?.toString();
+          return id != myUserId && id != partyPartnerUserId;
+        })
         .toList();
   }
 
@@ -230,7 +241,13 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
   }
 
   void _selectLocally(String userId) {
-    if (userId.isEmpty || submitted || submitting || selectionExpired) return;
+    if (userId.isEmpty ||
+        userId == partyPartnerUserId ||
+        submitted ||
+        submitting ||
+        selectionExpired) {
+      return;
+    }
     setState(() {
       selectedUserId = userId;
       error = null;
@@ -239,7 +256,12 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
 
   Future<void> _confirmSelection() async {
     final userId = selectedUserId;
-    if (userId == null || userId.isEmpty || submitting || submitted || selectionExpired) {
+    if (userId == null ||
+        userId.isEmpty ||
+        userId == partyPartnerUserId ||
+        submitting ||
+        submitted ||
+        selectionExpired) {
       return;
     }
 
@@ -427,8 +449,15 @@ class _RoomSelectionScreenState extends State<RoomSelectionScreen> {
                 const SizedBox(height: 18),
                 Expanded(
                   child: candidates.isEmpty
-                      ? const Center(
-                          child: CircularProgressIndicator(color: AppColors.lime),
+                      ? Center(
+                          child: Text(
+                            'Seçebileceğin başka bir kullanıcı yok.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: scheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
                         )
                       : ListView.separated(
                           physics: const BouncingScrollPhysics(),
