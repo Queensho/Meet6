@@ -65,13 +65,46 @@ class _MatchProfileDetailScreenState extends State<MatchProfileDetailScreen> {
   Future<void> _block() async {if(await _confirm('Kullanıcı engellensin mi?','Bu eşleşme kapanır ve bu kişiyle tekrar eşleşmezsin.')!=true||userId.isEmpty)return;await LiveService.blockUser(userId);if(mounted)Navigator.pop(context);}
   Future<void> _unmatch() async {if(await _confirm('Eşleşme kaldırılsın mı?','Özel sohbet kapanır. Kullanıcı engellenmez.')!=true)return;await LiveService.unmatch(widget.matchId);if(mounted)Navigator.pop(context);}
   Future<void> _report() async {if(userId.isEmpty)return;await LiveService.reportUser(userId,reason:'Rahatsız edici davranış',detail:'Profil detayından bildirildi');if(mounted)ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Şikâyetin inceleme kuyruğuna alındı.')));}
-  Future<void> _more() async {final a=await showModalBottomSheet<String>(context:context,backgroundColor:Colors.transparent,builder:(c)=>SafeArea(child:Container(margin:const EdgeInsets.all(12),decoration:BoxDecoration(color:surface,borderRadius:BorderRadius.circular(28),border:Border.all(color:divider)),child:Column(mainAxisSize:MainAxisSize.min,children:[ListTile(iconColor:ink,textColor:ink,leading:const Icon(Icons.flag_outlined),title:const Text('Şikâyet et'),onTap:()=>Navigator.pop(c,'report')),ListTile(iconColor:ink,textColor:ink,leading:const Icon(Icons.heart_broken_outlined),title:const Text('Eşleşmeyi kaldır'),onTap:()=>Navigator.pop(c,'unmatch')),ListTile(leading:const Icon(Icons.block_rounded,color:Color(0xFFE24A4A)),title:const Text('Kullanıcıyı engelle',style:TextStyle(color:Color(0xFFE24A4A))),onTap:()=>Navigator.pop(c,'block'))]))));if(a=='report')await _report();if(a=='unmatch')await _unmatch();if(a=='block')await _block();}
+  Future<void> _more() async {
+    final a=await showModalBottomSheet<String>(
+      context:context,
+      backgroundColor:Colors.transparent,
+      builder:(c)=>SafeArea(
+        child:Container(
+          margin:const EdgeInsets.all(12),
+          decoration:BoxDecoration(color:surface,borderRadius:BorderRadius.circular(28),border:Border.all(color:divider)),
+          child:Column(mainAxisSize:MainAxisSize.min,children:[
+            ListTile(iconColor:ink,textColor:ink,leading:const Icon(Icons.flag_outlined),title:const Text('Şikâyet et'),onTap:()=>Navigator.pop(c,'report')),
+            ListTile(iconColor:ink,textColor:ink,leading:const Icon(Icons.heart_broken_outlined),title:const Text('Eşleşmeyi kaldır'),onTap:()=>Navigator.pop(c,'unmatch')),
+            ListTile(leading:const Icon(Icons.block_rounded,color:Color(0xFFE24A4A)),title:const Text('Kullanıcıyı engelle',style:TextStyle(color:Color(0xFFE24A4A))),onTap:()=>Navigator.pop(c,'block')),
+          ]),
+        ),
+      ),
+    );
+    if(a=='report')await _report();if(a=='unmatch')await _unmatch();if(a=='block')await _block();
+  }
 
   Widget _networkPhoto(String url,{BoxFit fit=BoxFit.cover})=>Image.network(ApiService.absoluteMediaUrl(url),fit:fit,errorBuilder:(_,__,___)=>Container(color:surface2,alignment:Alignment.center,child:Icon(Icons.person_rounded,size:72,color:ink)));
   void _selectPhoto(int i){if(i<0||i>=photos.length)return;setState(()=>photoIndex=i);_photoController.animateToPage(i,duration:const Duration(milliseconds:280),curve:Curves.easeOutCubic);}
-  Widget _hero()=>Stack(clipBehavior:Clip.none,children:[AspectRatio(aspectRatio:1.18,child:ClipRRect(borderRadius:BorderRadius.circular(34),child:photos.isEmpty?Container(color:AppColors.lime,alignment:Alignment.center,child:Text(name.isEmpty?'?':name[0].toUpperCase(),style:const TextStyle(fontSize:76,fontWeight:FontWeight.w900,color:AppColors.navy))):PageView.builder(controller:_photoController,itemCount:photos.length,onPageChanged:(i)=>setState(()=>photoIndex=i),itemBuilder:(_,i)=>_networkPhoto(photos[i])))),if(photos.length>1)Positioned(left:16,bottom:16,child:_DarkPill(text:'${photoIndex+1}/${photos.length}')),if(isPremium)Positioned(left:8,bottom:-18,child:Image.asset('assets/images/premium_badge.png',width:88,height:68,fit:BoxFit.contain)),Positioned(right:-8,bottom:-26,child:XpLevelRing(level:profileLevel,totalXp:profileXp,size:72))]);
+  Widget _hero()=>Stack(
+    clipBehavior:Clip.none,
+    children:[
+      AspectRatio(
+        aspectRatio:1.18,
+        child:ClipRRect(
+          borderRadius:BorderRadius.circular(34),
+          child:photos.isEmpty
+              ?Container(color:AppColors.lime,alignment:Alignment.center,child:Text(name.isEmpty?'?':name[0].toUpperCase(),style:const TextStyle(fontSize:76,fontWeight:FontWeight.w900,color:AppColors.navy)))
+              :PageView.builder(controller:_photoController,itemCount:photos.length,onPageChanged:(i)=>setState(()=>photoIndex=i),itemBuilder:(_,i)=>_networkPhoto(photos[i])),
+        ),
+      ),
+      if(photos.length>1)Positioned(left:16,bottom:16,child:_DarkPill(text:'${photoIndex+1}/${photos.length}')),
+      if(isPremium)Positioned(left:8,bottom:-18,child:Image.asset('assets/images/premium_badge.png',width:88,height:68,fit:BoxFit.contain)),
+      Positioned(right:-8,bottom:-26,child:XpLevelRing(level:profileLevel,totalXp:profileXp,size:72)),
+    ],
+  );
 
-  Widget _gallery(){if(photos.isEmpty)return const SizedBox.shrink();return Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Row(children:[Text('Fotoğraflar (${photos.length})',style:TextStyle(fontSize:19,fontWeight:FontWeight.w900,color:ink)),const Spacer(),Text('Tümünü gör',style:TextStyle(fontSize:13,color:muted,fontWeight:FontWeight.w700)),const SizedBox(width:4),Icon(Icons.chevron_right_rounded,color:muted)]),const SizedBox(height:12),SizedBox(height:82,child:ListView.separated(scrollDirection:Axis.horizontal,itemCount:photos.length,separatorBuilder:(_,__)=>const SizedBox(width:9),itemBuilder:(_,i)=>GestureDetector(onTap:()=>_selectPhoto(i),child:AnimatedContainer(duration:const Duration(milliseconds:180),width:72,padding:EdgeInsets.all(i==photoIndex?3:0),decoration:BoxDecoration(borderRadius:BorderRadius.circular(18),border:i==photoIndex?Border.all(color:AppColors.lime,width:3):null),child:ClipRRect(borderRadius:BorderRadius.circular(14),child:_networkPhoto(photos[i]))))) )]);}
+  Widget _gallery(){if(photos.isEmpty)return const SizedBox.shrink();return Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Row(children:[Text('Fotoğraflar (${photos.length})',style:TextStyle(fontSize:19,fontWeight:FontWeight.w900,color:ink)),const Spacer(),Text('Tümünü gör',style:TextStyle(fontSize:13,color:muted,fontWeight:FontWeight.w700)),const SizedBox(width:4),Icon(Icons.chevron_right_rounded,color:muted)]),const SizedBox(height:12),SizedBox(height:82,child:ListView.separated(scrollDirection:Axis.horizontal,itemCount:photos.length,separatorBuilder:(_,__)=>const SizedBox(width:9),itemBuilder:(_,i)=>GestureDetector(onTap:()=>_selectPhoto(i),child:AnimatedContainer(duration:const Duration(milliseconds:180),width:72,padding:EdgeInsets.all(i==photoIndex?3:0),decoration:BoxDecoration(borderRadius:BorderRadius.circular(18),border:i==photoIndex?Border.all(color:AppColors.lime,width:3):null),child:ClipRRect(borderRadius:BorderRadius.circular(14),child:_networkPhoto(photos[i]))))))]);}
 
   Widget _sectionTitle(IconData icon,String title)=>Row(children:[_SectionIcon(icon:icon),const SizedBox(width:14),Text(title,style:TextStyle(color:ink,fontSize:18,fontWeight:FontWeight.w900))]);
   Widget _aboutAndInterests(int? age,String bio)=>_CardShell(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[_sectionTitle(Icons.article_outlined,'Hakkında'),const SizedBox(height:14),Text(bio.isEmpty?'Henüz hakkında bilgisi eklenmemiş.':bio,style:TextStyle(color:muted,fontSize:14,height:1.45,fontWeight:FontWeight.w600)),if(interests.isNotEmpty)...[const SizedBox(height:20),Divider(height:1,color:divider),const SizedBox(height:18),_sectionTitle(Icons.interests_rounded,'İlgi alanları'),const SizedBox(height:13),Wrap(spacing:8,runSpacing:8,children:interests.map((e)=>_TextChip(text:e)).toList())],const SizedBox(height:20),Divider(height:1,color:divider),const SizedBox(height:18),_sectionTitle(Icons.person_outline_rounded,'Profil bilgileri'),const SizedBox(height:13),Wrap(spacing:8,runSpacing:8,children:[if(age!=null)_InfoChip(icon:Icons.cake_outlined,text:'$age yaş'),if(genderText.isNotEmpty)_InfoChip(icon:Icons.person_outline_rounded,text:genderText),if(cityText.isNotEmpty)_InfoChip(icon:Icons.location_on_rounded,text:cityText),if((profile?['country']?.toString().trim()??'').isNotEmpty)_InfoChip(icon:Icons.public_rounded,text:profile!['country'].toString())])])));
