@@ -11,13 +11,14 @@ class PartyMatchmakingService {
   const PartyMatchmakingService._();
 
   static const _partnerKey = 'meet6_active_party_partner_user_id';
+  static const _roomKey = 'meet6_active_party_room_id';
 
   static Future<void> _rememberPartner(Map<String, dynamic> result) async {
     final prefs = await SharedPreferences.getInstance();
     final state = result['state']?.toString() ?? '';
     final rawParty = result['party'];
     if (state == 'idle' || rawParty is! Map) {
-      await prefs.remove(_partnerKey);
+      await clearActivePartner();
       return;
     }
 
@@ -37,10 +38,20 @@ class PartyMatchmakingService {
     } else {
       await prefs.setString(_partnerKey, partnerId);
     }
+
+    final rawRoom = result['room'];
+    final roomId = rawRoom is Map ? rawRoom['id']?.toString().trim() ?? '' : '';
+    if (state == 'room' && roomId.isNotEmpty && roomId != 'null') {
+      await prefs.setString(_roomKey, roomId);
+    }
   }
 
-  static Future<String?> loadActivePartnerUserId() async {
+  static Future<String?> loadActivePartnerUserId({String? roomId}) async {
     final prefs = await SharedPreferences.getInstance();
+    if (roomId != null && roomId.isNotEmpty) {
+      final storedRoomId = prefs.getString(_roomKey)?.trim();
+      if (storedRoomId == null || storedRoomId != roomId) return null;
+    }
     final value = prefs.getString(_partnerKey)?.trim();
     return value == null || value.isEmpty ? null : value;
   }
@@ -48,6 +59,7 @@ class PartyMatchmakingService {
   static Future<void> clearActivePartner() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_partnerKey);
+    await prefs.remove(_roomKey);
   }
 
   static Future<Map<String, dynamic>> _request(
