@@ -108,6 +108,9 @@ jobs:
           --base-href /
           --dart-define=MEET6_ENV=development
 
+      - name: Add SPA fallback for invite links
+        run: cp build/web/index.html build/web/404.html
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
