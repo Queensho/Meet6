@@ -62,6 +62,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   StreamSubscription<RealtimeEvent>? realtimeSub;
   Map<String, dynamic>? activeRoom;
   bool activeRoomLoading = false;
+  bool activeRoomRefreshPending = false;
   bool activeRoomLeaving = false;
   bool activeRoomBoundaryRefreshing = false;
 
@@ -178,7 +179,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _refreshActiveRoom() async {
-    if (activeRoomLoading || !mounted) return;
+    if (!mounted) return;
+    if (activeRoomLoading) {
+      activeRoomRefreshPending = true;
+      return;
+    }
     // Existing widget tests use the realtime fake without a network backend.
     if (RealtimeService.debugAckOverride != null &&
         ActiveRoomService.debugCurrentOverride == null) {
@@ -196,6 +201,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       // Home remains usable when the recovery endpoint is temporarily unavailable.
     } finally {
       activeRoomLoading = false;
+      if (activeRoomRefreshPending && mounted) {
+        activeRoomRefreshPending = false;
+        unawaited(_refreshActiveRoom());
+      }
     }
   }
 
