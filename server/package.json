@@ -7,6 +7,7 @@
     "start": "node dist/main.js",
     "start:dev": "nest start --watch",
     "migrate": "node scripts/migrate.mjs",
+    "seed:tabu": "node scripts/import-tabu-words.mjs",
     "admin:grant": "node scripts/grant-admin.mjs",
     "admin:coins-unlimited": "node scripts/grant-unlimited-coins.mjs",
     "test:room-fill": "node scripts/live-room-test-fill.mjs fill",
@@ -16,6 +17,7 @@
     "e2e:realtime": "node scripts/e2e-realtime.mjs",
     "e2e:socket-smoke": "node scripts/e2e-socket-smoke.mjs",
     "e2e:private-message-features": "node scripts/e2e-private-message-features.mjs",
+    "e2e:tabu": "node scripts/e2e-tabu.mjs",
     "load:matchmaking": "node scripts/load-matchmaking-websocket.mjs",
     "backup:production": "bash scripts/backup-production.sh",
     "backup:verify": "bash scripts/verify-backup.sh"
