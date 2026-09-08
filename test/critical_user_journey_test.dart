@@ -12,11 +12,12 @@ import 'package:meet6/screens/home/home_screen.dart';
 import 'package:meet6/screens/login_screen.dart';
 import 'package:meet6/screens/matches/match_success_screen.dart';
 import 'package:meet6/screens/messages/private_chat_screen.dart';
-import 'package:meet6/screens/otp_screen.dart';
 import 'package:meet6/screens/profile/profile_setup_screen.dart';
+import 'package:meet6/screens/register_password_screen.dart';
 import 'package:meet6/screens/room/room_searching_screen.dart';
 import 'package:meet6/services/api_service.dart';
 import 'package:meet6/services/location_service.dart';
+import 'package:meet6/services/password_auth_service.dart';
 import 'package:meet6/services/profile_photo_service.dart';
 import 'package:meet6/services/realtime_service.dart';
 import 'package:meet6/services/session_service.dart';
@@ -69,6 +70,7 @@ void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     ApiService.debugResetTestHooks();
+    PasswordAuthService.debugResetTestHooks();
     ProfilePhotoService.debugResetTestHooks();
     LocationService.debugResetTestHooks();
     RealtimeService.debugResetTestHooks();
@@ -76,59 +78,60 @@ void main() {
 
   tearDown(() {
     ApiService.debugResetTestHooks();
+    PasswordAuthService.debugResetTestHooks();
     ProfilePhotoService.debugResetTestHooks();
     LocationService.debugResetTestHooks();
     RealtimeService.debugResetTestHooks();
   });
 
-  testWidgets('login -> OTP -> new user profile setup', (tester) async {
+  testWidgets('register -> password -> new user profile setup', (tester) async {
     usePhoneSurface(tester);
 
-    var requestedPhone = '';
-    var verifiedCode = '';
-    ApiService.debugTestHooks = ApiServiceTestHooks(
-      requestOtp: (phone) async {
-        requestedPhone = phone;
-      },
-      verifyOtp: (phone, code) async {
-        verifiedCode = code;
-        return const AuthResult(
-          sessionId: 'session-test',
-          userId: '1',
-          isNewUser: true,
-          profileCompleted: false,
-        );
-      },
-    );
+    var registeredPhone = '';
+    var registeredPassword = '';
+    PasswordAuthService.debugRegisterOverride = ({
+      required String phone,
+      required String password,
+    }) async {
+      registeredPhone = phone;
+      registeredPassword = password;
+      return const AuthResult(
+        sessionId: 'session-test',
+        userId: '1',
+        isNewUser: true,
+        profileCompleted: false,
+      );
+    };
 
     await tester.pumpWidget(const MaterialApp(home: LoginScreen()));
     await tester.pump(const Duration(milliseconds: 100));
 
+    await tester.tap(find.text('Kayıt Ol'));
+    await tester.pump();
     await tester.enterText(find.byType(TextField).first, '5551234567');
     await tester.tap(find.textContaining('KVKK Aydınlatma Metni'));
     await tester.pump();
     await scrollTo(tester, find.text('Devam et'));
     await tester.tap(find.text('Devam et'));
-    await pumpFor(tester, const Duration(milliseconds: 400));
+    await pumpFor(tester, const Duration(milliseconds: 250));
 
-    expect(requestedPhone, '5551234567');
-    expect(find.byType(OtpScreen), findsOneWidget);
+    expect(find.byType(RegisterPasswordScreen), findsOneWidget);
 
-    final otpFields = find.descendant(
-      of: find.byType(OtpScreen),
+    final passwordFields = find.descendant(
+      of: find.byType(RegisterPasswordScreen),
       matching: find.byType(TextField),
     );
-    expect(otpFields, findsNWidgets(6));
-    for (var i = 0; i < 6; i++) {
-      await tester.enterText(otpFields.at(i), '${i + 1}');
-      await tester.pump();
-    }
+    expect(passwordFields, findsNWidgets(2));
+    await tester.enterText(passwordFields.at(0), 'Meet6pass123');
+    await tester.enterText(passwordFields.at(1), 'Meet6pass123');
+    await tester.pump();
 
-    await scrollTo(tester, find.text('Doğrula'));
-    await tester.tap(find.text('Doğrula'));
+    await scrollTo(tester, find.text('Kayıt ol'));
+    await tester.tap(find.text('Kayıt ol'));
     await pumpFor(tester, const Duration(milliseconds: 450));
 
-    expect(verifiedCode, '123456');
+    expect(registeredPhone, '5551234567');
+    expect(registeredPassword, 'Meet6pass123');
     expect(find.byType(ProfileSetupScreen), findsOneWidget);
     expect(await SessionService.loadAuthSessionId(), 'session-test');
     expect(await SessionService.loadAuthUserId(), '1');
