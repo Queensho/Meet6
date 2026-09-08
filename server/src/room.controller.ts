@@ -5,6 +5,7 @@ import { AuthService } from './auth.service';
 import { GameRoomTestService } from './game-room-test.service';
 import { InfrastructureService } from './infrastructure.service';
 import { RedFlagGameService } from './red-flag-game.service';
+import { TabuGameService } from './tabu-game.service';
 import { ExtensionVoteDto, JoinQueueDto, RoomSelectionDto, SendRoomMessageDto } from './room.dto';
 import { RoomService } from './room.service';
 import { RoomsGateway } from './rooms.gateway';
@@ -20,6 +21,7 @@ export class RoomController {
     private readonly realtime: RoomsGateway,
     private readonly gameRoomTest: GameRoomTestService,
     private readonly redFlagGame: RedFlagGameService,
+    private readonly tabuGame: TabuGameService,
     private readonly infra: InfrastructureService,
   ) {}
 
@@ -72,7 +74,9 @@ export class RoomController {
     const gameKey = body?.gameKey?.toString() ?? 'two_truths_one_lie';
     const result = gameKey === 'red_flag_green_flag'
       ? await this.redFlagGame.create(userId)
-      : await this.gameRoomTest.create(userId);
+      : gameKey === 'tabu'
+        ? await this.tabuGame.create(userId)
+        : await this.gameRoomTest.create(userId);
     const roomId = (result.room as Record<string, any>)?.id?.toString();
     if (roomId) await this.realtime.broadcastRoomUpdate(roomId);
     await this.realtime.broadcastQueueStatus();
@@ -88,6 +92,10 @@ export class RoomController {
     const userId = await this.userId(authorization);
     await this.assertGameFinishTester(userId);
     const gameKey = body?.gameKey?.toString() ?? '';
+
+    if (gameKey === 'tabu') {
+      throw new BadRequestException('Tabu gerçek tur akışıyla test edilir; hızlı bitirme bu oyunda kapalı.');
+    }
 
     if (gameKey === 'red_flag_green_flag') {
       const svc = this.redFlagGame as any;
@@ -217,6 +225,34 @@ export class RoomController {
     @Body() body: { choice?: unknown },
   ) {
     return this.redFlagGame.finalChoice(await this.userId(authorization), roomId, body.choice);
+  }
+
+  @Get('game/:roomId/tabu/state')
+  async tabuState(@Headers('authorization') authorization: string | undefined, @Param('roomId') roomId: string) {
+    return this.tabuGame.state(await this.userId(authorization), roomId);
+  }
+
+  @Post('game/:roomId/tabu/clue')
+  async tabuClue(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('roomId') roomId: string,
+    @Body() body: { text?: unknown },
+  ) {
+    return this.tabuGame.clue(await this.userId(authorization), roomId, body.text);
+  }
+
+  @Post('game/:roomId/tabu/guess')
+  async tabuGuess(
+    @Headers('authorization') authorization: string | undefined,
+    @Param('roomId') roomId: string,
+    @Body() body: { guess?: unknown },
+  ) {
+    return this.tabuGame.guess(await this.userId(authorization), roomId, body.guess);
+  }
+
+  @Post('game/:roomId/tabu/pass')
+  async tabuPass(@Headers('authorization') authorization: string | undefined, @Param('roomId') roomId: string) {
+    return this.tabuGame.pass(await this.userId(authorization), roomId);
   }
 
   @Get('queue')
