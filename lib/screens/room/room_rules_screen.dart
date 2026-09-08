@@ -28,6 +28,7 @@ class _RoomRulesScreenState extends State<RoomRulesScreen> {
   static const games = <_GameInfo>[
     _GameInfo(id: 'two_truths_one_lie', title: 'İki Doğru Bir Yalan', subtitle: 'Kendini anlat, hangisi yalan?', icon: Icons.sports_esports_rounded, recommended: true, active: true),
     _GameInfo(id: 'red_flag_green_flag', title: 'Red Flag / Green Flag', subtitle: '6 soru • 15 sn seçim • 2 dk tartışma', icon: Icons.flag_rounded, active: true),
+    _GameInfo(id: 'tabu', title: 'Tabu', subtitle: 'Yazıyla anlat • 5 kişi tahmin etsin • 60 sn', icon: Icons.record_voice_over_rounded, active: true),
     _GameInfo(id: 'question_answer', title: 'Soru Cevap', subtitle: '6 kişiye aynı sorular', icon: Icons.question_answer_rounded),
     _GameInfo(id: 'this_or_that', title: 'Bu mu Daha mı?', subtitle: 'Zor tercihler, eğlenceli sohbetler', icon: Icons.favorite_rounded),
     _GameInfo(id: 'common_ground', title: 'Ortak Nokta', subtitle: 'Sizi birleştiren ne?', icon: Icons.groups_rounded),
@@ -233,8 +234,27 @@ class _RoomRulesScreenState extends State<RoomRulesScreen> {
                       const SizedBox(height: 22),
                       const _SectionTitle(title: 'Oda kuralları', subtitle: 'Herkes için daha iyi bir deneyim.'),
                       const SizedBox(height: 10),
-                      _RuleTile(icon: gameMode ? Icons.sports_esports_rounded : Icons.visibility_off_rounded, title: gameMode ? 'Oyun sohbeti başlatır' : 'Kararınız gizlidir', subtitle: gameMode ? selectedGame == 'red_flag_green_flag' ? '6 soru oynanır. Her soruda 15 sn seçim ve 2 dk tartışma vardır.' : '${selectedGameInfo.title} oda içinde sırayla oynanır.' : 'Görüşme bitince ${runtime.selectionSeconds} saniyelik gizli seçim başlar.'),
-                      _RuleTile(icon: Icons.favorite_rounded, title: gameMode ? 'Finalde oyun uyumu hesaplanır' : 'Saygılı ve doğal ol', subtitle: gameMode ? 'XP ayrı kalır. Oyun uyumu yalnızca bu oyundaki cevap benzerliğidir.' : 'Hakaret, taciz ve rahatsız edici davranışlara yer yok.', last: true),
+                      _RuleTile(
+                        icon: gameMode ? Icons.sports_esports_rounded : Icons.visibility_off_rounded,
+                        title: gameMode ? 'Oyun sohbeti başlatır' : 'Kararınız gizlidir',
+                        subtitle: gameMode
+                            ? selectedGame == 'red_flag_green_flag'
+                                ? '6 soru oynanır. Her soruda 15 sn seçim ve 2 dk tartışma vardır.'
+                                : selectedGame == 'tabu'
+                                    ? 'Her oyuncu 60 saniye anlatıcı olur. Anlatıcı yazıyla anlatır, diğer 5 kişi tahmin eder.'
+                                    : '${selectedGameInfo.title} oda içinde sırayla oynanır.'
+                            : 'Görüşme bitince ${runtime.selectionSeconds} saniyelik gizli seçim başlar.',
+                      ),
+                      _RuleTile(
+                        icon: Icons.favorite_rounded,
+                        title: gameMode ? (selectedGame == 'tabu' ? 'İlk doğru tahmin puan alır' : 'Finalde oyun uyumu hesaplanır') : 'Saygılı ve doğal ol',
+                        subtitle: gameMode
+                            ? selectedGame == 'tabu'
+                                ? 'Tahminciler yasaklı kelimeleri kullanabilir. Yasak sadece anlatıcı için geçerlidir.'
+                                : 'XP ayrı kalır. Oyun uyumu yalnızca bu oyundaki cevap benzerliğidir.'
+                            : 'Hakaret, taciz ve rahatsız edici davranışlara yer yok.',
+                        last: true,
+                      ),
                     ]),
                   )),
                   Container(padding: const EdgeInsets.fromLTRB(22, 10, 22, 14), child: SizedBox(width: double.infinity, height: 58, child: FilledButton(
