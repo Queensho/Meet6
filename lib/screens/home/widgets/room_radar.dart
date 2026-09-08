@@ -34,8 +34,6 @@ class _RoomRadarState extends State<RoomRadar>
   void initState() {
     super.initState();
 
-    // Avatar hareketi ve radar dalgası birbirinden bağımsızdır. Böylece avatarlar
-    // kesintisiz tam tur atarken dalga hiçbir zaman tersine dönmez.
     _orbitController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 18),
@@ -62,9 +60,9 @@ class _RoomRadarState extends State<RoomRadar>
         builder: (context, constraints) {
           final size = math.min(constraints.maxWidth, constraints.maxHeight);
           final avatarSize = (size * .145).clamp(44.0, 56.0).toDouble();
-          // Avatar merkezlerini radarın sabit .39 halkasının tam üstüne oturt.
           final orbitRadius = size * .39;
           final center = size / 2;
+          final avatarCenterY = center + size * .045;
 
           return AnimatedBuilder(
             animation: Listenable.merge([_orbitController, _pulseController]),
@@ -86,7 +84,8 @@ class _RoomRadarState extends State<RoomRadar>
                       asset: _avatarAssets[index],
                       index: index,
                       orbitAngle: orbitAngle,
-                      center: center,
+                      centerX: center,
+                      centerY: avatarCenterY,
                       radius: orbitRadius,
                       avatarSize: avatarSize,
                     ),
@@ -136,10 +135,8 @@ class _RoomRadarState extends State<RoomRadar>
                       ),
                     ),
                   ),
-                  // Tam tur dönen avatarın alt noktada CTA ile çakışmaması için
-                  // etiketi merkez 6'nın hemen altındaki güvenli boşluğa alıyoruz.
                   Positioned(
-                    bottom: size * .20,
+                    bottom: size * .015,
                     child: IgnorePointer(
                       child: Container(
                         padding: const EdgeInsets.symmetric(
@@ -185,17 +182,16 @@ class _RoomRadarState extends State<RoomRadar>
     required String asset,
     required int index,
     required double orbitAngle,
-    required double center,
+    required double centerX,
+    required double centerY,
     required double radius,
     required double avatarSize,
   }) {
-    // İlk karede dengeli altıgen görünüm; ardından bütün grup aynı çember üzerinde
-    // sabit aralıkla kesintisiz 360° döner.
     const startAngle = -2 * math.pi / 3;
     final angle = startAngle + orbitAngle +
         (math.pi * 2 / _avatarAssets.length) * index;
-    final left = center + math.cos(angle) * radius - avatarSize / 2;
-    final top = center + math.sin(angle) * radius - avatarSize / 2;
+    final left = centerX + math.cos(angle) * radius - avatarSize / 2;
+    final top = centerY + math.sin(angle) * radius - avatarSize / 2;
 
     return Positioned(
       left: left,
@@ -255,12 +251,10 @@ class _RadarPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.7;
 
-    // .39 halkası aynı zamanda avatarların gerçek yörüngesidir.
     for (final factor in [.27, .39, .51]) {
       canvas.drawCircle(center, base * factor, fixedPaint);
     }
 
-    // Dalgalar sadece merkezden dışarı akar; progress hiçbir zaman geri sarmaz.
     for (var i = 0; i < 5; i++) {
       final local = (progress + i / 5) % 1.0;
       final eased = Curves.easeOutCubic.transform(local);
