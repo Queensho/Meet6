@@ -546,63 +546,59 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
   }
 
   Widget _partySharePanel(Color text) {
-    return Column(
-      children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: text.withValues(alpha: .075),
-            borderRadius: BorderRadius.circular(18),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: text.withValues(alpha: .075),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        children: [
+          Text(
+            _inviteUrl,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: text, fontSize: 12, fontWeight: FontWeight.w800),
           ),
-          child: Column(
+          const SizedBox(height: 10),
+          Row(
             children: [
-              Text(
-                _inviteUrl,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: text, fontSize: 12, fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: sharing ? null : _shareWhatsApp,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.navy,
-                        foregroundColor: Colors.white,
-                        minimumSize: const Size(0, 48),
-                      ),
-                      icon: const Icon(Icons.chat_rounded, size: 20),
-                      label: const Text('WhatsApp', style: TextStyle(fontWeight: FontWeight.w900)),
-                    ),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: sharing ? null : _shareWhatsApp,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.navy,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(0, 48),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: sharing ? null : _shareSms,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: text,
-                        side: BorderSide(color: text.withValues(alpha: .28)),
-                        minimumSize: const Size(0, 48),
-                      ),
-                      icon: const Icon(Icons.sms_rounded, size: 20),
-                      label: const Text('Mesaj', style: TextStyle(fontWeight: FontWeight.w900)),
-                    ),
-                  ),
-                ],
+                  icon: const Icon(Icons.chat_rounded, size: 20),
+                  label: const Text('WhatsApp', style: TextStyle(fontWeight: FontWeight.w900)),
+                ),
               ),
-              TextButton.icon(
-                onPressed: sharing ? null : _copyInviteLink,
-                icon: const Icon(Icons.link_rounded),
-                label: const Text('Davet linkini kopyala'),
-                style: TextButton.styleFrom(foregroundColor: text),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: sharing ? null : _shareSms,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: text,
+                    side: BorderSide(color: text.withValues(alpha: .28)),
+                    minimumSize: const Size(0, 48),
+                  ),
+                  icon: const Icon(Icons.sms_rounded, size: 20),
+                  label: const Text('Mesaj', style: TextStyle(fontWeight: FontWeight.w900)),
+                ),
               ),
             ],
           ),
-        ),
-      ],
+          TextButton.icon(
+            onPressed: sharing ? null : _copyInviteLink,
+            icon: const Icon(Icons.link_rounded),
+            label: const Text('Davet linkini kopyala'),
+            style: TextButton.styleFrom(foregroundColor: text),
+          ),
+        ],
+      ),
     );
   }
 
@@ -669,59 +665,70 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                   const Meet6MiniBrand(),
                 ],
               ),
-              const Spacer(),
-              _searchOrb(dark),
-              const SizedBox(height: 22),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: text,
-                  fontSize: 26,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -.7,
+              const SizedBox(height: 8),
+              Expanded(
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  child: Column(
+                    children: [
+                      SizedBox(height: widget.partyMode ? 2 : 18),
+                      _searchOrb(dark),
+                      const SizedBox(height: 22),
+                      Text(
+                        title,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: text,
+                          fontSize: 26,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -.7,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        subtitle,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: text.withValues(alpha: .68),
+                          fontSize: 15,
+                          height: 1.35,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      if (!leavingForRoom && error == null) ...[
+                        const SizedBox(height: 14),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: text.withValues(alpha: .075),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            widget.partyMode
+                                ? (waitingFriend
+                                    ? 'Kod: $_partyCode'
+                                    : 'Yeni kontrol ${secondsLeft.clamp(0, 999)} sn sonra')
+                                : widget.gameMode
+                                    ? 'Yeni kontrol ${secondsLeft.clamp(0, 999)} sn sonra'
+                                    : 'Arama turu $searchCycle',
+                            style: TextStyle(
+                              color: text.withValues(alpha: .62),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ],
+                      if (widget.partyMode && waitingFriend && !leavingForRoom && error == null) ...[
+                        const SizedBox(height: 14),
+                        _partySharePanel(text),
+                      ],
+                      const SizedBox(height: 10),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(height: 10),
-              Text(
-                subtitle,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: text.withValues(alpha: .68),
-                  fontSize: 15,
-                  height: 1.35,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              if (!leavingForRoom && error == null) ...[
-                const SizedBox(height: 14),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: text.withValues(alpha: .075),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    widget.partyMode
-                        ? (waitingFriend
-                            ? 'Kod: $_partyCode'
-                            : 'Yeni kontrol ${secondsLeft.clamp(0, 999)} sn sonra')
-                        : widget.gameMode
-                            ? 'Yeni kontrol ${secondsLeft.clamp(0, 999)} sn sonra'
-                            : 'Arama turu $searchCycle',
-                    style: TextStyle(
-                      color: text.withValues(alpha: .62),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ],
-              if (widget.partyMode && waitingFriend && !leavingForRoom && error == null) ...[
-                const SizedBox(height: 14),
-                _partySharePanel(text),
-              ],
-              const Spacer(),
+              const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
                 height: 54,
