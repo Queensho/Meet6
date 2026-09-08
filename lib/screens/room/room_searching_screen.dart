@@ -315,7 +315,7 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                     icon: Icon(Icons.arrow_back_ios_new_rounded, color: text),
                   ),
                   const Spacer(),
-                  const Brand(),
+                  const Meet6MiniBrand(),
                 ],
               ),
               const Spacer(),
