@@ -10,6 +10,7 @@ import '../../services/red_flag_game_api_service.dart';
 import '../../theme/app_colors.dart';
 import '../messages/private_chat_screen.dart';
 import 'red_flag_green_flag_room_screen_v2.dart';
+import 'tabu_room_screen.dart';
 import 'two_truths_one_lie_room_screen.dart' as truths;
 
 class MiniGameRoomScreen extends StatefulWidget {
@@ -75,7 +76,7 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen>
 
   Future<String> _resolveGameKey() async {
     final selected = MiniGameSelectionService.selectedGameKey;
-    if (selected == 'red_flag_green_flag') return selected;
+    if (selected == 'red_flag_green_flag' || selected == 'tabu') return selected;
 
     try {
       final state = await RedFlagGameApiService.state(widget.roomId);
@@ -93,7 +94,8 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen>
         _forcedResult != null ||
         _finishing ||
         _checkingFinal ||
-        _resolvedGameKey == null) {
+        _resolvedGameKey == null ||
+        _resolvedGameKey == 'tabu') {
       return;
     }
     _checkingFinal = true;
@@ -273,7 +275,6 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen>
                           fontSize: 38,
                           fontWeight: FontWeight.w900,
                         ),
-                      ),
                     ),
                   ),
           ),
@@ -812,6 +813,12 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen>
             roomId: widget.roomId,
             profileName: widget.profileName,
           );
+        } else if (gameKey == 'tabu') {
+          game = TabuRoomScreen(
+            key: childKey,
+            roomId: widget.roomId,
+            profileName: widget.profileName,
+          );
         } else {
           game = PopScope(
             canPop: false,
@@ -827,34 +834,35 @@ class _MiniGameRoomScreenState extends State<MiniGameRoomScreen>
         return Stack(
           children: [
             Positioned.fill(child: game),
-            Positioned(
-              right: 14,
-              bottom: 18,
-              child: SafeArea(
-                child: FilledButton.icon(
-                  onPressed: _finishing ? null : () => _forceFinish(gameKey),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF111A2D),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-                  ),
-                  icon: _finishing
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(Icons.fast_forward_rounded, size: 20),
-                  label: const Text(
-                    'Test: Oyunu bitir',
-                    style: TextStyle(fontWeight: FontWeight.w800),
+            if (gameKey != 'tabu')
+              Positioned(
+                right: 14,
+                bottom: 18,
+                child: SafeArea(
+                  child: FilledButton.icon(
+                    onPressed: _finishing ? null : () => _forceFinish(gameKey),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF111A2D),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                    ),
+                    icon: _finishing
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.fast_forward_rounded, size: 20),
+                    label: const Text(
+                      'Test: Oyunu bitir',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
                   ),
                 ),
               ),
-            ),
           ],
         );
       },
