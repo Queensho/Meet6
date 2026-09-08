@@ -53,7 +53,9 @@ export class ActiveRoomController {
       const body = marker.rows[0]?.body ?? '';
       gameKey = body.includes('Red Flag / Green Flag')
         ? 'red_flag_green_flag'
-        : 'two_truths_one_lie';
+        : body.includes('Meet6 Tabu')
+          ? 'tabu'
+          : 'two_truths_one_lie';
     }
 
     return {
@@ -139,7 +141,6 @@ export class ActiveRoomController {
         client.release();
       }
 
-      // A one-to-one voice call is atomic: one participant leaving ends it for both.
       await this.realtime.broadcastRoomUpdate(roomId);
       return {
         ok: true,
@@ -175,11 +176,11 @@ export class ActiveRoomController {
     await this.infra.db.query('delete from voice_matchmaking_queue where user_id=$1', [userId]);
 
     const left = (result.rowCount ?? 0) > 0;
-    const row = result.rows[0];
-    const elapsedSeconds = row
-      ? Math.max(0, Math.floor((Date.now() - new Date(row.started_at).getTime()) / 1000))
+    const updated = result.rows[0];
+    const elapsedSeconds = updated
+      ? Math.max(0, Math.floor((Date.now() - new Date(updated.started_at).getTime()) / 1000))
       : Number.POSITIVE_INFINITY;
-    const refillOpen = left && row?.status === 'active' && elapsedSeconds < 5 * 60;
+    const refillOpen = left && updated?.status === 'active' && elapsedSeconds < 5 * 60;
 
     if (left) {
       await this.infra.db.query(
@@ -209,7 +210,7 @@ export class ActiveRoomController {
       ok: true,
       roomId,
       left,
-      roomMode: 'text',
+      roomMode: current.room_mode,
       refillOpen,
       refilled: refilledRooms.includes(roomId),
     };
