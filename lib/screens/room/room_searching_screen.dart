@@ -236,24 +236,12 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (_) => widget.voiceMode
-              ? VoiceRoomScreen(
-                  roomId: roomId,
-                  profileName: widget.profileName,
-                )
+              ? VoiceRoomScreen(roomId: roomId, profileName: widget.profileName)
               : widget.gameMode
                   ? (_tabu
-                      ? TabuRoomScreen(
-                          roomId: roomId,
-                          profileName: widget.profileName,
-                        )
-                      : MiniGameRoomScreen(
-                          roomId: roomId,
-                          profileName: widget.profileName,
-                        ))
-                  : RoomChatScreen(
-                      roomId: roomId,
-                      profileName: widget.profileName,
-                    ),
+                      ? TabuRoomScreen(roomId: roomId, profileName: widget.profileName)
+                      : MiniGameRoomScreen(roomId: roomId, profileName: widget.profileName))
+                  : RoomChatScreen(roomId: roomId, profileName: widget.profileName),
         ),
       );
       return;
@@ -289,14 +277,10 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
 
   String get _gameName {
     switch (_gameKey) {
-      case 'red_flag_green_flag':
-        return 'Red Flag / Green Flag';
-      case 'two_truths_one_lie':
-        return '2 Doğru 1 Yanlış';
-      case 'tabu':
-        return 'Tabu';
-      default:
-        return 'Mini oyun';
+      case 'red_flag_green_flag': return 'Red Flag / Green Flag';
+      case 'two_truths_one_lie': return '2 Doğru 1 Yanlış';
+      case 'tabu': return 'Tabu';
+      default: return 'Mini oyun';
     }
   }
 
@@ -314,17 +298,14 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
     if (!leavingForRoom) {
       if (widget.gameMode) {
         if (_tabu) {
-          unawaited(RoomQueueApiService.cancelTabuQueue()
-              .catchError((_) => <String, dynamic>{}));
+          unawaited(RoomQueueApiService.cancelTabuQueue().catchError((_) => <String, dynamic>{}));
         } else {
-          unawaited(RoomQueueApiService.cancelMiniGameQueue()
-              .catchError((_) => <String, dynamic>{}));
+          unawaited(RoomQueueApiService.cancelMiniGameQueue().catchError((_) => <String, dynamic>{}));
         }
       } else if (widget.voiceMode) {
         unawaited(VoiceRoomService.cancelQueue().catchError((_) {}));
       } else {
-        unawaited(RealtimeService.cancelQueue()
-            .catchError((_) => <String, dynamic>{}));
+        unawaited(RealtimeService.cancelQueue().catchError((_) => <String, dynamic>{}));
       }
     }
     super.dispose();
@@ -336,8 +317,7 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
       builder: (context, _) {
         final orbSize = 170 + pulse.value * 18;
         final ringColor = dark ? AppColors.lime : AppColors.navy;
-        final softRing = (dark ? Colors.white : AppColors.navy);
-
+        final softRing = dark ? Colors.white : AppColors.navy;
         return SizedBox(
           width: 300,
           height: 300,
@@ -350,9 +330,7 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                   height: 280 * factor + pulse.value * 12,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(
-                      color: softRing.withOpacity(.10 + factor * .10),
-                    ),
+                    border: Border.all(color: softRing.withOpacity(.10 + factor * .10)),
                   ),
                 ),
               SizedBox(
@@ -372,64 +350,29 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                   color: AppColors.lime,
                   shape: BoxShape.circle,
                   border: Border.all(color: AppColors.navy, width: 2.5),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.lime.withOpacity(.28),
-                      blurRadius: 34,
-                      spreadRadius: 8,
-                    ),
-                  ],
+                  boxShadow: [BoxShadow(color: AppColors.lime.withOpacity(.28), blurRadius: 34, spreadRadius: 8)],
                 ),
                 alignment: Alignment.center,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (widget.voiceMode)
-                      const Icon(
-                        Icons.mic_rounded,
-                        color: AppColors.navy,
-                        size: 46,
-                      )
+                      const Icon(Icons.mic_rounded, color: AppColors.navy, size: 46)
                     else if (widget.gameMode)
-                      const Icon(
-                        Icons.sports_esports_rounded,
-                        color: AppColors.navy,
-                        size: 48,
-                      )
+                      const Icon(Icons.sports_esports_rounded, color: AppColors.navy, size: 48)
                     else
                       Text(
                         leavingForRoom ? '6' : '${secondsLeft.clamp(0, 999)}',
-                        style: const TextStyle(
-                          color: AppColors.navy,
-                          fontSize: 70,
-                          fontWeight: FontWeight.w900,
-                          height: .9,
-                          letterSpacing: -3,
-                        ),
+                        style: const TextStyle(color: AppColors.navy, fontSize: 70, fontWeight: FontWeight.w900, height: .9, letterSpacing: -3),
                       ),
                     if (widget.voiceMode || widget.gameMode) ...[
                       const SizedBox(height: 5),
-                      Text(
-                        leavingForRoom ? 'Hazır' : '${secondsLeft.clamp(0, 999)} sn',
-                        style: const TextStyle(
-                          color: AppColors.navy,
-                          fontSize: 19,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
+                      Text(leavingForRoom ? 'Hazır' : '${secondsLeft.clamp(0, 999)} sn', style: const TextStyle(color: AppColors.navy, fontSize: 19, fontWeight: FontWeight.w900)),
                     ],
                     const SizedBox(height: 9),
                     Text(
-                      widget.voiceMode
-                          ? '1’e 1 eşleşme'
-                          : widget.gameMode
-                              ? '6 kişilik oyun'
-                              : '6 kişilik oda',
-                      style: const TextStyle(
-                        color: AppColors.navy,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w900,
-                      ),
+                      widget.voiceMode ? '1’e 1 eşleşme' : widget.gameMode ? '6 kişilik oyun' : '6 kişilik oda',
+                      style: const TextStyle(color: AppColors.navy, fontSize: 12, fontWeight: FontWeight.w900),
                     ),
                   ],
                 ),
@@ -445,36 +388,25 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final dark = theme.brightness == Brightness.dark;
-    final bg = dark ? const Color(0xFF0D1220) : const Color(0xFFF7F8FC);
+    final bg = dark ? const Color(0xFF0D1220) : AppColors.lime;
     final text = dark ? Colors.white : AppColors.navy;
 
     String title;
     String subtitle;
     if (error != null && error != 'Bağlantı yenileniyor...') {
-      title = 'Bağlantı sorunu';
-      subtitle = error!;
+      title = 'Bağlantı sorunu'; subtitle = error!;
     } else if (leavingForRoom) {
       title = widget.gameMode ? '$_gameName odası hazır!' : 'Eşleşme bulundu!';
-      subtitle = widget.gameMode
-          ? '6 oyuncu hazır. Oyun başlıyor.'
-          : widget.voiceMode
-              ? '2 kişi hazır. Sesli görüşmeye bağlanıyorsun.'
-              : '6 kişi hazır. Odaya bağlanıyorsun.';
+      subtitle = widget.gameMode ? '6 oyuncu hazır. Oyun başlıyor.' : widget.voiceMode ? '2 kişi hazır. Sesli görüşmeye bağlanıyorsun.' : '6 kişi hazır. Odaya bağlanıyorsun.';
     } else if (widget.gameMode) {
       title = '$_gameName için 6 oyuncu aranıyor...';
-      subtitle = queueTotal > 0
-          ? 'Havuzda $queueTotal kişi var. Sıra konumun: $queuePosition'
-          : '6 gerçek oyuncu hazır olduğunda oyun otomatik başlayacak.';
+      subtitle = queueTotal > 0 ? 'Havuzda $queueTotal kişi var. Sıra konumun: $queuePosition' : '6 gerçek oyuncu hazır olduğunda oyun otomatik başlayacak.';
     } else if (widget.voiceMode) {
       title = 'Premium 1’e 1 eşleşme aranıyor...';
-      subtitle = queueTotal > 0
-          ? 'Havuzda $queueTotal kişi var. Sıra konumun: $queuePosition'
-          : 'Tercihlerine uygun kullanıcı bekleniyor.';
+      subtitle = queueTotal > 0 ? 'Havuzda $queueTotal kişi var. Sıra konumun: $queuePosition' : 'Tercihlerine uygun kullanıcı bekleniyor.';
     } else {
       title = 'Oda aranıyor...';
-      subtitle = queueTotal > 0
-          ? '${widget.roomDurationMinutes} dk havuzunda $queueTotal kişi var. Sıra konumun: $queuePosition'
-          : 'Uygun kullanıcılar aranıyor.';
+      subtitle = queueTotal > 0 ? '${widget.roomDurationMinutes} dk havuzunda $queueTotal kişi var. Sıra konumun: $queuePosition' : 'Uygun kullanıcılar aranıyor.';
     }
 
     return Scaffold(
@@ -484,57 +416,25 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
           padding: const EdgeInsets.fromLTRB(22, 18, 22, 24),
           child: Column(
             children: [
-              Row(
-                children: [
-                  IconButton(
-                    onPressed: _cancel,
-                    icon: Icon(Icons.arrow_back_ios_new_rounded, color: text),
-                  ),
-                  const Spacer(),
-                  const Meet6MiniBrand(),
-                ],
-              ),
+              Row(children: [
+                IconButton(onPressed: _cancel, icon: Icon(Icons.arrow_back_ios_new_rounded, color: text)),
+                const Spacer(),
+                const Meet6MiniBrand(),
+              ]),
               const Spacer(),
               _searchOrb(dark),
               const SizedBox(height: 26),
-              Text(
-                title,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: text,
-                  fontSize: 26,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -.7,
-                ),
-              ),
+              Text(title, textAlign: TextAlign.center, style: TextStyle(color: text, fontSize: 26, fontWeight: FontWeight.w900, letterSpacing: -.7)),
               const SizedBox(height: 10),
-              Text(
-                subtitle,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: text.withOpacity(.62),
-                  fontSize: 15,
-                  height: 1.35,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+              Text(subtitle, textAlign: TextAlign.center, style: TextStyle(color: text.withOpacity(.62), fontSize: 15, height: 1.35, fontWeight: FontWeight.w700)),
               if (!leavingForRoom && error == null) ...[
                 const SizedBox(height: 16),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: text.withOpacity(.055),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
+                  decoration: BoxDecoration(color: text.withOpacity(.055), borderRadius: BorderRadius.circular(999)),
                   child: Text(
-                    widget.gameMode
-                        ? 'Yeni kontrol ${secondsLeft.clamp(0, 999)} sn sonra'
-                        : 'Arama turu $searchCycle',
-                    style: TextStyle(
-                      color: text.withOpacity(.55),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                    ),
+                    widget.gameMode ? 'Yeni kontrol ${secondsLeft.clamp(0, 999)} sn sonra' : 'Arama turu $searchCycle',
+                    style: TextStyle(color: text.withOpacity(.55), fontSize: 12, fontWeight: FontWeight.w800),
                   ),
                 ),
               ],
@@ -547,14 +447,9 @@ class _RoomSearchingScreenState extends State<RoomSearchingScreen>
                   style: OutlinedButton.styleFrom(
                     foregroundColor: text,
                     side: BorderSide(color: text.withOpacity(.2)),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
-                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
                   ),
-                  child: const Text(
-                    'Aramayı iptal et',
-                    style: TextStyle(fontWeight: FontWeight.w800),
-                  ),
+                  child: const Text('Aramayı iptal et', style: TextStyle(fontWeight: FontWeight.w800)),
                 ),
               ),
             ],
